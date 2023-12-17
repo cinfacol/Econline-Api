@@ -30,6 +30,7 @@ PROJECT_APPS = [
     "common.apps.CommonConfig",
     "users.apps.UsersConfig",
     "profiles.apps.ProfilesConfig",
+    "ratings.apps.RatingsConfig",
 ]
 
 ECOMMERCE_APPS = []
