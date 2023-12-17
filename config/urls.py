@@ -8,6 +8,8 @@ urlpatterns = [
     path("api/auth/", include("djoser.urls")),
     path("api/auth/", include("djoser.urls.jwt")),
     path("api/profile/", include("profiles.urls")),
-]
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
-urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+admin.site.site_header = "Ecommerce Online Admin"
+admin.site.site_title = "Ecommerce Online Admin Portal"
+admin.site.index_title = "Welcome to the Ecommerce Online Portal"

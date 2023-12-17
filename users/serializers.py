@@ -1,6 +1,6 @@
 from django.contrib.auth import get_user_model
 
-# from django_countries.serializer_fields import CountryField
+from django_countries.serializer_fields import CountryField
 from djoser.serializers import UserCreateSerializer
 from phonenumber_field.serializerfields import PhoneNumberField
 from rest_framework import serializers
@@ -17,7 +17,7 @@ class UserSerializer(serializers.ModelSerializer):
     top_agent = serializers.BooleanField(source="profile.top_agent")
     first_name = serializers.SerializerMethodField()
     last_name = serializers.SerializerMethodField()
-    # full_name = serializers.SerializerMethodField(source="get_full_name")
+    full_name = serializers.SerializerMethodField(source="get_full_name")
 
     class Meta:
         model = User
@@ -27,7 +27,7 @@ class UserSerializer(serializers.ModelSerializer):
             "email",
             "first_name",
             "last_name",
-            # "full_name",
+            "full_name",
             "gender",
             "phone_number",
             "profile_photo",
