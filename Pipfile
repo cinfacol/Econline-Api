@@ -1,0 +1,24 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+django = "*"
+djangorestframework = "*"
+djangorestframework-simplejwt = "*"
+pillow = "*"
+django-cors-headers = "*"
+django-environ = "*"
+psycopg2-binary = "*"
+django-autoslug = "*"
+django-countries = "*"
+django-filter = "*"
+django-phonenumber-field = "*"
+phonenumbers = "*"
+djoser = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.10"
