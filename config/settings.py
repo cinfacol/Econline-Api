@@ -1,5 +1,6 @@
 from pathlib import Path
 from datetime import timedelta
+from django.utils.translation import gettext_lazy as _
 
 import environ
 
@@ -57,6 +58,7 @@ MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.locale.LocaleMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -140,8 +142,8 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 
-LANGUAGE_CODE = "en-us"
-TIME_ZONE = "UTC"
+LANGUAGE_CODE = "es-es"
+TIME_ZONE = "America/Bogota"
 USE_I18N = True
 USE_TZ = True
 
@@ -152,6 +154,14 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIR = []
 MEDIA_URL = "/mediafiles/"
 MEDIA_ROOT = BASE_DIR / "mediafiles"
+
+LANGUAGE_CODE = "es"
+LANGUAGES = [
+    ("en", _("English")),
+    ("es", _("Spanish")),
+]
+
+LOCALE_PATH = BASE_DIR / "locale/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
