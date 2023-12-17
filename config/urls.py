@@ -11,6 +11,7 @@ urlpatterns = [
     path("api/products/", include("products.urls")),
     path("api/ratings/", include("ratings.urls")),
     path("api/enquiries/", include("enquiries.urls")),
+    path("i18n", include("django.conf.urls.i18n")),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 admin.site.site_header = "Ecommerce Online Admin"

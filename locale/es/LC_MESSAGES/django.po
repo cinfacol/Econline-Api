@@ -1,0 +1,310 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2023-12-17 19:10+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+#: config/settings.py:160
+msgid "English"
+msgstr "Inglés"
+
+#: config/settings.py:161
+msgid "Spanish"
+msgstr "Español"
+
+#: enquiries/models.py:9
+msgid "Your Name"
+msgstr "Tu Nombre"
+
+#: enquiries/models.py:11
+msgid "Phone number"
+msgstr "Número Teléfono"
+
+#: enquiries/models.py:13
+msgid "Email"
+msgstr "Correo"
+
+#: enquiries/models.py:14
+msgid "Subject"
+msgstr "Sujeto"
+
+#: enquiries/models.py:15
+msgid "Message"
+msgstr "Mensaje"
+
+#: products/models.py:33
+msgid "House"
+msgstr "Casa"
+
+#: products/models.py:34
+msgid "Apartment"
+msgstr "Apartamento"
+
+#: products/models.py:35
+msgid "Office"
+msgstr "Oficina"
+
+#: products/models.py:36
+msgid "Warehouse"
+msgstr "Depósito"
+
+#: products/models.py:37
+msgid "Commercial"
+msgstr "Commercial"
+
+#: products/models.py:38 profiles/models.py:15
+msgid "Other"
+msgstr "Otro"
+
+#: products/models.py:42
+msgid "Agent,Seller or Buyer"
+msgstr "Agente, Vendedor o Comprador"
+
+#: products/models.py:47
+msgid "Product Title"
+msgstr "Título del Producto"
+
+#: products/models.py:50
+msgid "Product Reference Code"
+msgstr "Código de Referencia del Producto"
+
+#: products/models.py:56
+msgid "Description"
+msgstr "Descripción"
+
+#: products/models.py:72
+msgid "Product Number"
+msgstr "Número del Producto"
+
+#: products/models.py:77
+msgid "Price"
+msgstr "Precio"
+
+#: products/models.py:80
+msgid "Product Tax"
+msgstr "Impuesto del Producdto"
+
+#: products/models.py:102
+msgid "Product Type"
+msgstr "Tipo de Producto"
+
+#: products/models.py:109
+msgid "Main Photo"
+msgstr "Foto Principal"
+
+#: products/models.py:132
+msgid "Published Status"
+msgstr "Estado de la Publicación"
+
+#: products/models.py:134
+msgid "Total Views"
+msgstr "Total de Vistas"
+
+#: products/models.py:164
+msgid "IP Address"
+msgstr "Dirección IP"
+
+#: profiles/models.py:13
+msgid "Male"
+msgstr "Hombre"
+
+#: profiles/models.py:14
+msgid "Female"
+msgstr "Mujer"
+
+#: profiles/models.py:19
+msgid "Unverified"
+msgstr "No verificado"
+
+#: profiles/models.py:20 profiles/models.py:49
+msgid "Verified"
+msgstr "Verificado"
+
+#: profiles/models.py:26
+msgid "Phone Number"
+msgstr "Número de Teléfono"
+
+#: profiles/models.py:29
+msgid "About me"
+msgstr "Acerca de mi"
+
+#: profiles/models.py:34
+msgid "Real Estate license"
+msgstr "Licencia Inmoviliario"
+
+#: profiles/models.py:37
+msgid "Profile Photo"
+msgstr "Foto de Perfíl"
+
+#: profiles/models.py:43
+msgid "Gender"
+msgstr "Género"
+
+#: profiles/models.py:55
+msgid "Country"
+msgstr "País"
+
+#: profiles/models.py:58
+msgid "City"
+msgstr "Ciudad"
+
+#: profiles/models.py:65
+msgid "Departamento"
+msgstr "Departamento"
+
+#: profiles/models.py:73
+msgid "Buyer"
+msgstr "Comprador"
+
+#: profiles/models.py:75
+msgid "Are you looking to Buy a Property?"
+msgstr "¿Estás buscando Comprar un Producto?"
+
+#: profiles/models.py:78
+msgid "Seller"
+msgstr "Vendedor"
+
+#: profiles/models.py:80
+msgid "Are you looking to sell a property?"
+msgstr "¿Estás Buscando vender un Producto?"
+
+#: profiles/models.py:83
+msgid "Agent"
+msgstr "Agente"
+
+#: profiles/models.py:83
+msgid "Are you an agent?"
+msgstr "¿Eres un Agente?"
+
+#: profiles/models.py:85
+msgid "Top Agent"
+msgstr "Agente Superior"
+
+#: profiles/models.py:88
+msgid "Number of Reviews"
+msgstr "Número de Reseñas"
+
+#: ratings/models.py:11
+msgid "Poor"
+msgstr "Pobre"
+
+#: ratings/models.py:12
+msgid "Fair"
+msgstr "Justo"
+
+#: ratings/models.py:13
+msgid "Good"
+msgstr "Bien"
+
+#: ratings/models.py:14
+msgid "Very Good"
+msgstr "muy Bien"
+
+#: ratings/models.py:15
+msgid "Excellent"
+msgstr "Excelente"
+
+#: ratings/models.py:19
+msgid "User providing the rating"
+msgstr "Calificación por el Usuario"
+
+#: ratings/models.py:25
+msgid "Agent being rated"
+msgstr "Usuario siendo Calificado"
+
+#: ratings/models.py:31
+msgid "Rating"
+msgstr "Calificación"
+
+#: ratings/models.py:36
+msgid "Comment"
+msgstr "Comentario"
+
+#: users/admin.py:35
+msgid "Login Credentials"
+msgstr "Credenciales de Acceso"
+
+#: users/admin.py:44
+msgid "Personal Information"
+msgstr "Información Personal"
+
+#: users/admin.py:54
+msgid "Permissions and Groups"
+msgstr "Permisos y Grupos"
+
+#: users/admin.py:65
+msgid "Important Dates"
+msgstr "Fechas Importantes"
+
+#: users/managers.py:12
+msgid "You must provide a valid email address"
+msgstr "Debes proporcionar un correo válido"
+
+#: users/managers.py:18
+msgid "Users must submit a username"
+msgstr "Los Usuarios deben ingresar un Nombre de Usuario"
+
+#: users/managers.py:21
+msgid "Users must submit a first name"
+msgstr "Los Usuarios deben ingresar un Nombre"
+
+#: users/managers.py:24
+msgid "Users must submit a last name"
+msgstr "Los Usuarios deben ingresar un Apellido"
+
+#: users/managers.py:30
+msgid "Base User Account: An email address is required"
+msgstr "Un correo electónico es requerido"
+
+#: users/managers.py:54
+msgid "Superusers must have is_staff=True"
+msgstr "Superusuarios deben ser staff"
+
+#: users/managers.py:57
+msgid "Superusers must have is_superuser=True"
+msgstr "Superusuarios deben ser superuser"
+
+#: users/managers.py:60
+msgid "Superusers must have a password"
+msgstr "Superusuarios deben tener una contraseña"
+
+#: users/managers.py:66
+msgid "Admin Account: An email address is required"
+msgstr "Se requiere la dirección de Correo Electrónico"
+
+#: users/models.py:14
+msgid "Username"
+msgstr "Nombre de Ususario"
+
+#: users/models.py:15
+msgid "First Name"
+msgstr "Nombres"
+
+#: users/models.py:16
+msgid "Last Name"
+msgstr "Apellido"
+
+#: users/models.py:17
+msgid "Email Address"
+msgstr "Correo Electrónico"
+
+#: users/models.py:28
+msgid "User"
+msgstr "Usuario"
+
+#: users/models.py:29
+msgid "Users"
+msgstr "Usuarios"

@@ -1,0 +1,310 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2023-12-17 19:10+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+#: config/settings.py:160
+msgid "English"
+msgstr "English"
+
+#: config/settings.py:161
+msgid "Spanish"
+msgstr "Spanish"
+
+#: enquiries/models.py:9
+msgid "Your Name"
+msgstr "Your Name"
+
+#: enquiries/models.py:11
+msgid "Phone number"
+msgstr "Phone number"
+
+#: enquiries/models.py:13
+msgid "Email"
+msgstr "Email"
+
+#: enquiries/models.py:14
+msgid "Subject"
+msgstr "Subject"
+
+#: enquiries/models.py:15
+msgid "Message"
+msgstr "Message"
+
+#: products/models.py:33
+msgid "House"
+msgstr "House"
+
+#: products/models.py:34
+msgid "Apartment"
+msgstr "Apartment"
+
+#: products/models.py:35
+msgid "Office"
+msgstr ""
+
+#: products/models.py:36
+msgid "Warehouse"
+msgstr "Office"
+
+#: products/models.py:37
+msgid "Commercial"
+msgstr "Commercial"
+
+#: products/models.py:38 profiles/models.py:15
+msgid "Other"
+msgstr "Other"
+
+#: products/models.py:42
+msgid "Agent,Seller or Buyer"
+msgstr "Agent,Seller or Buyer"
+
+#: products/models.py:47
+msgid "Product Title"
+msgstr "Product Title"
+
+#: products/models.py:50
+msgid "Product Reference Code"
+msgstr "Product Reference Code"
+
+#: products/models.py:56
+msgid "Description"
+msgstr "Description"
+
+#: products/models.py:72
+msgid "Product Number"
+msgstr "Product Number"
+
+#: products/models.py:77
+msgid "Price"
+msgstr "Price"
+
+#: products/models.py:80
+msgid "Product Tax"
+msgstr "Product Tax"
+
+#: products/models.py:102
+msgid "Product Type"
+msgstr "Product Type"
+
+#: products/models.py:109
+msgid "Main Photo"
+msgstr "Main Photo"
+
+#: products/models.py:132
+msgid "Published Status"
+msgstr "Published Status"
+
+#: products/models.py:134
+msgid "Total Views"
+msgstr "Total Views"
+
+#: products/models.py:164
+msgid "IP Address"
+msgstr "IP Address"
+
+#: profiles/models.py:13
+msgid "Male"
+msgstr "Male"
+
+#: profiles/models.py:14
+msgid "Female"
+msgstr "Female"
+
+#: profiles/models.py:19
+msgid "Unverified"
+msgstr "Unverified"
+
+#: profiles/models.py:20 profiles/models.py:49
+msgid "Verified"
+msgstr "Verified"
+
+#: profiles/models.py:26
+msgid "Phone Number"
+msgstr "Phone Number"
+
+#: profiles/models.py:29
+msgid "About me"
+msgstr "About me"
+
+#: profiles/models.py:34
+msgid "Real Estate license"
+msgstr "Real Estate license"
+
+#: profiles/models.py:37
+msgid "Profile Photo"
+msgstr "Profile Photo"
+
+#: profiles/models.py:43
+msgid "Gender"
+msgstr "Gender"
+
+#: profiles/models.py:55
+msgid "Country"
+msgstr "Country"
+
+#: profiles/models.py:58
+msgid "City"
+msgstr "City"
+
+#: profiles/models.py:65
+msgid "Departamento"
+msgstr "State"
+
+#: profiles/models.py:73
+msgid "Buyer"
+msgstr "Buyer"
+
+#: profiles/models.py:75
+msgid "Are you looking to Buy a Property?"
+msgstr "Are you looking to Buy a Product?"
+
+#: profiles/models.py:78
+msgid "Seller"
+msgstr "Seller"
+
+#: profiles/models.py:80
+msgid "Are you looking to sell a property?"
+msgstr "Are you looking to sell a Product?"
+
+#: profiles/models.py:83
+msgid "Agent"
+msgstr "Agent"
+
+#: profiles/models.py:83
+msgid "Are you an agent?"
+msgstr "Are you an agent?"
+
+#: profiles/models.py:85
+msgid "Top Agent"
+msgstr "Top Agent"
+
+#: profiles/models.py:88
+msgid "Number of Reviews"
+msgstr "Number of Reviews"
+
+#: ratings/models.py:11
+msgid "Poor"
+msgstr "Poor"
+
+#: ratings/models.py:12
+msgid "Fair"
+msgstr "Fair"
+
+#: ratings/models.py:13
+msgid "Good"
+msgstr "Good"
+
+#: ratings/models.py:14
+msgid "Very Good"
+msgstr "Very Good"
+
+#: ratings/models.py:15
+msgid "Excellent"
+msgstr "Excellent"
+
+#: ratings/models.py:19
+msgid "User providing the rating"
+msgstr "User providing the rating"
+
+#: ratings/models.py:25
+msgid "Agent being rated"
+msgstr "Agent being rated"
+
+#: ratings/models.py:31
+msgid "Rating"
+msgstr "Rating"
+
+#: ratings/models.py:36
+msgid "Comment"
+msgstr "Comment"
+
+#: users/admin.py:35
+msgid "Login Credentials"
+msgstr "Login Credentials"
+
+#: users/admin.py:44
+msgid "Personal Information"
+msgstr "Personal Information"
+
+#: users/admin.py:54
+msgid "Permissions and Groups"
+msgstr "Permissions and Groups"
+
+#: users/admin.py:65
+msgid "Important Dates"
+msgstr "Important Dates"
+
+#: users/managers.py:12
+msgid "You must provide a valid email address"
+msgstr "You must provide a valid email address"
+
+#: users/managers.py:18
+msgid "Users must submit a username"
+msgstr "Users must submit a username"
+
+#: users/managers.py:21
+msgid "Users must submit a first name"
+msgstr "Users must submit a first name"
+
+#: users/managers.py:24
+msgid "Users must submit a last name"
+msgstr "Users must submit a last name"
+
+#: users/managers.py:30
+msgid "Base User Account: An email address is required"
+msgstr "Base User Account: An email address is required"
+
+#: users/managers.py:54
+msgid "Superusers must have is_staff=True"
+msgstr "Superusers must have is_staff=True"
+
+#: users/managers.py:57
+msgid "Superusers must have is_superuser=True"
+msgstr "Superusers must have is_superuser=True"
+
+#: users/managers.py:60
+msgid "Superusers must have a password"
+msgstr "Superusers must have a password"
+
+#: users/managers.py:66
+msgid "Admin Account: An email address is required"
+msgstr "Admin Account: An email address is required"
+
+#: users/models.py:14
+msgid "Username"
+msgstr "Username"
+
+#: users/models.py:15
+msgid "First Name"
+msgstr "First Name"
+
+#: users/models.py:16
+msgid "Last Name"
+msgstr "Last Name"
+
+#: users/models.py:17
+msgid "Email Address"
+msgstr "Email Address"
+
+#: users/models.py:28
+msgid "User"
+msgstr "User"
+
+#: users/models.py:29
+msgid "Users"
+msgstr "Users"
