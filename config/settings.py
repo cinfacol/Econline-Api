@@ -33,7 +33,10 @@ PROJECT_APPS = [
     "ratings.apps.RatingsConfig",
 ]
 
-ECOMMERCE_APPS = []
+ECOMMERCE_APPS = [
+    "products.apps.ProductsConfig",
+    "enquiries.apps.EnquiriesConfig",
+]
 
 THIRD_PARTY_APPS = [
     "corsheaders",
