@@ -1,13 +1,14 @@
-# from django_countries.serializer_fields import CountryField
-# from django_countries.serializers import CountryFieldMixin
 from rest_framework import serializers
 
 from .models import Product, ProductViews
 
+from categories.serializers import CategorySerializer
+
 
 class ProductSerializer(serializers.ModelSerializer):
+    # category: CategorySerializer
     user = serializers.SerializerMethodField()
-    # country = CountryField(name_only=True)
+    category = serializers.StringRelatedField()
     cover_photo = serializers.SerializerMethodField()
     profile_photo = serializers.SerializerMethodField()
     photo1 = serializers.SerializerMethodField()
@@ -25,19 +26,11 @@ class ProductSerializer(serializers.ModelSerializer):
             "slug",
             "ref_code",
             "description",
-            # "country",
-            # "city",
-            # "postal_code",
-            # "street_address",
             "product_number",
             "price",
             "tax",
             "final_product_price",
-            # "plot_area",
-            # "total_floors",
-            # "bedrooms",
-            # "bathrooms",
-            # "advert_type",
+            "category",
             "product_type",
             "cover_photo",
             "photo1",
@@ -71,8 +64,6 @@ class ProductSerializer(serializers.ModelSerializer):
 
 
 class ProductCreateSerializer(serializers.ModelSerializer):
-    # country = CountryField(name_only=True)
-
     class Meta:
         model = Product
         exclude = ["updated_at", "pkid"]

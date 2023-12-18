@@ -7,8 +7,6 @@ from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
-# from django_countries.fields import CountryField
-
 from categories.models import Category
 from common.models import TimeStampedUUIDModel
 
@@ -25,11 +23,6 @@ class ProductPublishedManager(models.Manager):
 
 
 class Product(TimeStampedUUIDModel):
-    """class AdvertType(models.TextChoices):
-    FOR_SALE = "For Sale", _("For Sale")
-    FOR_RENT = "For Rent", _("For Rent")
-    AUCTION = "Auction", _("Auction")"""
-
     class ProductType(models.TextChoices):
         HOUSE = "House", _("House")
         APARTMENT = "Apartment", _("Apartment")
@@ -57,18 +50,6 @@ class Product(TimeStampedUUIDModel):
         verbose_name=_("Description"),
         default="Default description...update me please....",
     )
-    """ country = CountryField(
-        verbose_name=_("Country"),
-        default="KE",
-        blank_label="(select country)",
-    )
-    city = models.CharField(verbose_name=_("City"), max_length=180, default="Nairobi")
-    postal_code = models.CharField(
-        verbose_name=_("Postal Code"), max_length=100, default="140"
-    )
-    street_address = models.CharField(
-        verbose_name=_("Street Address"), max_length=150, default="KG8 Avenue"
-    ) """
     product_number = models.IntegerField(
         verbose_name=_("Product Number"),
         validators=[MinValueValidator(1)],
@@ -85,22 +66,8 @@ class Product(TimeStampedUUIDModel):
         help_text="15% product tax charged",
     )
     category = models.ForeignKey(
-        Category, related_name="prod_category", on_delete=models.CASCADE
+        Category, related_name="products", on_delete=models.CASCADE, default=1
     )
-    """ plot_area = models.DecimalField(
-        verbose_name=_("Plot Area(m^2)"), max_digits=8, decimal_places=2, default=0.0
-    )
-    total_floors = models.IntegerField(verbose_name=_("Number of floors"), default=0)
-    bedrooms = models.IntegerField(verbose_name=_("Bedrooms"), default=1)
-    bathrooms = models.DecimalField(
-        verbose_name=_("Bathrooms"), max_digits=4, decimal_places=2, default=1.0
-    ) """
-    """ advert_type = models.CharField(
-        verbose_name=_("Advert Type"),
-        max_length=50,
-        choices=AdvertType.choices,
-        default=AdvertType.FOR_SALE,
-    ) """
 
     product_type = models.CharField(
         verbose_name=_("Product Type"),
