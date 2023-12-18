@@ -37,6 +37,7 @@ PROJECT_APPS = [
 ECOMMERCE_APPS = [
     "products.apps.ProductsConfig",
     "enquiries.apps.EnquiriesConfig",
+    "categories.apps.CategoriesConfig",
 ]
 
 THIRD_PARTY_APPS = [

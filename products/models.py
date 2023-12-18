@@ -9,6 +9,7 @@ from django.utils.translation import gettext_lazy as _
 
 # from django_countries.fields import CountryField
 
+from categories.models import Category
 from common.models import TimeStampedUUIDModel
 
 User = get_user_model()
@@ -82,6 +83,9 @@ class Product(TimeStampedUUIDModel):
         decimal_places=2,
         default=0.15,
         help_text="15% product tax charged",
+    )
+    category = models.ForeignKey(
+        Category, related_name="prod_category", on_delete=models.CASCADE
     )
     """ plot_area = models.DecimalField(
         verbose_name=_("Plot Area(m^2)"), max_digits=8, decimal_places=2, default=0.0

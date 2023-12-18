@@ -9,6 +9,7 @@ urlpatterns = [
     path("api/auth/", include("djoser.urls.jwt")),
     path("api/profile/", include("profiles.urls")),
     path("api/products/", include("products.urls")),
+    path("api/categories/", include("categories.urls")),
     path("api/ratings/", include("ratings.urls")),
     path("api/enquiries/", include("enquiries.urls")),
     path("i18n", include("django.conf.urls.i18n")),
