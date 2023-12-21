@@ -17,6 +17,7 @@ django-filter = "*"
 django-phonenumber-field = "*"
 phonenumbers = "*"
 djoser = "*"
+django-ckeditor = "*"
 
 [dev-packages]
 

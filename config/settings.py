@@ -10,9 +10,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 environ.Env.read_env(BASE_DIR / ".env")
 
-SECRET_KEY = env("SECRET_KEY")
+DEBUG = env("DEBUG")
 
-DEBUG = True
+SECRET_KEY = env("SECRET_KEY")
 
 ALLOWED_HOSTS = env("ALLOWED_HOSTS").split(" ")
 
@@ -48,15 +48,23 @@ THIRD_PARTY_APPS = [
     "django_countries",
     "phonenumber_field",
     "djoser",
+    "social_django",
     "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",
+    "ckeditor",
+    "ckeditor_uploader",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + PROJECT_APPS + ECOMMERCE_APPS + THIRD_PARTY_APPS
 
+CKEDITOR_CONFIGS = {"default": {"toolbar": "full", "autoParagraph": False}}
+
+CKEDITOR_UPLOAD_PATH = "/mediafiles/"
+
 SITE_ID = 1
 
 MIDDLEWARE = [
+    "social_django.middleware.SocialAuthExceptionMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -111,6 +119,45 @@ DEFAULT_FROM_EMAIL = "cinfacol@gmail.com"
 DOMAIN = env("DOMAIN")
 SITE_NAME = "Ecommerce Online"
 
+CORS_ORIGIN_ALLOW_ALL = True
+
+CORS_ALLOW_CREDENTIALS = True
+
+CORS_ALLOW_METHODS = [
+    "DELETE",
+    "GET",
+    "OPTIONS",
+    "PATCH",
+    "POST",
+    "PUT",
+]
+
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "content-type",
+    "dnt",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+]
+
+CORS_ORIGIN_WHITELIST = [
+    "http://localhost:3000",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    "http://127.0.0.1:3000",
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:3000",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    "http://127.0.0.1:3000",
+]
+
 # AUTH_COOKIE = "access"
 # AUTH_COOKIE_MAX_AGE = 60 * 60 * 24
 # # AUTH_COOKIE_SECURE = env("AUTH_COOKIE_SECURE", "True") == "True"
@@ -153,7 +200,7 @@ AUTH_USER_MODEL = "users.User"
 
 STATIC_URL = "/staticfiles/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
-STATICFILES_DIR = []
+STATICFILES_DIRS = []
 MEDIA_URL = "/mediafiles/"
 MEDIA_ROOT = BASE_DIR / "mediafiles"
 
@@ -166,58 +213,6 @@ LANGUAGES = [
 LOCALE_PATH = BASE_DIR / "locale/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-
-CORS_ORIGIN_ALLOW_ALL = True
-
-CORS_ALLOW_CREDENTIALS = True
-
-
-CORS_ALLOW_METHODS = [
-    "DELETE",
-    "GET",
-    "OPTIONS",
-    "PATCH",
-    "POST",
-    "PUT",
-]
-CORS_ALLOW_HEADERS = [
-    "accept",
-    "accept-encoding",
-    "authorization",
-    "content-type",
-    "dnt",
-    "origin",
-    "user-agent",
-    "x-csrftoken",
-    "x-requested-with",
-]
-
-CORS_ORIGIN_WHITELIST = [
-    "http://localhost:3000",
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
-    "http://localhost:8080",
-    "http://127.0.0.1:8080",
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:1337",
-    "http://127.0.0.1:80",
-    "http://localhost:1337",
-    "http://localhost:80",
-    "http://localhost",
-]
-
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:3000",
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:8080",
-    "http://localhost:8080",
-    "http://localhost:5557",
-    "http://127.0.0.1:5557",
-    "http://127.0.0.1",
-    "http://localhost",
-]
 
 SIMPLE_JWT = {
     "AUTH_HEADER_TYPES": (
@@ -258,6 +253,8 @@ REST_FRAMEWORK = {
 }
 
 AUTHENTICATION_BACKENDS = [
+    "social_core.backends.google.GoogleOAuth2",
+    "social_core.backends.facebook.FacebookOAuth2",
     "django.contrib.auth.backends.ModelBackend",
 ]
 

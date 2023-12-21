@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "dcf68ed08de77abef2b0ea13e2ed3f32bbc68c687e1e6b2900667f8eee5db9cd"
+            "sha256": "bfbba432d250ffefc57ade31e47855f3fdb3fc5ac4e355ea0d8f5de5885684ec"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -239,6 +239,14 @@
             "index": "pypi",
             "version": "==1.9.9"
         },
+        "django-ckeditor": {
+            "hashes": [
+                "sha256:0489f7a6ae93360d328f77cea17c04891103cbdfa6c962af386bbe47e811671b",
+                "sha256:73399fb8f56f565e7519b57adbd7c585623db2cdc8c75666f56918d3eecf7906"
+            ],
+            "index": "pypi",
+            "version": "==6.7.0"
+        },
         "django-cors-headers": {
             "hashes": [
                 "sha256:0b1fd19297e37417fc9f835d39e45c8c642938ddba1acce0c1753d3edef04f36",
@@ -270,6 +278,14 @@
             ],
             "index": "pypi",
             "version": "==23.5"
+        },
+        "django-js-asset": {
+            "hashes": [
+                "sha256:0c57a82cae2317e83951d956110ce847f58ff0cdc24e314dbc18b35033917e94",
+                "sha256:7ef3e858e13d06f10799b56eea62b1e76706f42cf4e709be4e13356bc0ae30d8"
+            ],
+            "markers": "python_version >= '3.8'",
+            "version": "==2.2.0"
         },
         "django-phonenumber-field": {
             "hashes": [
@@ -328,11 +344,11 @@
         },
         "phonenumbers": {
             "hashes": [
-                "sha256:937d70aeceb317f5831dfec28de855a60260ef4a9d551964bec8e7a7d0cf81cd",
-                "sha256:b2308c9c5750b8f10dd30d94547afd66bce60ac5e93aff227f95740557f32752"
+                "sha256:97269235cfd99b907d96bf6223599d3347010ea93bba9d06f88629c021fc2166",
+                "sha256:983bda7a3a8b2fad31806db109d4d36b2758ed16d0ab7ad5e737541a67d4637e"
             ],
             "index": "pypi",
-            "version": "==8.13.26"
+            "version": "==8.13.27"
         },
         "pillow": {
             "hashes": [
