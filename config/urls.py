@@ -12,6 +12,7 @@ urlpatterns = [
     path("api/categories/", include("categories.urls")),
     path("api/ratings/", include("ratings.urls")),
     path("api/enquiries/", include("enquiries.urls")),
+    path("api/orders/", include("orders.urls")),
     path("i18n", include("django.conf.urls.i18n")),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
