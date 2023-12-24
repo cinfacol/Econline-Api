@@ -31,7 +31,7 @@ class Profile(TimeStampedUUIDModel):
     address_line_1 = models.CharField(max_length=255, default="")
     address_line_2 = models.CharField(max_length=255, default="", blank=True, null=True)
     license = models.CharField(
-        verbose_name=_("Real Estate license"), max_length=20, blank=True, null=True
+        verbose_name=_("Store License"), max_length=20, blank=True, null=True
     )
     profile_photo = models.ImageField(
         verbose_name=_("Profile Photo"),
@@ -71,13 +71,13 @@ class Profile(TimeStampedUUIDModel):
     zipcode = models.CharField(max_length=20, default="")
     is_buyer = models.BooleanField(
         verbose_name=_("Buyer"),
-        default=False,
-        help_text=_("Are you looking to Buy a Property?"),
+        default=True,
+        help_text=_("Are you looking to Buy a product?"),
     )
     is_seller = models.BooleanField(
         verbose_name=_("Seller"),
         default=False,
-        help_text=_("Are you looking to sell a property?"),
+        help_text=_("Are you looking to sell a product?"),
     )
     is_agent = models.BooleanField(
         verbose_name=_("Agent"), default=False, help_text=_("Are you an agent?")

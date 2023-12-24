@@ -7,41 +7,157 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
-    dependencies = [
-    ]
+    dependencies = []
 
     operations = [
         migrations.CreateModel(
-            name='Profile',
+            name="Profile",
             fields=[
-                ('pkid', models.BigAutoField(editable=False, primary_key=True, serialize=False)),
-                ('id', models.UUIDField(default=uuid.uuid4, editable=False, unique=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('phone_number', phonenumber_field.modelfields.PhoneNumberField(default='+573142544178', max_length=30, region=None, verbose_name='Phone Number')),
-                ('about_me', models.TextField(default='say something about yourself', verbose_name='About me')),
-                ('address_line_1', models.CharField(default='', max_length=255)),
-                ('address_line_2', models.CharField(blank=True, default='', max_length=255, null=True)),
-                ('license', models.CharField(blank=True, max_length=20, null=True, verbose_name='Real Estate license')),
-                ('profile_photo', models.ImageField(blank=True, default='/profile_default.png', null=True, upload_to='', verbose_name='Profile Photo')),
-                ('gender', models.CharField(choices=[('Male', 'Male'), ('Female', 'Female'), ('Other', 'Other')], default='Other', max_length=20, verbose_name='Gender')),
-                ('verified', models.CharField(choices=[('Unverified', 'Unverified'), ('Verified', 'Verified')], default='Unverified', max_length=20, verbose_name='Verified')),
-                ('country', django_countries.fields.CountryField(default='CO', max_length=2, verbose_name='Country')),
-                ('city', models.CharField(default='Cali', max_length=180, verbose_name='City')),
-                ('departamento', models.CharField(default='Valle del Cauca', max_length=180, verbose_name='Departamento')),
-                ('zipcode', models.CharField(default='', max_length=20)),
-                ('is_buyer', models.BooleanField(default=False, help_text='Are you looking to Buy a Property?', verbose_name='Buyer')),
-                ('is_seller', models.BooleanField(default=False, help_text='Are you looking to sell a property?', verbose_name='Seller')),
-                ('is_agent', models.BooleanField(default=False, help_text='Are you an agent?', verbose_name='Agent')),
-                ('top_agent', models.BooleanField(default=False, verbose_name='Top Agent')),
-                ('rating', models.DecimalField(blank=True, decimal_places=2, max_digits=4, null=True)),
-                ('num_reviews', models.IntegerField(blank=True, default=0, null=True, verbose_name='Number of Reviews')),
+                (
+                    "pkid",
+                    models.BigAutoField(
+                        editable=False, primary_key=True, serialize=False
+                    ),
+                ),
+                (
+                    "id",
+                    models.UUIDField(default=uuid.uuid4, editable=False, unique=True),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                (
+                    "phone_number",
+                    phonenumber_field.modelfields.PhoneNumberField(
+                        default="+573142544178",
+                        max_length=30,
+                        region=None,
+                        verbose_name="Phone Number",
+                    ),
+                ),
+                (
+                    "about_me",
+                    models.TextField(
+                        default="say something about yourself", verbose_name="About me"
+                    ),
+                ),
+                ("address_line_1", models.CharField(default="", max_length=255)),
+                (
+                    "address_line_2",
+                    models.CharField(blank=True, default="", max_length=255, null=True),
+                ),
+                (
+                    "license",
+                    models.CharField(
+                        blank=True,
+                        max_length=20,
+                        null=True,
+                        verbose_name="Real Estate license",
+                    ),
+                ),
+                (
+                    "profile_photo",
+                    models.ImageField(
+                        blank=True,
+                        default="/profile_default.png",
+                        null=True,
+                        upload_to="",
+                        verbose_name="Profile Photo",
+                    ),
+                ),
+                (
+                    "gender",
+                    models.CharField(
+                        choices=[
+                            ("Male", "Male"),
+                            ("Female", "Female"),
+                            ("Other", "Other"),
+                        ],
+                        default="Other",
+                        max_length=20,
+                        verbose_name="Gender",
+                    ),
+                ),
+                (
+                    "verified",
+                    models.CharField(
+                        choices=[
+                            ("Unverified", "Unverified"),
+                            ("Verified", "Verified"),
+                        ],
+                        default="Unverified",
+                        max_length=20,
+                        verbose_name="Verified",
+                    ),
+                ),
+                (
+                    "country",
+                    django_countries.fields.CountryField(
+                        default="CO", max_length=2, verbose_name="Country"
+                    ),
+                ),
+                (
+                    "city",
+                    models.CharField(
+                        default="Cali", max_length=180, verbose_name="City"
+                    ),
+                ),
+                (
+                    "departamento",
+                    models.CharField(
+                        default="Valle del Cauca",
+                        max_length=180,
+                        verbose_name="Departamento",
+                    ),
+                ),
+                ("zipcode", models.CharField(default="", max_length=20)),
+                (
+                    "is_buyer",
+                    models.BooleanField(
+                        default=False,
+                        help_text="Are you looking to Buy a product?",
+                        verbose_name="Buyer",
+                    ),
+                ),
+                (
+                    "is_seller",
+                    models.BooleanField(
+                        default=False,
+                        help_text="Are you looking to sell a property?",
+                        verbose_name="Seller",
+                    ),
+                ),
+                (
+                    "is_agent",
+                    models.BooleanField(
+                        default=False,
+                        help_text="Are you an agent?",
+                        verbose_name="Agent",
+                    ),
+                ),
+                (
+                    "top_agent",
+                    models.BooleanField(default=False, verbose_name="Top Agent"),
+                ),
+                (
+                    "rating",
+                    models.DecimalField(
+                        blank=True, decimal_places=2, max_digits=4, null=True
+                    ),
+                ),
+                (
+                    "num_reviews",
+                    models.IntegerField(
+                        blank=True,
+                        default=0,
+                        null=True,
+                        verbose_name="Number of Reviews",
+                    ),
+                ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
     ]

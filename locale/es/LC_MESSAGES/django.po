@@ -170,7 +170,7 @@ msgid "Buyer"
 msgstr "Comprador"
 
 #: profiles/models.py:75
-msgid "Are you looking to Buy a Property?"
+msgid "Are you looking to Buy a product?"
 msgstr "¿Estás buscando Comprar un Producto?"
 
 #: profiles/models.py:78
@@ -178,7 +178,7 @@ msgid "Seller"
 msgstr "Vendedor"
 
 #: profiles/models.py:80
-msgid "Are you looking to sell a property?"
+msgid "Are you looking to sell a product?"
 msgstr "¿Estás Buscando vender un Producto?"
 
 #: profiles/models.py:83
