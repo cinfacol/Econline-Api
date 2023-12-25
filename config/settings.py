@@ -64,7 +64,6 @@ CKEDITOR_UPLOAD_PATH = "/mediafiles/"
 SITE_ID = 1
 
 MIDDLEWARE = [
-    "social_django.middleware.SocialAuthExceptionMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -74,6 +73,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "social_django.middleware.SocialAuthExceptionMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -95,6 +95,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "config.wsgi.application"
+ASGI_APPLICATION = "config.asgi.application"
 
 DATABASES = {
     # "default": env.db("DATABASE_URL", default="postgres:///econline-api"),
@@ -107,6 +108,28 @@ DATABASES = {
         "PORT": env("PG_PORT"),
     }
 }
+
+AUTH_COOKIE = "access"
+AUTH_COOKIE_MAX_AGE = 60 * 60 * 24
+# AUTH_COOKIE_SECURE = env("AUTH_COOKIE_SECURE", "True") == "True"
+AUTH_COOKIE_SECURE = env("AUTH_COOKIE_SECURE")
+AUTH_COOKIE_HTTP_ONLY = True
+AUTH_COOKIE_PATH = "/"
+AUTH_COOKIE_SAMESITE = "None"
+
+SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = env("GOOGLE_AUTH_KEY")
+SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = env("GOOGLE_AUTH_SECRET_KEY")
+SOCIAL_AUTH_GOOGLE_OAUTH2_SCOPE = [
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/userinfo.profile",
+    "openid",
+]
+SOCIAL_AUTH_GOOGLE_OAUTH2_EXTRA_DATA = ["first_name", "last_name"]
+
+SOCIAL_AUTH_FACEBOOK_KEY = env("FACEBOOK_AUTH_KEY")
+SOCIAL_AUTH_FACEBOOK_SECRET = env("FACEBOOK_AUTH_SECRET_KEY")
+SOCIAL_AUTH_FACEBOOK_SCOPE = ["email"]
+SOCIAL_AUTH_FACEBOOK_PROFILE_EXTRA_PARAMS = {"fields": "email, first_name, last_name"}
 
 EMAIL_BACKEND = env("EMAIL_BACKEND")
 # EMAIL_BACKEND = "djcelery_email.backends.CeleryEmailBackend"
@@ -158,14 +181,6 @@ CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:3000",
 ]
 
-# AUTH_COOKIE = "access"
-# AUTH_COOKIE_MAX_AGE = 60 * 60 * 24
-# # AUTH_COOKIE_SECURE = env("AUTH_COOKIE_SECURE", "True") == "True"
-# AUTH_COOKIE_SECURE = env("AUTH_COOKIE_SECURE")
-# AUTH_COOKIE_HTTP_ONLY = True
-# AUTH_COOKIE_PATH = "/"
-# AUTH_COOKIE_SAMESITE = "None"
-
 PASSWORD_HASHERS = [
     "django.contrib.auth.hashers.PBKDF2PasswordHasher",
     "django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher",
@@ -196,8 +211,6 @@ TIME_ZONE = "America/Bogota"
 USE_I18N = True
 USE_TZ = True
 
-AUTH_USER_MODEL = "users.User"
-
 STATIC_URL = "/staticfiles/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = []
@@ -213,6 +226,26 @@ LANGUAGES = [
 LOCALE_PATH = BASE_DIR / "locale/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+AUTH_USER_MODEL = "users.User"
+
+AUTHENTICATION_BACKENDS = [
+    "social_core.backends.google.GoogleOAuth2",
+    "social_core.backends.facebook.FacebookOAuth2",
+    "django.contrib.auth.backends.ModelBackend",
+]
+
+REST_FRAMEWORK = {
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticatedOrReadOnly"
+    ],
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        # "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "users.authentication.CustomJWTAuthentication",
+    ),
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.LimitOffsetPagination",
+    "PAGE_SIZE": 12,
+}
 
 SIMPLE_JWT = {
     "AUTH_HEADER_TYPES": (
@@ -241,40 +274,26 @@ SIMPLE_JWT = {
     "JTI_CLAIM": "jti",
 }
 
-REST_FRAMEWORK = {
-    "DEFAULT_PERMISSION_CLASSES": [
-        "rest_framework.permissions.IsAuthenticatedOrReadOnly"
-    ],
-    "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
-    ),
-    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.LimitOffsetPagination",
-    "PAGE_SIZE": 12,
-}
-
-AUTHENTICATION_BACKENDS = [
-    "social_core.backends.google.GoogleOAuth2",
-    "social_core.backends.facebook.FacebookOAuth2",
-    "django.contrib.auth.backends.ModelBackend",
-]
-
 DJOSER = {
     "LOGIN_FIELD": "email",
     "USER_CREATE_PASSWORD_RETYPE": True,
     "USERNAME_CHANGED_EMAIL_CONFIRMATION": True,
     "PASSWORD_CHANGED_EMAIL_CONFIRMATION": True,
     "SEND_CONFIRMATION_EMAIL": True,
-    "PASSWORD_RESET_CONFIRM_URL": "password/reset/confirm/{uid}/{token}",
+    # "PASSWORD_RESET_CONFIRM_URL": "password/reset/confirm/{uid}/{token}",
+    "PASSWORD_RESET_CONFIRM_URL": "password-reset/{uid}/{token}",
     "SET_PASSWORD_RETYPE": True,
     "PASSWORD_RESET_CONFIRM_RETYPE": True,
     "USERNAME_RESET_CONFIRM_URL": "email/reset/confirm/{uid}/{token}",
-    "ACTIVATION_URL": "activate/{uid}/{token}",
+    # "ACTIVATION_URL": "activate/{uid}/{token}",
+    "ACTIVATION_URL": "activation/{uid}/{token}",
     "SEND_ACTIVATION_EMAIL": True,
     "SOCIAL_AUTH_TOKEN_STRATEGY": "djoser.social.token.jwt.TokenStrategy",
-    "SOCIAL_AUTH_ALLOWED_REDIRECT_URIS": [
-        "http://localhost:8000/google",
-        "http://localhost:8000/facebook",
-    ],
+    # "SOCIAL_AUTH_ALLOWED_REDIRECT_URIS": [
+    #     "http://localhost:8000/google",
+    #     "http://localhost:8000/facebook",
+    # ],
+    "SOCIAL_AUTH_ALLOWED_REDIRECT_URIS": env("REDIRECT_URLS").split(","),
     "SERIALIZERS": {
         "user_create": "users.serializers.CreateUserSerializer",
         "user": "users.serializers.UserSerializer",

@@ -6,7 +6,8 @@ from django.conf.urls.static import static
 urlpatterns = [
     path("supersecret/", admin.site.urls),
     path("api/auth/", include("djoser.urls")),
-    path("api/auth/", include("djoser.urls.jwt")),
+    path("api/auth/", include("users.urls")),
+    # path("api/auth/", include("djoser.urls.jwt")),
     path("api/auth/", include("djoser.social.urls")),
     path("api/profile/", include("profiles.urls")),
     path("api/products/", include("products.urls")),
