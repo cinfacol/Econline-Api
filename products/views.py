@@ -78,6 +78,8 @@ class ProductViewsAPIView(generics.ListAPIView):
 
 
 class ProductDetailView(APIView):
+    permission_classes = (permissions.AllowAny,)
+
     def get(self, request, slug):
         product = Product.objects.get(slug=slug)
 
