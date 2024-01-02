@@ -3,6 +3,7 @@ from datetime import timedelta
 from django.utils.translation import gettext_lazy as _
 
 import environ
+import cloudinary_storage
 
 env = environ.Env(DEBUG=(bool, False))
 
@@ -23,7 +24,9 @@ DJANGO_APPS = [
     "django.contrib.auth",
     "django.contrib.sessions",
     "django.contrib.messages",
+    "cloudinary_storage",
     "django.contrib.staticfiles",
+    "cloudinary",
     "django.contrib.sites",
 ]
 
@@ -192,6 +195,7 @@ USE_TZ = True
 STATIC_URL = "/staticfiles/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = []
+# STATICFILES_STORAGE = "cloudinary_storage.storage.StaticHashedCloudinaryStorage"
 MEDIA_URL = "/mediafiles/"
 MEDIA_ROOT = BASE_DIR / "mediafiles"
 
@@ -204,6 +208,14 @@ LANGUAGES = [
 LOCALE_PATH = BASE_DIR / "locale/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+CLOUDINARY_STORAGE = {
+    "CLOUD_NAME": env("CLOUD_NAME"),
+    "API_KEY": env("API_KEY"),
+    "API_SECRET": env("API_SECRET"),
+}
+
+DEFAULT_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
 
 AUTH_USER_MODEL = "users.User"
 

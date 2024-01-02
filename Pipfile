@@ -18,6 +18,7 @@ django-phonenumber-field = "*"
 phonenumbers = "*"
 djoser = "*"
 django-ckeditor = "*"
+django-cloudinary-storage = "*"
 
 [dev-packages]
 

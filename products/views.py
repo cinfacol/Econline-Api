@@ -39,6 +39,7 @@ class ProductFilter(django_filters.FilterSet):
 
 
 class ListAllProductsAPIView(generics.ListAPIView):
+    permission_classes = (permissions.AllowAny,)
     serializer_class = ProductSerializer
     queryset = Product.objects.all().order_by("-created_at")
     pagination_class = ProductPagination

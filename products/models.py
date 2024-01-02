@@ -77,24 +77,32 @@ class Product(TimeStampedUUIDModel):
     )
 
     cover_photo = models.ImageField(
-        verbose_name=_("Main Photo"), default="/house_sample.jpg", null=True, blank=True
+        verbose_name=_("Main Photo"),
+        upload_to="Econline-img",
+        default="/house_sample.jpg",
+        null=True,
+        blank=True,
     )
     photo1 = models.ImageField(
+        upload_to="Econline-img",
         default="/interior_sample.jpg",
         null=True,
         blank=True,
     )
     photo2 = models.ImageField(
+        upload_to="Econline-img",
         default="/interior_sample.jpg",
         null=True,
         blank=True,
     )
     photo3 = models.ImageField(
+        upload_to="Econline-img",
         default="/interior_sample.jpg",
         null=True,
         blank=True,
     )
     photo4 = models.ImageField(
+        upload_to="Econline-img",
         default="/interior_sample.jpg",
         null=True,
         blank=True,
