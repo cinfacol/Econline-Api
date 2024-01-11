@@ -6,6 +6,7 @@ from .models import Rating
 class RatingSerializer(serializers.ModelSerializer):
     rater = serializers.SerializerMethodField(read_only=True)
     agent = serializers.SerializerMethodField(read_only=True)
+    product = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Rating
@@ -16,3 +17,6 @@ class RatingSerializer(serializers.ModelSerializer):
 
     def get_agent(self, obj):
         return obj.agent.user.username
+
+    def get_product(self, obj):
+        return obj.product.title

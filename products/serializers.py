@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from .models import Product, ProductViews, Media
+from ratings.models import Rating
 
 # from categories.serializers import CategorySerializer
 
@@ -9,6 +10,7 @@ class ProductSerializer(serializers.ModelSerializer):
     # category: CategorySerializer
     user = serializers.SerializerMethodField()
     category = serializers.StringRelatedField()
+    rating = serializers.SerializerMethodField()
     image = serializers.SerializerMethodField()
     profile_photo = serializers.SerializerMethodField()
 
@@ -31,6 +33,7 @@ class ProductSerializer(serializers.ModelSerializer):
             "image",
             "published_status",
             "views",
+            "rating",
         ]
 
     def get_user(self, obj):
@@ -41,6 +44,9 @@ class ProductSerializer(serializers.ModelSerializer):
 
     def get_image(self, obj):
         return MediaSerializer(obj.imagenes.all(), many=True).data
+
+    def get_rating(self, obj):
+        return RatingSerializer(obj.product_review.all(), many=True).data
 
 
 class ProductCreateSerializer(serializers.ModelSerializer):
@@ -68,6 +74,23 @@ class MediaSerializer(serializers.ModelSerializer):
             "default",
             "created_at",
             "updated_at",
+        )
+
+    def get_product(self, obj):
+        return obj.product.title
+
+
+class RatingSerializer(serializers.ModelSerializer):
+    product = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Rating
+        fields = (
+            "rater",
+            "agent",
+            "product",
+            "rating",
+            "comment",
         )
 
     def get_product(self, obj):
