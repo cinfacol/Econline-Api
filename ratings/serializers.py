@@ -9,7 +9,7 @@ class RatingSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Rating
-        fields = ["id", "rating", "comment"]
+        fields = ["id", "rater", "product", "rating", "comment"]
 
     def get_rater(self, obj):
         return obj.rater.username

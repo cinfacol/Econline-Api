@@ -16,13 +16,13 @@ class Rating(TimeStampedUUIDModel):
 
     rater = models.ForeignKey(
         AUTH_USER_MODEL,
-        verbose_name=_("User providing the rating"),
+        verbose_name=_("User that rate"),
         on_delete=models.SET_NULL,
         null=True,
     )
     product = models.ForeignKey(
         Product,
-        verbose_name=_("Product being rated"),
+        verbose_name=_("Product"),
         related_name="product_review",
         on_delete=models.SET_NULL,
         null=True,

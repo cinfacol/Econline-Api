@@ -4,7 +4,18 @@ from .models import Rating
 
 
 class RatingAdmin(admin.ModelAdmin):
-    list_display = ["rater", "product", "rating"]
+    list_display = (
+        "id",
+        "product",
+        "rater",
+        "rating",
+    )
+    list_display_links = (
+        "id",
+        "product",
+    )
+    list_filter = ("rating",)
+    list_per_page = 20
 
 
 admin.site.register(Rating, RatingAdmin)
