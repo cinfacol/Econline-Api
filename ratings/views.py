@@ -37,7 +37,6 @@ def create_agent_review(request, profile_id):
     else:
         review = Rating.objects.create(
             rater=request.user,
-            agent=agent_profile,
             rating=data["rating"],
             comment=data["comment"],
         )

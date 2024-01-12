@@ -4,19 +4,15 @@ from .models import Rating
 
 
 class RatingSerializer(serializers.ModelSerializer):
-    rater = serializers.SerializerMethodField(read_only=True)
-    agent = serializers.SerializerMethodField(read_only=True)
+    rater = serializers.StringRelatedField(read_only=True)
     product = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Rating
-        exclude = ["updated_at", "pkid"]
+        fields = ["id", "rating", "comment"]
 
     def get_rater(self, obj):
         return obj.rater.username
-
-    def get_agent(self, obj):
-        return obj.agent.user.username
 
     def get_product(self, obj):
         return obj.product.title

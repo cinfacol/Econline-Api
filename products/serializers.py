@@ -87,7 +87,6 @@ class RatingSerializer(serializers.ModelSerializer):
         model = Rating
         fields = (
             "rater",
-            "agent",
             "product",
             "rating",
             "comment",

@@ -2,7 +2,6 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from common.models import TimeStampedUUIDModel
-from profiles.models import Profile
 from products.models import Product
 from config.settings import AUTH_USER_MODEL
 
@@ -21,14 +20,6 @@ class Rating(TimeStampedUUIDModel):
         on_delete=models.SET_NULL,
         null=True,
     )
-    agent = models.ForeignKey(
-        Profile,
-        verbose_name=_("Agent being rated"),
-        related_name="agent_review",
-        on_delete=models.SET_NULL,
-        blank=True,
-        null=True,
-    )
     product = models.ForeignKey(
         Product,
         verbose_name=_("Product being rated"),
@@ -36,16 +27,17 @@ class Rating(TimeStampedUUIDModel):
         on_delete=models.SET_NULL,
         null=True,
     )
-    rating = models.IntegerField(
+    rating = models.PositiveIntegerField(
         verbose_name=_("Rating"),
         choices=Range.choices,
         help_text="1=Poor, 2=Fair, 3=Good, 4=Very Good, 5=Excellent",
         default=0,
     )
-    comment = models.TextField(verbose_name=_("Comment"))
+    comment = models.TextField(verbose_name=_("Comment"), blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         unique_together = ["rater", "product"]
 
     def __str__(self):
-        return f"{self.product} rated at {self.rating}"
+        return f"{self.rater}'s {self.rating}-star rating for {self.product}"
