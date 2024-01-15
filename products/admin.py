@@ -17,7 +17,15 @@ class ProductAdmin(admin.ModelAdmin):
     inlines = [
         MediaInline,
     ]
-    list_display = ["title", "product_number", "category", "price", "product_type"]
+    list_display = [
+        "pkid",
+        "id",
+        "title",
+        "product_number",
+        "category",
+        "price",
+        "product_type",
+    ]
     list_filter = ["product_type"]
 
 

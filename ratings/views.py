@@ -1,4 +1,4 @@
-from django.contrib.auth import get_user_model
+from django.conf import settings
 from rest_framework import permissions, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -7,18 +7,19 @@ from products.models import Product
 
 from .models import Rating
 
-User = get_user_model()
+User = settings.AUTH_USER_MODEL
 
 
+# todos los reviews de un producto
 class GetProductRatingsView(APIView):
     permission_classes = (permissions.AllowAny,)
 
     def get(self, request, productId, format=None):
         try:
-            product_id = int(productId)
+            product_id = str(productId)
         except:
             return Response(
-                {"error": "Product ID must be an integer"},
+                {"error": "Product ID must be an string"},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
@@ -43,7 +44,7 @@ class GetProductRatingsView(APIView):
                     item["rating"] = rating.rating
                     item["comment"] = rating.comment
                     item["created_at"] = rating.created_at
-                    item["user"] = rating.user.first_name
+                    item["rater"] = rating.rater.username
 
                     results.append(item)
 
@@ -56,15 +57,16 @@ class GetProductRatingsView(APIView):
             )
 
 
+# una review (rating) en particular de un producto
 class GetProductRatingView(APIView):
     def get(self, request, productId, format=None):
         user = self.request.user
 
         try:
-            product_id = int(productId)
+            product_id = str(productId)
         except:
             return Response(
-                {"error": "Product ID must be an integer"},
+                {"error": "Product ID must be an string"},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
@@ -76,17 +78,16 @@ class GetProductRatingView(APIView):
                 )
 
             product = Product.objects.get(id=product_id)
-
             result = {}
 
-            if Rating.objects.filter(user=user, product=product).exists():
-                rating = Rating.objects.get(user=user, product=product)
+            if Rating.objects.filter(rater=user, product=product).exists():
+                rating = Rating.objects.get(rater=user, product=product)
 
                 result["id"] = rating.id
                 result["rating"] = rating.rating
                 result["comment"] = rating.comment
                 result["created_at"] = rating.created_at
-                result["user"] = rating.user.first_name
+                result["rater"] = rating.rater.username
 
             return Response({"rating": result}, status=status.HTTP_200_OK)
         except:
@@ -128,22 +129,22 @@ class CreateProductRatingView(APIView):
             result = {}
             results = []
 
-            if Rating.objects.filter(user=user, product=product).exists():
+            if Rating.objects.filter(rater=user, product=product).exists():
                 return Response(
-                    {"error": "Rating for this course already created"},
+                    {"error": "Rating for this product already created"},
                     status=status.HTTP_409_CONFLICT,
                 )
 
             rating = Rating.objects.create(
-                user=user, product=product, rating=rating, comment=comment
+                rater=user, product=product, rating=rating, comment=comment
             )
 
-            if Rating.objects.filter(user=user, product=product).exists():
+            if Rating.objects.filter(rater=user, product=product).exists():
                 result["id"] = rating.id
                 result["rating"] = rating.rating
                 result["comment"] = rating.comment
                 result["created_at"] = rating.created_at
-                result["user"] = rating.user.first_name
+                result["rater"] = rating.rater.username
 
                 ratings = Rating.objects.order_by("-created_at").filter(product=product)
 
@@ -154,7 +155,7 @@ class CreateProductRatingView(APIView):
                     item["rating"] = rating.rating
                     item["comment"] = rating.comment
                     item["created_at"] = rating.created_at
-                    item["user"] = rating.user.first_name
+                    item["rater"] = rating.rater.username
 
                     results.append(item)
 
@@ -174,10 +175,10 @@ class UpdateProductRatingView(APIView):
         data = self.request.data
 
         try:
-            product_id = int(productId)
+            product_id = str(productId)
         except:
             return Response(
-                {"error": "Product ID must be an integer"},
+                {"error": "Product ID must be an string"},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
@@ -208,24 +209,24 @@ class UpdateProductRatingView(APIView):
             result = {}
             results = []
 
-            if not Rating.objects.filter(user=user, product=product).exists():
+            if not Rating.objects.filter(rater=user, product=product).exists():
                 return Response(
                     {"error": "Rating for this product does not exist"},
                     status=status.HTTP_404_NOT_FOUND,
                 )
 
-            if Rating.objects.filter(user=user, product=product).exists():
-                Rating.objects.filter(user=user, product=product).update(
+            if Rating.objects.filter(rater=user, product=product).exists():
+                Rating.objects.filter(rater=user, product=product).update(
                     rating=rating, comment=comment
                 )
 
-                rating = Rating.objects.get(user=user, product=product)
+                rating = Rating.objects.get(rater=user, product=product)
 
                 result["id"] = rating.id
                 result["rating"] = rating.rating
                 result["comment"] = rating.comment
                 result["created_at"] = rating.created_at
-                result["user"] = rating.user.first_name
+                result["rater"] = rating.rater.username
 
                 ratings = Rating.objects.order_by("-created_at").filter(product=product)
 
@@ -236,7 +237,7 @@ class UpdateProductRatingView(APIView):
                     item["rating"] = rating.rating
                     item["comment"] = rating.comment
                     item["created_at"] = rating.created_at
-                    item["user"] = rating.user.first_name
+                    item["rater"] = rating.rater.username
 
                     results.append(item)
 
@@ -255,10 +256,10 @@ class DeleteProductRatingView(APIView):
         user = self.request.user
 
         try:
-            product_id = int(productId)
+            product_id = str(productId)
         except:
             return Response(
-                {"error": "Product ID must be an integer"},
+                {"error": "Product ID must be an string"},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
@@ -273,8 +274,8 @@ class DeleteProductRatingView(APIView):
 
             results = []
 
-            if Rating.objects.filter(user=user, product=product).exists():
-                Rating.objects.filter(user=user, product=product).delete()
+            if Rating.objects.filter(rater=user, product=product).exists():
+                Rating.objects.filter(rater=user, product=product).delete()
 
                 ratings = Rating.objects.order_by("-created_at").filter(product=product)
 
@@ -285,7 +286,7 @@ class DeleteProductRatingView(APIView):
                     item["rating"] = rating.rating
                     item["comment"] = rating.comment
                     item["created_at"] = rating.created_at
-                    item["user"] = rating.user.first_name
+                    item["rater"] = rating.rater.username
 
                     results.append(item)
 
@@ -307,10 +308,10 @@ class FilterProductRatingsView(APIView):
 
     def get(self, request, productId, format=None):
         try:
-            product_id = int(productId)
+            product_id = str(productId)
         except:
             return Response(
-                {"error": "Product ID must be an integer"},
+                {"error": "Product ID must be an string"},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
@@ -361,7 +362,7 @@ class FilterProductRatingsView(APIView):
                     item["rating"] = rating.rating
                     item["comment"] = rating.comment
                     item["created_at"] = rating.created_at
-                    item["user"] = rating.user.first_name
+                    item["rater"] = rating.rater.username
 
                     results.append(item)
 

@@ -1,9 +1,11 @@
 from django.db import models
+from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 
 from common.models import TimeStampedUUIDModel
 from products.models import Product
-from config.settings import AUTH_USER_MODEL
+
+User = settings.AUTH_USER_MODEL
 
 
 class Rating(TimeStampedUUIDModel):
@@ -15,7 +17,7 @@ class Rating(TimeStampedUUIDModel):
         RATING_5 = 5, _("Excellent")
 
     rater = models.ForeignKey(
-        AUTH_USER_MODEL,
+        User,
         verbose_name=_("User that rate"),
         on_delete=models.SET_NULL,
         null=True,
