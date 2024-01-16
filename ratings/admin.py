@@ -9,6 +9,7 @@ class RatingAdmin(admin.ModelAdmin):
         "product",
         "rater",
         "rating",
+        "created_at",
     )
     list_display_links = (
         "id",
