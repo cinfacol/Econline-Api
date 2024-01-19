@@ -197,39 +197,39 @@ msgstr "Agente Superior"
 msgid "Number of Reviews"
 msgstr "Número de Reseñas"
 
-#: ratings/models.py:11
+#: reviews/models.py:11
 msgid "Poor"
 msgstr "Pobre"
 
-#: ratings/models.py:12
+#: reviews/models.py:12
 msgid "Fair"
 msgstr "Justo"
 
-#: ratings/models.py:13
+#: reviews/models.py:13
 msgid "Good"
 msgstr "Bien"
 
-#: ratings/models.py:14
+#: reviews/models.py:14
 msgid "Very Good"
 msgstr "muy Bien"
 
-#: ratings/models.py:15
+#: reviews/models.py:15
 msgid "Excellent"
 msgstr "Excelente"
 
-#: ratings/models.py:19
-msgid "User providing the rating"
+#: reviews/models.py:19
+msgid "User providing the review"
 msgstr "Calificación por el Usuario"
 
-#: ratings/models.py:25
+#: reviews/models.py:25
 msgid "Agent being rated"
 msgstr "Usuario siendo Calificado"
 
-#: ratings/models.py:31
-msgid "Rating"
+#: reviews/models.py:31
+msgid "Review"
 msgstr "Calificación"
 
-#: ratings/models.py:36
+#: reviews/models.py:36
 msgid "Comment"
 msgstr "Comentario"
 

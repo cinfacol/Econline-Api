@@ -1,7 +1,7 @@
 from django_countries.serializer_fields import CountryField
 from rest_framework import fields, serializers
 
-from ratings.serializers import RatingSerializer
+from reviews.serializers import ReviewSerializer
 
 from .models import Profile
 
@@ -45,7 +45,7 @@ class ProfileSerializer(serializers.ModelSerializer):
 
     def get_reviews(self, obj):
         reviews = obj.agent_review.all()
-        serializer = RatingSerializer(reviews, many=True)
+        serializer = ReviewSerializer(reviews, many=True)
         return serializer.data
 
     def to_representation(self, instance):

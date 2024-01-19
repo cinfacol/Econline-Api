@@ -1,9 +1,9 @@
 from django.contrib import admin
 
-from .models import Rating
+from .models import Review
 
 
-class RatingAdmin(admin.ModelAdmin):
+class ReviewAdmin(admin.ModelAdmin):
     list_display = (
         "id",
         "product",
@@ -19,4 +19,4 @@ class RatingAdmin(admin.ModelAdmin):
     list_per_page = 20
 
 
-admin.site.register(Rating, RatingAdmin)
+admin.site.register(Review, ReviewAdmin)

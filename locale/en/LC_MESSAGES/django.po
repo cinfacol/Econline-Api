@@ -197,39 +197,39 @@ msgstr "Top Agent"
 msgid "Number of Reviews"
 msgstr "Number of Reviews"
 
-#: ratings/models.py:11
+#: reviews/models.py:11
 msgid "Poor"
 msgstr "Poor"
 
-#: ratings/models.py:12
+#: reviews/models.py:12
 msgid "Fair"
 msgstr "Fair"
 
-#: ratings/models.py:13
+#: reviews/models.py:13
 msgid "Good"
 msgstr "Good"
 
-#: ratings/models.py:14
+#: reviews/models.py:14
 msgid "Very Good"
 msgstr "Very Good"
 
-#: ratings/models.py:15
+#: reviews/models.py:15
 msgid "Excellent"
 msgstr "Excellent"
 
-#: ratings/models.py:19
-msgid "User providing the rating"
-msgstr "User providing the rating"
+#: reviews/models.py:19
+msgid "User providing the review"
+msgstr "User providing the review"
 
-#: ratings/models.py:25
+#: reviews/models.py:25
 msgid "Agent being rated"
 msgstr "Agent being rated"
 
-#: ratings/models.py:31
-msgid "Rating"
-msgstr "Rating"
+#: reviews/models.py:31
+msgid "review"
+msgstr "review"
 
-#: ratings/models.py:36
+#: reviews/models.py:36
 msgid "Comment"
 msgstr "Comment"
 

@@ -8,7 +8,7 @@ from products.models import Product
 User = settings.AUTH_USER_MODEL
 
 
-class Rating(TimeStampedUUIDModel):
+class Review(TimeStampedUUIDModel):
     class Range(models.IntegerChoices):
         RATING_1 = 1, _("Poor")
         RATING_2 = 2, _("Fair")

@@ -1,14 +1,14 @@
 from rest_framework import serializers
 
-from .models import Rating
+from .models import Review
 
 
-class RatingSerializer(serializers.ModelSerializer):
+class ReviewSerializer(serializers.ModelSerializer):
     rater = serializers.SerializerMethodField(read_only=True)
     product = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
-        model = Rating
+        model = Review
         fields = ["id", "rater", "product", "rating", "comment", "created_at"]
 
     def get_rater(self, obj):
@@ -20,7 +20,7 @@ class RatingSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         product_id = self.context["product_id"]
         user_id = self.context["rater_id"]
-        rating = Rating.objects.create(
+        rating = Review.objects.create(
             product_id=product_id, rater_id=user_id, **self.validated_data
         )
         return rating
