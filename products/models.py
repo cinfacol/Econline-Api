@@ -23,6 +23,20 @@ class ProductPublishedManager(models.Manager):
         )
 
 
+class Brand(TimeStampedUUIDModel):
+    name = models.CharField(
+        max_length=255,
+        unique=True,
+        null=False,
+        blank=False,
+        verbose_name=_("brand name"),
+        help_text=_("format: required, unique, max-255"),
+    )
+
+    def __str__(self):
+        return self.name
+
+
 class Product(TimeStampedUUIDModel):
     class ProductType(models.TextChoices):
         HOUSE = "House", _("House")
@@ -69,7 +83,7 @@ class Product(TimeStampedUUIDModel):
     category = models.ForeignKey(
         Category, related_name="products", on_delete=models.CASCADE, default=1
     )
-
+    brand = models.ForeignKey(Brand, related_name="brand", on_delete=models.PROTECT)
     product_type = models.CharField(
         verbose_name=_("Product Type"),
         max_length=50,
