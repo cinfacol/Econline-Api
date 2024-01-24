@@ -35,6 +35,7 @@ PROJECT_APPS = [
     "users.apps.UsersConfig",
     "profiles.apps.ProfilesConfig",
     "reviews.apps.ReviewsConfig",
+    "inventory.apps.InventoryConfig",
 ]
 
 ECOMMERCE_APPS = [
