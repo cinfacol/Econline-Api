@@ -1,4 +1,5 @@
 from django.db import models
+from autoslug import AutoSlugField
 from django.contrib.auth import get_user_model
 from common.models import TimeStampedUUIDModel
 from django.utils.translation import gettext_lazy as _
@@ -33,15 +34,13 @@ class Category(TimeStampedUUIDModel):
 
 
 class Product(models.Model):
+    name = models.CharField(
+        max_length=255,
+    )
+    slug = AutoSlugField(populate_from="name", unique=True, always_update=True)
     web_id = models.CharField(
         max_length=50,
         unique=True,
-    )
-    slug = models.SlugField(
-        max_length=255,
-    )
-    name = models.CharField(
-        max_length=255,
     )
     description = models.TextField(blank=True)
     category = models.ForeignKey(
@@ -166,6 +165,10 @@ class ProductInventory(models.Model):
         auto_now=True,
     )
 
+    class Meta:
+        verbose_name = "Inventory"
+        verbose_name_plural = "Inventory"
+
     def __str__(self):
         return self.sku
 
@@ -190,6 +193,10 @@ class Media(models.Model):
     updated_at = models.DateTimeField(
         auto_now=True,
     )
+
+    class Meta:
+        verbose_name = "Image"
+        verbose_name_plural = "Images"
 
 
 class Stock(models.Model):
