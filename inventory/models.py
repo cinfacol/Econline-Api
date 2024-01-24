@@ -1,3 +1,5 @@
+import random
+import string
 from django.db import models
 from autoslug import AutoSlugField
 from django.contrib.auth import get_user_model
@@ -10,6 +12,11 @@ from django.core.validators import MinValueValidator
 User = get_user_model()
 
 
+class IsActiveQueryset(models.QuerySet):
+    def is_active(self):
+        return self.filter(is_active=True)
+
+
 class ProductPublishedManager(models.Manager):
     def get_queryset(self):
         return (
@@ -20,64 +27,57 @@ class ProductPublishedManager(models.Manager):
 
 
 class Category(TimeStampedUUIDModel):
-    class Meta:
-        verbose_name = "Category"
-        verbose_name_plural = "Categories"
-
-    parent = models.ForeignKey(
-        "self", related_name="children", on_delete=models.CASCADE, blank=True, null=True
-    )
     name = models.CharField(max_length=255, unique=True)
+    slug = AutoSlugField(populate_from="name", unique=True, always_update=True)
+    is_active = models.BooleanField(
+        default=True,
+    )
+    objects = IsActiveQueryset.as_manager()
+
+    class Meta:
+        verbose_name_plural = "Categories"
 
     def __str__(self):
         return self.name
 
 
-class Product(models.Model):
+class Product(TimeStampedUUIDModel):
     name = models.CharField(
         max_length=255,
     )
     slug = AutoSlugField(populate_from="name", unique=True, always_update=True)
-    web_id = models.CharField(
-        max_length=50,
+    ref_code = models.CharField(
+        verbose_name=_("Product Reference Code"),
+        max_length=12,
         unique=True,
-    )
-    description = models.TextField(blank=True)
-    category = models.ForeignKey(
-        Category,
-        related_name="product",
-        on_delete=models.SET_NULL,
-        null=True,
         blank=True,
     )
+    description = models.TextField(blank=True)
+    category = models.ManyToManyField(
+        Category,
+        related_name="product",
+    )
     is_active = models.BooleanField(
-        default=False,
+        default=True,
     )
-    created_at = models.DateTimeField(
-        auto_now_add=True,
-        editable=False,
-    )
-    updated_at = models.DateTimeField(
-        auto_now=True,
-    )
+
+    objects = IsActiveQueryset.as_manager()
 
     def __str__(self):
         return self.name
 
+    def save(self, *args, **kwargs):
+        self.name = str.title(self.name)
+        self.description = str.capitalize(self.description)
+        self.ref_code = "".join(
+            random.choices(string.ascii_uppercase + string.digits, k=10)
+        )
+        super(Product, self).save(*args, **kwargs)
 
-class Brand(models.Model):
+
+class Attribute(TimeStampedUUIDModel):
     name = models.CharField(
-        max_length=255,
-        unique=True,
-    )
-
-    def __str__(self):
-        return self.name
-
-
-class ProductAttribute(models.Model):
-    name = models.CharField(
-        max_length=255,
+        max_length=100,
         unique=True,
     )
     description = models.TextField(blank=True)
@@ -86,45 +86,42 @@ class ProductAttribute(models.Model):
         return self.name
 
 
-class ProductType(models.Model):
+class AttributeValue(TimeStampedUUIDModel):
+    attribute = models.ForeignKey(
+        Attribute,
+        related_name="attribute",
+        on_delete=models.CASCADE,
+    )
+    value = models.CharField(
+        max_length=100,
+    )
+
+    def __str__(self):
+        return f"{self.attribute.name}-{self.value}"
+
+
+class Brand(TimeStampedUUIDModel):
     name = models.CharField(
         max_length=255,
         unique=True,
-    )
-
-    product_type_attributes = models.ManyToManyField(
-        ProductAttribute,
-        related_name="product_type_attributes",
-        through="ProductTypeAttribute",
     )
 
     def __str__(self):
         return self.name
 
 
-class ProductAttributeValue(models.Model):
-    product_attribute = models.ForeignKey(
-        ProductAttribute,
-        related_name="product_attribute",
-        on_delete=models.PROTECT,
-    )
-    attribute_value = models.CharField(
-        max_length=255,
-    )
-
-
-class ProductInventory(models.Model):
+class Inventory(TimeStampedUUIDModel):
     sku = models.CharField(
         max_length=20,
         unique=True,
+        blank=True,
     )
     upc = models.CharField(
-        max_length=12,
+        max_length=20,
         unique=True,
+        blank=True,
     )
-    product_type = models.ForeignKey(
-        ProductType, related_name="product_type", on_delete=models.PROTECT
-    )
+    # type = models.ForeignKey(Type, related_name="type", on_delete=models.PROTECT)
     product = models.ForeignKey(
         Product, related_name="product", on_delete=models.PROTECT
     )
@@ -136,9 +133,9 @@ class ProductInventory(models.Model):
         null=True,
     )
     attribute_values = models.ManyToManyField(
-        ProductAttributeValue,
-        related_name="product_attribute_values",
-        through="ProductAttributeValues",
+        AttributeValue,
+        related_name="attribute_values",
+        # through="AttributeValues",
     )
     is_active = models.BooleanField(
         default=False,
@@ -146,68 +143,62 @@ class ProductInventory(models.Model):
     is_default = models.BooleanField(
         default=False,
     )
+    published_status = models.BooleanField(
+        verbose_name=_("Published Status"), default=False
+    )
     retail_price = models.DecimalField(
         max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal("0.01"))]
     )
     store_price = models.DecimalField(
-        max_digits=5,
+        max_digits=7,
         decimal_places=2,
     )
     is_digital = models.BooleanField(
         default=False,
     )
-    weight = models.FloatField()
-    created_at = models.DateTimeField(
-        auto_now_add=True,
-        editable=False,
-    )
-    updated_at = models.DateTimeField(
-        auto_now=True,
+    weight = models.FloatField(
+        blank=True,
+        null=True,
     )
 
+    published = ProductPublishedManager()
+    objects = IsActiveQueryset.as_manager()
+
     class Meta:
-        verbose_name = "Inventory"
         verbose_name_plural = "Inventory"
 
     def __str__(self):
         return self.sku
 
+    def save(self, *args, **kwargs):
+        self.upc = "".join(random.choices(string.digits, k=12))
+        self.sku = "".join(random.choices(string.digits, k=10))
+        super(Inventory, self).save(*args, **kwargs)
 
-class Media(models.Model):
-    product_inventory = models.ForeignKey(
-        ProductInventory,
-        on_delete=models.PROTECT,
+
+class Media(TimeStampedUUIDModel):
+    inventory = models.ForeignKey(
+        Inventory,
+        on_delete=models.CASCADE,
         related_name="media",
     )
-    img_url = models.ImageField()
+    img_url = models.ImageField(upload_to=None, default="no_image.png")
     alt_text = models.CharField(
         max_length=255,
     )
     is_feature = models.BooleanField(
         default=False,
     )
-    created_at = models.DateTimeField(
-        auto_now_add=True,
-        editable=False,
-    )
-    updated_at = models.DateTimeField(
-        auto_now=True,
-    )
 
     class Meta:
-        verbose_name = "Image"
         verbose_name_plural = "Images"
 
 
-class Stock(models.Model):
-    product_inventory = models.OneToOneField(
-        ProductInventory,
-        related_name="product_inventory",
-        on_delete=models.PROTECT,
-    )
-    last_checked = models.DateTimeField(
-        null=True,
-        blank=True,
+class Stock(TimeStampedUUIDModel):
+    inventory = models.OneToOneField(
+        Inventory,
+        related_name="inventory",
+        on_delete=models.CASCADE,
     )
     units = models.IntegerField(
         default=0,
@@ -216,34 +207,5 @@ class Stock(models.Model):
         default=0,
     )
 
-
-class ProductAttributeValues(models.Model):
-    attributevalues = models.ForeignKey(
-        "ProductAttributeValue",
-        related_name="attributevaluess",
-        on_delete=models.PROTECT,
-    )
-    productinventory = models.ForeignKey(
-        ProductInventory,
-        related_name="productattributevaluess",
-        on_delete=models.PROTECT,
-    )
-
     class Meta:
-        unique_together = (("attributevalues", "productinventory"),)
-
-
-class ProductTypeAttribute(models.Model):
-    product_attribute = models.ForeignKey(
-        ProductAttribute,
-        related_name="productattribute",
-        on_delete=models.PROTECT,
-    )
-    product_type = models.ForeignKey(
-        ProductType,
-        related_name="producttype",
-        on_delete=models.PROTECT,
-    )
-
-    class Meta:
-        unique_together = (("product_attribute", "product_type"),)
+        verbose_name_plural = "Stock"

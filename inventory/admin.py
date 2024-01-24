@@ -3,12 +3,11 @@ from django.contrib import admin
 from .models import (
     Product,
     Media,
-    ProductInventory,
+    Inventory,
     Category,
     Brand,
-    ProductAttribute,
-    ProductType,
-    ProductAttributeValue,
+    Attribute,
+    AttributeValue,
     Stock,
 )
 
@@ -18,9 +17,9 @@ from .models import (
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ["id", "name", "parent"]
-    list_display_links = ["id", "parent"]
-    search_fields = ["name", "parent"]
+    list_display = ["id", "name"]
+    list_display_links = ["id"]
+    search_fields = ["name"]
     list_per_page = 25
 
 
@@ -28,28 +27,34 @@ class MediaInline(admin.TabularInline):
     model = Media
 
 
-""" class ProductInventoryInline(admin.TabularInline):
-    model = ProductInventory """
+class AttributeValueInline(admin.TabularInline):
+    model = AttributeValue
 
 
-@admin.register(ProductType)
-class ProductTypeAdmin(admin.ModelAdmin):
-    list_display = ["name"]
+class StockInline(admin.TabularInline):
+    model = Stock
 
 
-@admin.register(ProductAttribute)
-class ProductAttributeAdmin(admin.ModelAdmin):
+""" class InventoryInline(admin.TabularInline):
+    model = Inventory """
+
+
+@admin.register(Attribute)
+class AttributeAdmin(admin.ModelAdmin):
+    inlines = [
+        AttributeValueInline,
+    ]
     list_display = ["name", "description"]
 
 
-@admin.register(ProductAttributeValue)
-class ProductAttributeValueAdmin(admin.ModelAdmin):
-    list_display = ["attribute_value"]
+""" @admin.register(AttributeValue)
+class AttributeValueAdmin(admin.ModelAdmin):
+    list_display = ["value"] """
 
 
 @admin.register(Stock)
 class StockAdmin(admin.ModelAdmin):
-    list_display = ["units", "units_sold"]
+    list_display = ["id", "units", "units_sold"]
 
 
 @admin.register(Product)
@@ -61,17 +66,22 @@ class ProductAdmin(admin.ModelAdmin):
     list_display = [
         "id",
         "name",
-        "category",
     ]
     list_filter = ["name"]
 
 
-@admin.register(ProductInventory)
-class ProductInventoryAdmin(admin.ModelAdmin):
+@admin.register(Inventory)
+class InventoryAdmin(admin.ModelAdmin):
     inlines = [
         MediaInline,
+        StockInline,
     ]
-    list_display = ["product", "store_price"]
+    list_display = [
+        "product",
+        "store_price",
+        "sku",
+        "upc",
+    ]
 
 
 @admin.register(Brand)
