@@ -15,6 +15,7 @@ urlpatterns = [
     path("api/reviews/", include("reviews.urls")),
     path("api/enquiries/", include("enquiries.urls")),
     path("api/orders/", include("orders.urls")),
+    path("api/inventory/", include("inventory.urls")),
     path("i18n", include("django.conf.urls.i18n")),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 

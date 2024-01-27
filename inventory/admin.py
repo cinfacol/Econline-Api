@@ -79,8 +79,8 @@ class InventoryAdmin(admin.ModelAdmin):
     list_display = [
         "product",
         "store_price",
+        "order",
         "sku",
-        "upc",
     ]
 
 

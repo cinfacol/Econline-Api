@@ -19,6 +19,7 @@ phonenumbers = "*"
 djoser = "*"
 django-ckeditor = "*"
 django-cloudinary-storage = "*"
+drf-spectacular = "*"
 
 [dev-packages]
 

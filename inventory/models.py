@@ -2,10 +2,13 @@ import random
 import string
 from django.db import models
 from autoslug import AutoSlugField
+
 from django.contrib.auth import get_user_model
 from common.models import TimeStampedUUIDModel
 from django.utils.translation import gettext_lazy as _
 from decimal import Decimal
+
+from .fields import OrderField
 
 from django.core.validators import MinValueValidator
 
@@ -42,6 +45,18 @@ class Category(TimeStampedUUIDModel):
 
 
 class Product(TimeStampedUUIDModel):
+    class ProductType(models.TextChoices):
+        HOME = "Home", _("Home")
+        OFFICE = "Office", _("Office")
+        COMMERCIAL = "Commercial", _("Commercial")
+        OTHER = "Other", _("Other")
+
+    user = models.ForeignKey(
+        User,
+        verbose_name=_("Agent,Seller or Buyer"),
+        related_name="product_user",
+        on_delete=models.CASCADE,
+    )
     name = models.CharField(
         max_length=255,
     )
@@ -56,6 +71,12 @@ class Product(TimeStampedUUIDModel):
     category = models.ManyToManyField(
         Category,
         related_name="product",
+    )
+    type = models.CharField(
+        verbose_name=_("Product Type"),
+        max_length=50,
+        choices=ProductType.choices,
+        default=ProductType.OTHER,
     )
     is_active = models.BooleanField(
         default=True,
@@ -115,16 +136,19 @@ class Inventory(TimeStampedUUIDModel):
         max_length=20,
         unique=True,
         blank=True,
+        help_text=_("This field is auto-generated"),
     )
     upc = models.CharField(
         max_length=20,
         unique=True,
         blank=True,
+        help_text=_("This field is auto-generated"),
     )
     # type = models.ForeignKey(Type, related_name="type", on_delete=models.PROTECT)
     product = models.ForeignKey(
         Product, related_name="product", on_delete=models.PROTECT
     )
+    order = OrderField(unique_for_field="product", blank=True)
     brand = models.ForeignKey(
         Brand,
         related_name="brand",
@@ -160,6 +184,7 @@ class Inventory(TimeStampedUUIDModel):
         blank=True,
         null=True,
     )
+    views = models.IntegerField(verbose_name=_("Total Views"), default=0)
 
     published = ProductPublishedManager()
     objects = IsActiveQueryset.as_manager()
@@ -168,7 +193,7 @@ class Inventory(TimeStampedUUIDModel):
         verbose_name_plural = "Inventory"
 
     def __str__(self):
-        return self.sku
+        return self.product.name
 
     def save(self, *args, **kwargs):
         self.upc = "".join(random.choices(string.digits, k=12))
