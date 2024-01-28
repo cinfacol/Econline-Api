@@ -3,12 +3,12 @@ from django.core.exceptions import ObjectDoesNotExist
 
 # from django.db.models import Q
 from rest_framework import serializers
+from reviews.models import Review
 
 from .models import (
     Brand,
     Category,
     Media,
-    Attribute,
     AttributeValue,
     Product,
     Inventory,
@@ -16,47 +16,12 @@ from .models import (
 )
 
 
-class CategorySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Category
-        fields = ["name", "slug", "is_active"]
-        read_only = True
-
-
-class MediaSerializer(serializers.ModelSerializer):
-    img_url = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Media
-        fields = ["img_url", "alt_text"]
-        read_only = True
-        editable = False
-
-    def get_img_url(self, obj):
-        return obj.img_url.url
-
-
-class StockSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Stock
-        fields = ("id", "inventory", "units", "units_sold")
-
-
-class AttributeSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Attribute
-        fields = ("name", "id")
-
-
 class AttributeValueSerializer(serializers.ModelSerializer):
-    attribute = AttributeSerializer(many=False)
-
     class Meta:
         model = AttributeValue
-        fields = (
-            "attribute",
-            "value",
-        )
+        depth = 2
+        exclude = ["id"]
+        read_only = True
 
 
 class BrandSerializer(serializers.ModelSerializer):
@@ -66,39 +31,83 @@ class BrandSerializer(serializers.ModelSerializer):
         read_only = True
 
 
+class CategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Category
+        fields = ["name", "slug", "is_active"]
+        read_only = True
+
+
 class ProductSerializer(serializers.ModelSerializer):
-    # product_line = InventorySerializer(many=True)
-    # attribute_value = AttributeValueSerializer(many=True)
+    # user = serializers.SerializerMethodField()
+    # review = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
-        read_only = True
-        editable = False
         fields = [
+            "id",
             "name",
             "slug",
-            "pid",
-            "user",
+            # "user",
             "description",
-            # "product_line",
-            # "attribute_value",
+            # "review",
         ]
+        read_only = True
+        editable = False
 
-    """ def to_representation(self, instance):
-        data = super().to_representation(instance)
-        av_data = data.pop("attribute_value")
-        attr_values = {}
-        for key in av_data:
-            attr_values.update({key["attribute"]["name"]: key["attribute_value"]})
-        data.update({"attribute": attr_values})
+    """ def get_user(self, obj):
+        return obj.user.username """
 
-        return data """
+    """ def get_review(self, obj):
+        return ReviewSerializer(obj.product_review.all(), many=True).data """
+
+
+class ReviewSerializer(serializers.ModelSerializer):
+    product = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Review
+        fields = (
+            "rater",
+            "product",
+            "rating",
+            "comment",
+        )
+
+    def get_product(self, obj):
+        return obj.product.name
+
+
+class MediaSerializer(serializers.ModelSerializer):
+    inventory = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Media
+        fields = (
+            "image",
+            "alt_text",
+            "inventory",
+            "is_featured",
+            "default",
+            "created_at",
+            "updated_at",
+        )
+        read_only = True
+        editable = False
+
+    def get_inventory(self, obj):
+        return obj.inventory.product
+
+
+class StockSerializer(serializers.ModelSerializer):
+    inventory = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Stock
+        fields = ("id", "inventory", "units", "units_sold")
 
 
 class InventorySerializer(serializers.ModelSerializer):
-    # attribute_value = AttributeValueSerializer(many=True)
-    # product_image = MediaSerializer(many=True)
-    # stock = StockSerializer()
     product = ProductSerializer(many=False, read_only=True)
     media = MediaSerializer(many=True, read_only=True)
     brand = BrandSerializer(read_only=True)
@@ -118,7 +127,10 @@ class InventorySerializer(serializers.ModelSerializer):
             "is_default",
             "stock",
             "order",
+            "brand",
+            "product",
             "media",
+            "weight",
             "attributes",
             # "promotion_price",
         ]

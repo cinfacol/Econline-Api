@@ -6,6 +6,7 @@ from autoslug import AutoSlugField
 from django.contrib.auth import get_user_model
 from common.models import TimeStampedUUIDModel
 from django.utils.translation import gettext_lazy as _
+from django.urls import reverse
 from decimal import Decimal
 
 from .fields import OrderField
@@ -78,6 +79,7 @@ class Product(TimeStampedUUIDModel):
         choices=ProductType.choices,
         default=ProductType.OTHER,
     )
+    views = models.IntegerField(verbose_name=_("Total Views"), default=0)
     is_active = models.BooleanField(
         default=True,
     )
@@ -146,7 +148,7 @@ class Inventory(TimeStampedUUIDModel):
     )
     # type = models.ForeignKey(Type, related_name="type", on_delete=models.PROTECT)
     product = models.ForeignKey(
-        Product, related_name="product", on_delete=models.PROTECT
+        Product, related_name="product", on_delete=models.CASCADE
     )
     order = OrderField(unique_for_field="product", blank=True)
     brand = models.ForeignKey(
@@ -207,16 +209,44 @@ class Media(TimeStampedUUIDModel):
         on_delete=models.CASCADE,
         related_name="media",
     )
-    img_url = models.ImageField(upload_to=None, default="no_image.png")
+    image = models.ImageField(
+        unique=False,
+        null=False,
+        blank=False,
+        verbose_name=_("imagen"),
+        upload_to="images/",
+        default="images/default.png",
+        help_text=_("format: required, default-default.png"),
+    )
     alt_text = models.CharField(
         max_length=255,
+        unique=False,
+        null=False,
+        blank=False,
+        verbose_name=_("texto alternativo"),
+        help_text=_("format: required, max-255"),
     )
-    is_feature = models.BooleanField(
+    is_featured = models.BooleanField(
         default=False,
+        verbose_name=_("destacado"),
+        help_text=_("format: default=false, true=default image"),
+    )
+    default = models.BooleanField(
+        default=False,
+        verbose_name=_("por defecto"),
+        help_text=_("format: default=false, true=default image"),
     )
 
+    def get_absolute_url(self):
+        return reverse("products:products", args=[self.slug])
+
     class Meta:
-        verbose_name_plural = "Images"
+        verbose_name = _("inventory image")
+        verbose_name_plural = _("inventory images")
+        ordering = ("created_at",)
+
+    def __str__(self):
+        return self.alt_text
 
 
 class Stock(TimeStampedUUIDModel):

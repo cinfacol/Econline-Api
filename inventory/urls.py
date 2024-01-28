@@ -3,14 +3,16 @@ from django.urls import path
 from .views import (
     CategoryList,
     ProductByCategory,
-    InventoryByUpc,
+    InventoryList,
+    InventoryByRefCode,
 )
 
 urlpatterns = [
+    path("all/", InventoryList.as_view()),
     path("category/all/", CategoryList.as_view()),
     path(
-        "products/category/<str:query>/",
+        "category/<str:query>/",
         ProductByCategory.as_view(),
     ),
-    path("<int:query>/", InventoryByUpc.as_view()),
+    path("<str:query>/", InventoryByRefCode.as_view()),
 ]
