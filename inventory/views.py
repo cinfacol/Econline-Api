@@ -28,7 +28,7 @@ class ProductByCategory(APIView):
     """
 
     def get(self, request, query=None):
-        queryset = Product.objects.filter(category__name=query).values()
+        queryset = Product.objects.filter(category__slug=query).values()
         serializer = ProductSerializer(queryset, many=True)
         return Response(serializer.data)
 
