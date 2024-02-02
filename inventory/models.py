@@ -39,6 +39,7 @@ class Category(TimeStampedUUIDModel):
     objects = IsActiveQueryset.as_manager()
 
     class Meta:
+        ordering = ["name"]
         verbose_name_plural = "Categories"
 
     def __str__(self):
@@ -46,18 +47,12 @@ class Category(TimeStampedUUIDModel):
 
 
 class Product(TimeStampedUUIDModel):
-    class ProductType(models.TextChoices):
-        HOME = "Home", _("Home")
-        OFFICE = "Office", _("Office")
-        COMMERCIAL = "Commercial", _("Commercial")
-        OTHER = "Other", _("Other")
+    """class ProductType(models.TextChoices):
+    HOUSE = "House", _("House")
+    OFFICE = "Office", _("Office")
+    COMMERCIAL = "Commercial", _("Commercial")
+    OTHER = "Other", _("Other")"""
 
-    user = models.ForeignKey(
-        User,
-        verbose_name=_("Agent,Seller or Buyer"),
-        related_name="product_user",
-        on_delete=models.CASCADE,
-    )
     name = models.CharField(
         max_length=255,
     )
@@ -73,12 +68,12 @@ class Product(TimeStampedUUIDModel):
         Category,
         related_name="product",
     )
-    type = models.CharField(
+    """ type = models.CharField(
         verbose_name=_("Product Type"),
         max_length=50,
         choices=ProductType.choices,
         default=ProductType.OTHER,
-    )
+    ) """
     views = models.IntegerField(verbose_name=_("Total Views"), default=0)
     is_active = models.BooleanField(
         default=True,
@@ -109,11 +104,26 @@ class Attribute(TimeStampedUUIDModel):
         return self.name
 
 
+class Type(TimeStampedUUIDModel):
+    name = models.CharField(
+        max_length=255,
+        unique=True,
+    )
+
+    type_attributes = models.ManyToManyField(
+        Attribute,
+        related_name="type_attributes",
+    )
+
+    def __str__(self):
+        return self.name
+
+
 class AttributeValue(TimeStampedUUIDModel):
     attribute = models.ForeignKey(
         Attribute,
         related_name="attribute",
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
     )
     value = models.CharField(
         max_length=100,
@@ -148,7 +158,12 @@ class Inventory(TimeStampedUUIDModel):
     )
     # type = models.ForeignKey(Type, related_name="type", on_delete=models.PROTECT)
     product = models.ForeignKey(
-        Product, related_name="product", on_delete=models.CASCADE
+        Product, related_name="product", on_delete=models.PROTECT
+    )
+    user = models.ManyToManyField(
+        User,
+        verbose_name=_("Agent, Seller or Buyer"),
+        related_name="product_user",
     )
     order = OrderField(unique_for_field="product", blank=True)
     brand = models.ForeignKey(
@@ -158,10 +173,12 @@ class Inventory(TimeStampedUUIDModel):
         blank=True,
         null=True,
     )
+    type = models.ForeignKey(
+        Type, related_name="product_type", on_delete=models.PROTECT
+    )
     attribute_values = models.ManyToManyField(
         AttributeValue,
         related_name="attribute_values",
-        # through="AttributeValues",
     )
     is_active = models.BooleanField(
         default=False,

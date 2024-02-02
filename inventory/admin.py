@@ -9,6 +9,7 @@ from .models import (
     Attribute,
     AttributeValue,
     Stock,
+    Type,
 )
 
 
@@ -55,6 +56,11 @@ class AttributeValueAdmin(admin.ModelAdmin):
 @admin.register(Stock)
 class StockAdmin(admin.ModelAdmin):
     list_display = ["id", "units", "units_sold"]
+
+
+@admin.register(Type)
+class TypeAdmin(admin.ModelAdmin):
+    list_display = ["id", "name"]
 
 
 @admin.register(Product)
