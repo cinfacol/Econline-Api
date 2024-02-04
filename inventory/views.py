@@ -40,7 +40,36 @@ class InventoryList(APIView):
     """
 
     def get(self, request):
-        queryset = Inventory.objects.all().values()
+        queryset = (
+            Inventory.objects.all()
+            .values(
+                "brand__name",
+                "brand_id",
+                "created_at",
+                "id",
+                "inventory",
+                "is_active",
+                "is_default",
+                "is_digital",
+                "media__image",
+                "order",
+                "pkid",
+                "product__name",
+                "product_id",
+                "published_status",
+                "retail_price",
+                "sku",
+                "store_price",
+                # "type",
+                "type_id",
+                "upc",
+                "updated_at",
+                "user",
+                "views",
+                "weight",
+            )
+            .order_by("-created_at")
+        )
         serializer = InventorySerializer(queryset, many=True)
         return Response(serializer.data)
 

@@ -132,6 +132,8 @@ class InventorySerializer(serializers.ModelSerializer):
             "media",
             "weight",
             "attributes",
+            "updated_at",
+            "created_at",
             # "promotion_price",
         ]
         read_only = True

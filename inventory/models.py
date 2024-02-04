@@ -47,11 +47,6 @@ class Category(TimeStampedUUIDModel):
 
 
 class Product(TimeStampedUUIDModel):
-    """class ProductType(models.TextChoices):
-    HOUSE = "House", _("House")
-    OFFICE = "Office", _("Office")
-    COMMERCIAL = "Commercial", _("Commercial")
-    OTHER = "Other", _("Other")"""
 
     name = models.CharField(
         max_length=255,
@@ -68,12 +63,6 @@ class Product(TimeStampedUUIDModel):
         Category,
         related_name="product",
     )
-    """ type = models.CharField(
-        verbose_name=_("Product Type"),
-        max_length=50,
-        choices=ProductType.choices,
-        default=ProductType.OTHER,
-    ) """
     views = models.IntegerField(verbose_name=_("Total Views"), default=0)
     is_active = models.BooleanField(
         default=True,
@@ -113,6 +102,7 @@ class Type(TimeStampedUUIDModel):
     type_attributes = models.ManyToManyField(
         Attribute,
         related_name="type_attributes",
+        through="TypeAttribute",
     )
 
     def __str__(self):
@@ -179,6 +169,7 @@ class Inventory(TimeStampedUUIDModel):
     attribute_values = models.ManyToManyField(
         AttributeValue,
         related_name="attribute_values",
+        through="AttributeValues",
     )
     is_active = models.BooleanField(
         default=False,
@@ -281,3 +272,35 @@ class Stock(TimeStampedUUIDModel):
 
     class Meta:
         verbose_name_plural = "Stock"
+
+
+class AttributeValues(models.Model):
+    attributevalues = models.ForeignKey(
+        "AttributeValue",
+        related_name="attributevaluess",
+        on_delete=models.PROTECT,
+    )
+    inventory = models.ForeignKey(
+        Inventory,
+        related_name="attributevaluess",
+        on_delete=models.PROTECT,
+    )
+
+    class Meta:
+        unique_together = (("attributevalues", "inventory"),)
+
+
+class TypeAttribute(models.Model):
+    attribute = models.ForeignKey(
+        Attribute,
+        related_name="type_attribute",
+        on_delete=models.PROTECT,
+    )
+    type = models.ForeignKey(
+        Type,
+        related_name="type",
+        on_delete=models.PROTECT,
+    )
+
+    class Meta:
+        unique_together = (("attribute", "type"),)
