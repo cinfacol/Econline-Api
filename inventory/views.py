@@ -29,38 +29,36 @@ class ProductByCategory(APIView):
 
 class InventoryList(APIView):
     permission_classes = (permissions.AllowAny,)
-    """
-    Return list of all categories
-    """
 
     def get(self, request):
         queryset = (
             Inventory.objects.all()
             .values(
-                "brand__name",
-                "brand_id",
-                "created_at",
                 "id",
-                "inventory",
-                "is_active",
-                "is_default",
-                "is_digital",
-                "media__image",
-                "order",
                 "pkid",
+                "sku",
+                "upc",
                 "product__name",
                 "product_id",
+                "user__username",
+                "order",
+                "brand",
+                "brand_id",
+                "type__name",
+                "type_id",
+                "attribute_values",
+                "is_active",
+                "is_default",
                 "published_status",
                 "retail_price",
-                "sku",
                 "store_price",
-                # "type",
-                "type_id",
-                "upc",
-                "updated_at",
-                "user",
-                "views",
+                "is_digital",
                 "weight",
+                "views",
+                "inventory_stock",
+                "updated_at",
+                "created_at",
+                "inventory_media",
             )
             .order_by("-created_at")
         )

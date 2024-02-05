@@ -146,7 +146,6 @@ class Inventory(TimeStampedUUIDModel):
         blank=True,
         help_text=_("This field is auto-generated"),
     )
-    # type = models.ForeignKey(Type, related_name="type", on_delete=models.PROTECT)
     product = models.ForeignKey(
         Product, related_name="product", on_delete=models.PROTECT
     )
@@ -215,7 +214,7 @@ class Media(TimeStampedUUIDModel):
     inventory = models.ForeignKey(
         Inventory,
         on_delete=models.CASCADE,
-        related_name="media",
+        related_name="inventory_media",
     )
     image = models.ImageField(
         unique=False,
@@ -260,7 +259,7 @@ class Media(TimeStampedUUIDModel):
 class Stock(TimeStampedUUIDModel):
     inventory = models.OneToOneField(
         Inventory,
-        related_name="inventory",
+        related_name="inventory_stock",
         on_delete=models.CASCADE,
     )
     units = models.IntegerField(
@@ -279,12 +278,12 @@ class AttributeValues(models.Model):
 
     attributevalues = models.ForeignKey(
         "AttributeValue",
-        related_name="attributevaluess",
+        related_name="rel_attributevalues",
         on_delete=models.PROTECT,
     )
     inventory = models.ForeignKey(
         Inventory,
-        related_name="attributevaluess",
+        related_name="rel_inventory_attributevalues",
         on_delete=models.PROTECT,
     )
 
@@ -297,12 +296,12 @@ class TypeAttribute(models.Model):
 
     attribute = models.ForeignKey(
         Attribute,
-        related_name="type_attribute",
+        related_name="rel_type_attribute",
         on_delete=models.PROTECT,
     )
     type = models.ForeignKey(
         Type,
-        related_name="type",
+        related_name="rel_type",
         on_delete=models.PROTECT,
     )
 

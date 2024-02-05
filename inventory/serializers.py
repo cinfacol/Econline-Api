@@ -13,6 +13,7 @@ from .models import (
     Product,
     Inventory,
     Stock,
+    Type,
 )
 
 
@@ -27,6 +28,13 @@ class AttributeValueSerializer(serializers.ModelSerializer):
 class BrandSerializer(serializers.ModelSerializer):
     class Meta:
         model = Brand
+        fields = ["name"]
+        read_only = True
+
+
+class TypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Type
         fields = ["name"]
         read_only = True
 
@@ -100,10 +108,11 @@ class StockSerializer(serializers.ModelSerializer):
 
 
 class InventorySerializer(serializers.ModelSerializer):
-    product = ProductSerializer(many=False, read_only=True)
+    product = ProductSerializer(many=True, read_only=True)
     media = MediaSerializer(many=True, read_only=True)
-    brand = BrandSerializer(read_only=True)
+    brand = BrandSerializer(source="", read_only=True)
     stock = StockSerializer(read_only=True)
+    type = TypeSerializer(read_only=True)
     attributes = AttributeValueSerializer(
         source="attribute_values", many=True, read_only=True
     )
@@ -113,22 +122,35 @@ class InventorySerializer(serializers.ModelSerializer):
         model = Inventory
         fields = [
             "id",
+            "pkid",
             "sku",
             "upc",
-            "store_price",
-            "is_default",
-            "stock",
+            "product",
+            "product_id",
+            # "user",
             "order",
             "brand",
-            "product",
-            "media",
+            "brand_id",
+            "type",
+            "type_id",
+            "attribute_values",
+            "is_active",
+            "is_default",
+            "published_status",
+            "retail_price",
+            "store_price",
+            "is_digital",
             "weight",
+            "views",
+            "stock",
+            "media",
             "attributes",
             "updated_at",
             "created_at",
             # "promotion_price",
         ]
         read_only = True
+        depht = 1
 
     """ def get_promotion_price(self, obj):
 

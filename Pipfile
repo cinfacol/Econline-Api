@@ -20,10 +20,7 @@ djoser = "*"
 django-ckeditor = "*"
 django-cloudinary-storage = "*"
 drf-spectacular = "*"
-pytest-django = "*"
-pytest-factoryboy = "*"
 faker = "*"
-pytest-cov = "*"
 
 [dev-packages]
 

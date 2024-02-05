@@ -55,7 +55,7 @@ class AttributeValueAdmin(admin.ModelAdmin):
 
 @admin.register(Stock)
 class StockAdmin(admin.ModelAdmin):
-    list_display = ["id", "units", "units_sold"]
+    list_display = ["id", "inventory", "units", "units_sold"]
 
 
 @admin.register(Type)
