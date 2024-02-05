@@ -32,6 +32,7 @@ class BrandSerializer(serializers.ModelSerializer):
 
 
 class CategorySerializer(serializers.ModelSerializer):
+
     class Meta:
         model = Category
         fields = ["name", "slug", "is_active"]
@@ -39,27 +40,18 @@ class CategorySerializer(serializers.ModelSerializer):
 
 
 class ProductSerializer(serializers.ModelSerializer):
-    # user = serializers.SerializerMethodField()
-    # review = serializers.SerializerMethodField()
-
     class Meta:
         model = Product
         fields = [
             "id",
             "name",
             "slug",
-            # "user",
+            "ref_code",
+            "category",
             "description",
-            # "review",
         ]
         read_only = True
         editable = False
-
-    """ def get_user(self, obj):
-        return obj.user.username """
-
-    """ def get_review(self, obj):
-        return ReviewSerializer(obj.product_review.all(), many=True).data """
 
 
 class ReviewSerializer(serializers.ModelSerializer):

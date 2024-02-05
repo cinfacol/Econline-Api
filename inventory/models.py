@@ -40,7 +40,7 @@ class Category(TimeStampedUUIDModel):
 
     class Meta:
         ordering = ["name"]
-        verbose_name_plural = "Categories"
+        verbose_name_plural = _("Categories")
 
     def __str__(self):
         return self.name
@@ -275,6 +275,8 @@ class Stock(TimeStampedUUIDModel):
 
 
 class AttributeValues(models.Model):
+    """inventory attributeValues link table"""
+
     attributevalues = models.ForeignKey(
         "AttributeValue",
         related_name="attributevaluess",
@@ -291,6 +293,8 @@ class AttributeValues(models.Model):
 
 
 class TypeAttribute(models.Model):
+    """type attribute link table"""
+
     attribute = models.ForeignKey(
         Attribute,
         related_name="type_attribute",

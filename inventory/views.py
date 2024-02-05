@@ -11,24 +11,18 @@ from rest_framework.views import APIView
 
 class CategoryList(APIView):
     permission_classes = (permissions.AllowAny,)
-    """
-    Return list of all categories
-    """
 
     def get(self, request):
-        queryset = Category.objects.all().values()
+        queryset = Category.objects.all()
         serializer = CategorySerializer(queryset, many=True)
         return Response(serializer.data)
 
 
 class ProductByCategory(APIView):
     permission_classes = (permissions.AllowAny,)
-    """
-    Return product by category
-    """
 
     def get(self, request, query=None):
-        queryset = Product.objects.filter(category__slug=query).values()
+        queryset = Product.objects.filter(category__slug=query)
         serializer = ProductSerializer(queryset, many=True)
         return Response(serializer.data)
 
