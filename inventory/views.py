@@ -43,6 +43,6 @@ class InventoryByRefCode(APIView):
     """
 
     def get(self, request, query=None):
-        queryset = Inventory.objects.filter(product__ref_code=query).values()
+        queryset = Inventory.objects.filter(product__ref_code=query)
         serializer = InventorySerializer(queryset, many=True)
         return Response(serializer.data)

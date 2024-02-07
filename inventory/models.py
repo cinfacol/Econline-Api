@@ -1,17 +1,18 @@
+from decimal import Decimal
+
+from django.core.validators import MinValueValidator
+from django.db import models
+from django.utils.translation import gettext_lazy as _
 import random
 import string
-from django.db import models
 from autoslug import AutoSlugField
 
 from django.contrib.auth import get_user_model
 from common.models import TimeStampedUUIDModel
-from django.utils.translation import gettext_lazy as _
 from django.urls import reverse
-from decimal import Decimal
+
 
 from .fields import OrderField
-
-from django.core.validators import MinValueValidator
 
 User = get_user_model()
 
@@ -59,11 +60,7 @@ class Product(TimeStampedUUIDModel):
         blank=True,
     )
     description = models.TextField(blank=True)
-    category = models.ManyToManyField(
-        Category,
-        related_name="product",
-    )
-    views = models.IntegerField(verbose_name=_("Total Views"), default=0)
+    category = models.ManyToManyField(Category)
     is_active = models.BooleanField(
         default=True,
     )
@@ -98,12 +95,7 @@ class Type(TimeStampedUUIDModel):
         max_length=255,
         unique=True,
     )
-
-    type_attributes = models.ManyToManyField(
-        Attribute,
-        related_name="type_attributes",
-        through="TypeAttribute",
-    )
+    description = models.TextField(blank=True)
 
     def __str__(self):
         return self.name
@@ -119,8 +111,8 @@ class AttributeValue(TimeStampedUUIDModel):
         max_length=100,
     )
 
-    """ def __str__(self):
-        return f"{self.attribute.name}-{self.value}" """
+    def __str__(self):
+        return self.value
 
 
 class Brand(TimeStampedUUIDModel):
@@ -167,8 +159,7 @@ class Inventory(TimeStampedUUIDModel):
     )
     attribute_values = models.ManyToManyField(
         AttributeValue,
-        related_name="attribute_values",
-        through="AttributeValues",
+        related_name="prod_attribute",
     )
     is_active = models.BooleanField(
         default=False,
@@ -183,7 +174,7 @@ class Inventory(TimeStampedUUIDModel):
         max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal("0.01"))]
     )
     store_price = models.DecimalField(
-        max_digits=7,
+        max_digits=10,
         decimal_places=2,
     )
     is_digital = models.BooleanField(
@@ -213,7 +204,7 @@ class Inventory(TimeStampedUUIDModel):
 class Media(TimeStampedUUIDModel):
     inventory = models.ForeignKey(
         Inventory,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name="inventory_media",
     )
     image = models.ImageField(
@@ -235,17 +226,14 @@ class Media(TimeStampedUUIDModel):
     )
     is_featured = models.BooleanField(
         default=False,
-        verbose_name=_("destacado"),
+        verbose_name=_("Featured"),
         help_text=_("format: default=false, true=default image"),
     )
     default = models.BooleanField(
         default=False,
-        verbose_name=_("por defecto"),
+        verbose_name=_("is default"),
         help_text=_("format: default=false, true=default image"),
     )
-
-    def get_absolute_url(self):
-        return reverse("products:products", args=[self.slug])
 
     class Meta:
         verbose_name = _("inventory image")
@@ -260,7 +248,7 @@ class Stock(TimeStampedUUIDModel):
     inventory = models.OneToOneField(
         Inventory,
         related_name="inventory_stock",
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
     )
     units = models.IntegerField(
         default=0,
@@ -270,40 +258,4 @@ class Stock(TimeStampedUUIDModel):
     )
 
     class Meta:
-        verbose_name_plural = "Stock"
-
-
-class AttributeValues(models.Model):
-    """inventory attributeValues link table"""
-
-    attributevalues = models.ForeignKey(
-        "AttributeValue",
-        related_name="rel_attributevalues",
-        on_delete=models.PROTECT,
-    )
-    inventory = models.ForeignKey(
-        Inventory,
-        related_name="rel_inventory_attributevalues",
-        on_delete=models.PROTECT,
-    )
-
-    class Meta:
-        unique_together = (("attributevalues", "inventory"),)
-
-
-class TypeAttribute(models.Model):
-    """type attribute link table"""
-
-    attribute = models.ForeignKey(
-        Attribute,
-        related_name="rel_type_attribute",
-        on_delete=models.PROTECT,
-    )
-    type = models.ForeignKey(
-        Type,
-        related_name="rel_type",
-        on_delete=models.PROTECT,
-    )
-
-    class Meta:
-        unique_together = (("attribute", "type"),)
+        verbose_name_plural = _("Stock")

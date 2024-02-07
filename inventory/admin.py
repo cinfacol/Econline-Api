@@ -36,21 +36,12 @@ class StockInline(admin.TabularInline):
     model = Stock
 
 
-""" class InventoryInline(admin.TabularInline):
-    model = Inventory """
-
-
 @admin.register(Attribute)
 class AttributeAdmin(admin.ModelAdmin):
     inlines = [
         AttributeValueInline,
     ]
     list_display = ["name", "description"]
-
-
-""" @admin.register(AttributeValue)
-class AttributeValueAdmin(admin.ModelAdmin):
-    list_display = ["value"] """
 
 
 @admin.register(Stock)
@@ -65,9 +56,6 @@ class TypeAdmin(admin.ModelAdmin):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    """inlines = [
-        ProductInventoryInline,
-    ]"""
 
     list_display = [
         "id",
