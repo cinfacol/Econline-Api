@@ -1,5 +1,6 @@
 from attr import attributes
 from django.core.exceptions import ObjectDoesNotExist
+from django.db.models.fields.related import ManyToManyField
 
 # from django.db.models import Q
 from rest_framework import serializers
@@ -22,29 +23,26 @@ class AttributeValueSerializer(serializers.ModelSerializer):
         model = AttributeValue
         depth = 2
         exclude = ["id"]
-        read_only = True
 
 
 class BrandSerializer(serializers.ModelSerializer):
     class Meta:
         model = Brand
         fields = ["name"]
-        read_only = True
 
 
 class TypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Type
         fields = ["name"]
-        read_only = True
 
 
 class CategorySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Category
-        fields = ["name", "slug", "is_active"]
-        read_only = True
+        fields = ["name"]
+        depth = 2
 
 
 class ProductSerializer(serializers.ModelSerializer):
@@ -79,24 +77,29 @@ class ReviewSerializer(serializers.ModelSerializer):
 
 
 class MediaSerializer(serializers.ModelSerializer):
-    inventory = serializers.SerializerMethodField()
+    # inventory = serializers.SerializerMethodField()
+    img_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Media
-        fields = (
+        fields = ["img_url", "alt_text"]
+        """ fields = (
             "image",
             "alt_text",
-            "inventory",
+            # "inventory",
             "is_featured",
             "default",
             "created_at",
             "updated_at",
-        )
+        ) """
         read_only = True
         editable = False
 
-    def get_inventory(self, obj):
-        return obj.inventory.product
+    """ def get_inventory(self, obj):
+        return obj.inventory.product """
+
+    def get_img_url(self, obj):
+        return self.context["request"].build_absolute_uri(obj.img_url.url)
 
 
 class StockSerializer(serializers.ModelSerializer):
@@ -106,12 +109,15 @@ class StockSerializer(serializers.ModelSerializer):
         model = Stock
         fields = ("id", "inventory", "units", "units_sold")
 
+    def get_inventory(self, obj):
+        return obj.units
+
 
 class InventorySerializer(serializers.ModelSerializer):
-    product = ProductSerializer(many=True, read_only=True)
-    media = MediaSerializer(many=True, read_only=True)
-    brand = BrandSerializer(source="", read_only=True)
-    stock = StockSerializer(read_only=True)
+    product = ProductSerializer(many=False, read_only=True)
+    image = MediaSerializer(many=True, read_only=True)
+    brand = BrandSerializer(many=False, read_only=True)
+    stock = StockSerializer(source="inventory_stock", read_only=True)
     type = TypeSerializer(read_only=True)
     attributes = AttributeValueSerializer(
         source="attribute_values", many=True, read_only=True
@@ -126,11 +132,11 @@ class InventorySerializer(serializers.ModelSerializer):
             "sku",
             "upc",
             "product",
-            "product_id",
+            # "product_id",
             # "user",
             "order",
             "brand",
-            "brand_id",
+            # "brand_id",
             "type",
             "type_id",
             "attribute_values",
@@ -143,14 +149,14 @@ class InventorySerializer(serializers.ModelSerializer):
             "weight",
             "views",
             "stock",
-            "media",
+            "image",
             "attributes",
             "updated_at",
             "created_at",
             # "promotion_price",
         ]
         read_only = True
-        depht = 1
+        depth = 3
 
     """ def get_promotion_price(self, obj):
 

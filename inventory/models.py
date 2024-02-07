@@ -119,8 +119,8 @@ class AttributeValue(TimeStampedUUIDModel):
         max_length=100,
     )
 
-    def __str__(self):
-        return f"{self.attribute.name}-{self.value}"
+    """ def __str__(self):
+        return f"{self.attribute.name}-{self.value}" """
 
 
 class Brand(TimeStampedUUIDModel):

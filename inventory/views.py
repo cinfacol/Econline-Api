@@ -31,37 +31,7 @@ class InventoryList(APIView):
     permission_classes = (permissions.AllowAny,)
 
     def get(self, request):
-        queryset = (
-            Inventory.objects.all()
-            .values(
-                "id",
-                "pkid",
-                "sku",
-                "upc",
-                "product__name",
-                "product_id",
-                "user__username",
-                "order",
-                "brand",
-                "brand_id",
-                "type__name",
-                "type_id",
-                "attribute_values",
-                "is_active",
-                "is_default",
-                "published_status",
-                "retail_price",
-                "store_price",
-                "is_digital",
-                "weight",
-                "views",
-                "inventory_stock",
-                "updated_at",
-                "created_at",
-                "inventory_media",
-            )
-            .order_by("-created_at")
-        )
+        queryset = Inventory.objects.all()
         serializer = InventorySerializer(queryset, many=True)
         return Response(serializer.data)
 
