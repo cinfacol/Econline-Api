@@ -21,6 +21,9 @@ django-ckeditor = "*"
 django-cloudinary-storage = "*"
 drf-spectacular = "*"
 faker = "*"
+celery = "*"
+redis = "*"
+django-celery-email = "*"
 
 [dev-packages]
 

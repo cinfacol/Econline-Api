@@ -36,6 +36,7 @@ PROJECT_APPS = [
     "profiles.apps.ProfilesConfig",
     "reviews.apps.ReviewsConfig",
     "inventory.apps.InventoryConfig",
+    "promotion.apps.PromotionConfig",
 ]
 
 ECOMMERCE_APPS = [
@@ -57,6 +58,7 @@ THIRD_PARTY_APPS = [
     "rest_framework_simplejwt.token_blacklist",
     "ckeditor",
     "ckeditor_uploader",
+    "djcelery_email",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + PROJECT_APPS + ECOMMERCE_APPS + THIRD_PARTY_APPS
@@ -311,3 +313,7 @@ SIMPLE_JWT = {
     "TOKEN_USER_CLASS": "rest_framework_simplejwt.models.TokenUser",
     "JTI_CLAIM": "jti",
 }
+
+CELERY_BROKER_URL = env("CELERY_BROKER")
+CELERY_RESULT_BACKEND = env("CELERY_BACKEND")
+CELERY_TIMEZONE = "America/Bogota"

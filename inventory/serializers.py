@@ -2,9 +2,10 @@ from attr import attributes
 from django.core.exceptions import ObjectDoesNotExist
 from django.db.models.fields.related import ManyToManyField
 
-# from django.db.models import Q
+from django.db.models import Q
 from rest_framework import serializers
 from reviews.models import Review
+from promotion.models import Promotion
 
 from .models import (
     Brand,
@@ -123,7 +124,7 @@ class InventorySerializer(serializers.ModelSerializer):
     attributes = AttributeValueSerializer(
         source="attribute_values", many=True, read_only=True
     )
-    # promotion_price = serializers.SerializerMethodField()
+    promotion_price = serializers.SerializerMethodField()
 
     class Meta:
         model = Inventory
@@ -138,6 +139,7 @@ class InventorySerializer(serializers.ModelSerializer):
             "brand",
             "type",
             "type_id",
+            "attribute_values",
             "is_active",
             "is_default",
             "published_status",
@@ -151,7 +153,7 @@ class InventorySerializer(serializers.ModelSerializer):
             "attributes",
             "updated_at",
             "created_at",
-            # "promotion_price",
+            "promotion_price",
         ]
         read_only = True
         depth = 3
@@ -159,7 +161,7 @@ class InventorySerializer(serializers.ModelSerializer):
     def get_image(self, obj):
         return MediaSerializer(obj.inventory_media.all(), many=True).data
 
-    """ def get_promotion_price(self, obj):
+    def get_promotion_price(self, obj):
 
         try:
             x = Promotion.products_on_promotion.through.objects.get(
@@ -167,17 +169,17 @@ class InventorySerializer(serializers.ModelSerializer):
             )
             return x.promo_price
         except ObjectDoesNotExist:
-            return None """
+            return None
 
-    """ def to_representation(self, instance):
+    def to_representation(self, instance):
         data = super().to_representation(instance)
-        av_data = data.pop("attribute_value")
+        av_data = data.pop("attribute_values")
         attr_values = {}
         for key in av_data:
-            attr_values.update({key["attribute"]["name"]: key["attribute_value"]})
+            attr_values.update({key["attribute"]["name"]: key["attribute"]})
         data.update({"specification": attr_values})
 
-        return data """
+        return data
 
 
 """ class ProductInventorySearchSerializer(serializers.ModelSerializer):

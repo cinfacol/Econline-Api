@@ -71,6 +71,7 @@ class InventoryAdmin(admin.ModelAdmin):
         StockInline,
     ]
     list_display = [
+        "pkid",
         "product",
         "store_price",
         "order",
