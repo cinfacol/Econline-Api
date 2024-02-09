@@ -63,7 +63,7 @@ class Promotion(TimeStampedUUIDModel):
 class ProductsOnPromotion(TimeStampedUUIDModel):
     product_inventory_id = models.ForeignKey(
         Inventory,
-        related_name="InventoryOnPromotion",
+        related_name="ProductInventoryOnPromotion",
         on_delete=models.PROTECT,
     )
     promotion_id = models.ForeignKey(

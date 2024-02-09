@@ -1,4 +1,5 @@
 from pathlib import Path
+from celery.schedules import crontab
 from datetime import timedelta
 from django.utils.translation import gettext_lazy as _
 
@@ -317,3 +318,10 @@ SIMPLE_JWT = {
 CELERY_BROKER_URL = env("CELERY_BROKER")
 CELERY_RESULT_BACKEND = env("CELERY_BACKEND")
 CELERY_TIMEZONE = "America/Bogota"
+
+CELERY_BEAT_SCHEDULE = {
+    "sample_task": {
+        "task": "ecommerce.promotion.promotion_management",
+        "schedule": crontab(minute="0", hour="1"),
+    },
+}

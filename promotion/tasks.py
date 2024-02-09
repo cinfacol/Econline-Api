@@ -10,7 +10,6 @@ from .models import Promotion
 
 @shared_task()
 def promotion_prices(reduction_amount, obj_id):
-    print("object_id", obj_id)
     with transaction.atomic():
         promotions = Promotion.products_on_promotion.through.objects.filter(
             promotion_id=obj_id
