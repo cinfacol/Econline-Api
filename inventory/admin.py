@@ -5,6 +5,7 @@ from .models import (
     Media,
     Inventory,
     Category,
+    MeasureUnit,
     Brand,
     Attribute,
     AttributeValue,
@@ -13,12 +14,13 @@ from .models import (
 )
 
 
-# admin.site.register(models.Category)
+class MediaInline(admin.TabularInline):
+    model = Media
 
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ["id", "name"]
+    list_display = ["id", "name", "measure_unit"]
     list_display_links = ["id"]
     search_fields = ["name"]
     list_per_page = 25
@@ -42,6 +44,11 @@ class AttributeAdmin(admin.ModelAdmin):
         AttributeValueInline,
     ]
     list_display = ["name", "description"]
+
+
+@admin.register(MeasureUnit)
+class MeasureUnitAdmin(admin.ModelAdmin):
+    list_display = ["id", "description"]
 
 
 @admin.register(Stock)

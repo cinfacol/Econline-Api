@@ -62,7 +62,31 @@ class CategorySerializer(serializers.ModelSerializer):
         depth = 2
 
 
+class ReviewSerializer(serializers.ModelSerializer):
+    # product = serializers.SerializerMethodField()
+    inventory = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Review
+        fields = (
+            "rater",
+            # "product",
+            "inventory",
+            "rating",
+            "comment",
+        )
+
+    """ def get_product(self, obj):
+        return obj.product.name
+ """
+
+    def get_inventory(self, obj):
+        return obj.inventory.product.name
+
+
 class ProductSerializer(serializers.ModelSerializer):
+    # rating = serializers.SerializerMethodField()
+
     class Meta:
         model = Product
         fields = [
@@ -72,25 +96,15 @@ class ProductSerializer(serializers.ModelSerializer):
             "ref_code",
             "category",
             "description",
+            # "rating",
         ]
         read_only = True
         editable = False
+        depth = 2
 
-
-class ReviewSerializer(serializers.ModelSerializer):
-    product = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Review
-        fields = (
-            "rater",
-            "product",
-            "rating",
-            "comment",
-        )
-
-    def get_product(self, obj):
-        return obj.product.name
+    """ def get_rating(self, obj):
+        # return obj.reviews.product.name
+        return ReviewSerializer(obj.Inventory_review.all(), many=True).data """
 
 
 class MediaSerializer(serializers.ModelSerializer):
@@ -125,6 +139,7 @@ class InventorySerializer(serializers.ModelSerializer):
         source="attribute_values", many=True, read_only=True
     )
     promotion_price = serializers.SerializerMethodField()
+    rating = serializers.SerializerMethodField()
 
     class Meta:
         model = Inventory
@@ -154,12 +169,17 @@ class InventorySerializer(serializers.ModelSerializer):
             "updated_at",
             "created_at",
             "promotion_price",
+            "rating",
         ]
         read_only = True
         depth = 3
 
     def get_image(self, obj):
         return MediaSerializer(obj.inventory_media.all(), many=True).data
+
+    def get_rating(self, obj):
+        # return obj.reviews.product.name
+        return ReviewSerializer(obj.Inventory_review.all(), many=True).data
 
     def get_promotion_price(self, obj):
 

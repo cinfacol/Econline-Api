@@ -4,6 +4,7 @@ from django.utils.translation import gettext_lazy as _
 
 from common.models import TimeStampedUUIDModel
 from products.models import Product
+from inventory.models import Inventory
 
 User = settings.AUTH_USER_MODEL
 
@@ -28,6 +29,15 @@ class Review(TimeStampedUUIDModel):
         related_name="product_review",
         on_delete=models.SET_NULL,
         null=True,
+        blank=True,
+    )
+    inventory = models.ForeignKey(
+        Inventory,
+        verbose_name=_("Inventory"),
+        related_name="Inventory_review",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
     )
     rating = models.PositiveIntegerField(
         verbose_name=_("Rating"),
@@ -38,7 +48,7 @@ class Review(TimeStampedUUIDModel):
     comment = models.TextField(verbose_name=_("Comment"), blank=True, null=True)
 
     class Meta:
-        unique_together = ["rater", "product"]
+        unique_together = ["rater", "inventory"]
 
     def __str__(self):
-        return f"{self.rater}'s {self.rating}-star rating for {self.product}"
+        return f"{self.rater}'s {self.rating}-star rating for {self.inventory}"
