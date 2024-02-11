@@ -1,6 +1,5 @@
 from attr import attributes
 from django.core.exceptions import ObjectDoesNotExist
-from django.db.models.fields.related import ManyToManyField
 
 from django.db.models import Q
 from rest_framework import serializers
@@ -11,24 +10,12 @@ from .models import (
     Brand,
     Category,
     Media,
-    Attribute,
     AttributeValue,
     Product,
     Inventory,
     Stock,
     Type,
 )
-
-
-""" class AttributeSerializer(serializers.ModelSerializer):
-
-    class Meta:
-        model = Attribute
-        fields = [
-            "name",
-            "description",
-        ]
-        depth = 2 """
 
 
 class AttributeValueSerializer(serializers.ModelSerializer):
@@ -59,33 +46,26 @@ class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
         fields = ["name"]
-        depth = 2
 
 
 class ReviewSerializer(serializers.ModelSerializer):
-    # product = serializers.SerializerMethodField()
     inventory = serializers.SerializerMethodField()
 
     class Meta:
         model = Review
         fields = (
             "rater",
-            # "product",
             "inventory",
             "rating",
             "comment",
         )
-
-    """ def get_product(self, obj):
-        return obj.product.name
- """
+        depth = 1
 
     def get_inventory(self, obj):
         return obj.inventory.product.name
 
 
 class ProductSerializer(serializers.ModelSerializer):
-    # rating = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
@@ -96,15 +76,10 @@ class ProductSerializer(serializers.ModelSerializer):
             "ref_code",
             "category",
             "description",
-            # "rating",
         ]
         read_only = True
         editable = False
         depth = 2
-
-    """ def get_rating(self, obj):
-        # return obj.reviews.product.name
-        return ReviewSerializer(obj.Inventory_review.all(), many=True).data """
 
 
 class MediaSerializer(serializers.ModelSerializer):
@@ -153,13 +128,13 @@ class InventorySerializer(serializers.ModelSerializer):
             "order",
             "brand",
             "type",
-            "type_id",
             "attribute_values",
             "is_active",
             "is_default",
             "published_status",
             "retail_price",
             "store_price",
+            "promotion_price",
             "is_digital",
             "weight",
             "views",
@@ -168,7 +143,6 @@ class InventorySerializer(serializers.ModelSerializer):
             "attributes",
             "updated_at",
             "created_at",
-            "promotion_price",
             "rating",
         ]
         read_only = True
@@ -178,14 +152,13 @@ class InventorySerializer(serializers.ModelSerializer):
         return MediaSerializer(obj.inventory_media.all(), many=True).data
 
     def get_rating(self, obj):
-        # return obj.reviews.product.name
         return ReviewSerializer(obj.Inventory_review.all(), many=True).data
 
     def get_promotion_price(self, obj):
 
         try:
             x = Promotion.products_on_promotion.through.objects.get(
-                Q(promotion_id__is_active=True) & Q(product_inventory_id=obj.id)
+                Q(promotion_id__is_active=True) & Q(product_inventory_id__id=obj.id)
             )
             return x.promo_price
         except ObjectDoesNotExist:
@@ -200,56 +173,3 @@ class InventorySerializer(serializers.ModelSerializer):
         data.update({"specification": attr_values})
 
         return data
-
-
-""" class ProductInventorySearchSerializer(serializers.ModelSerializer):
-
-    product = ProductSerializer(many=False, read_only=True)
-    brand = BrandSerializer(many=False, read_only=True)
-
-    class Meta:
-        model = Inventory
-        fields = [
-            "id",
-            "sku",
-            "store_price",
-            "is_default",
-            "product",
-            "brand",
-        ] """
-
-""" class InventoryCategorySerializer(serializers.ModelSerializer):
-    product_image = MediaSerializer(many=True)
-
-    class Meta:
-        model = Inventory
-        fields = (
-            "retail_price",
-            "product_image",
-        ) """
-
-
-""" class ProductCategorySerializer(serializers.ModelSerializer):
-    product_line = InventoryCategorySerializer(many=True)
-
-    class Meta:
-        model = Product
-        fields = (
-            "name",
-            "slug",
-            "pid",
-            "created_at",
-            "product_line",
-        )
-
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        x = data.pop("product_line")
-
-        if x:
-            retail_price = x[0]["retail_price"]
-            image = x[0]["product_image"]
-            data.update({"retail_price": retail_price})
-            data.update({"image": image})
-
-        return data """
