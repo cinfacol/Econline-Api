@@ -61,6 +61,11 @@ class TypeAdmin(admin.ModelAdmin):
     list_display = ["id", "name"]
 
 
+@admin.register(AttributeValue)
+class AttributeValueAdmin(admin.ModelAdmin):
+    exclude = ["id"]
+
+
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
 

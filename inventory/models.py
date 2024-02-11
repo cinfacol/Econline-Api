@@ -7,14 +7,14 @@ import random
 import string
 from autoslug import AutoSlugField
 
-from django.contrib.auth import get_user_model
+from django.conf import settings
 from common.models import TimeStampedUUIDModel
 from django.urls import reverse
 
 
 from .fields import OrderField
 
-User = get_user_model()
+User = settings.AUTH_USER_MODEL
 
 
 class IsActiveQueryset(models.QuerySet):
@@ -171,10 +171,11 @@ class Inventory(TimeStampedUUIDModel):
     product = models.ForeignKey(
         Product, related_name="product", on_delete=models.PROTECT
     )
-    user = models.ManyToManyField(
+    user = models.ForeignKey(
         User,
         verbose_name=_("Agent, Seller or Buyer"),
-        related_name="product_user",
+        related_name="inventory_user",
+        on_delete=models.PROTECT,
     )
     order = OrderField(unique_for_field="product", blank=True)
     brand = models.ForeignKey(

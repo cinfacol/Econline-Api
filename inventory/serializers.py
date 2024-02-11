@@ -1,11 +1,9 @@
-from attr import attributes
 from django.core.exceptions import ObjectDoesNotExist
 
 from django.db.models import Q
 from rest_framework import serializers
 from reviews.models import Review
 from promotion.models import Promotion
-
 from .models import (
     Brand,
     Category,
@@ -105,6 +103,7 @@ class StockSerializer(serializers.ModelSerializer):
 
 
 class InventorySerializer(serializers.ModelSerializer):
+    user = serializers.SerializerMethodField()
     product = ProductSerializer(many=False, read_only=True)
     image = serializers.SerializerMethodField()
     brand = BrandSerializer(many=False, read_only=True)
@@ -124,7 +123,7 @@ class InventorySerializer(serializers.ModelSerializer):
             "sku",
             "upc",
             "product",
-            # "user",
+            "user",
             "order",
             "brand",
             "type",
@@ -147,6 +146,9 @@ class InventorySerializer(serializers.ModelSerializer):
         ]
         read_only = True
         depth = 3
+
+    def get_user(self, obj):
+        return obj.user.username
 
     def get_image(self, obj):
         return MediaSerializer(obj.inventory_media.all(), many=True).data
