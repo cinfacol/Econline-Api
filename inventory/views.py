@@ -18,12 +18,12 @@ class CategoryList(APIView):
         return Response(serializer.data)
 
 
-class ProductByCategory(APIView):
+class InventoryByCategory(APIView):
     permission_classes = (permissions.AllowAny,)
 
     def get(self, request, query=None):
-        queryset = Product.objects.filter(category__slug=query)
-        serializer = ProductSerializer(queryset, many=True)
+        queryset = Inventory.objects.filter(product__category__slug=query)
+        serializer = InventorySerializer(queryset, many=True)
         return Response(serializer.data)
 
 

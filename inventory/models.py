@@ -64,8 +64,15 @@ class Category(TimeStampedUUIDModel):
     is_active = models.BooleanField(
         default=True,
     )
+
+    is_parent = models.BooleanField(
+        default=False,
+    )
     measure_unit = models.ForeignKey(
-        MeasureUnit, on_delete=models.CASCADE, verbose_name=_("Measure Unit")
+        MeasureUnit,
+        on_delete=models.CASCADE,
+        related_name="MeasureUnit",
+        verbose_name=_("Measure Unit"),
     )
     objects = IsActiveQueryset.as_manager()
 

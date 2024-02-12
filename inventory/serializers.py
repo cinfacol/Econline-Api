@@ -43,7 +43,8 @@ class CategorySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Category
-        fields = ["name"]
+        exclude = ["updated_at"]
+        depth = 1
 
 
 class ReviewSerializer(serializers.ModelSerializer):
