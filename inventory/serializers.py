@@ -4,12 +4,12 @@ from django.db.models import Q
 from rest_framework import serializers
 from reviews.models import Review
 from promotion.models import Promotion
+from products.serializers import ProductSerializer
 from .models import (
     Brand,
-    Category,
     Media,
     AttributeValue,
-    Product,
+    InventoryViews,
     Inventory,
     Stock,
     Type,
@@ -39,14 +39,6 @@ class TypeSerializer(serializers.ModelSerializer):
         fields = ["name"]
 
 
-class CategorySerializer(serializers.ModelSerializer):
-
-    class Meta:
-        model = Category
-        exclude = ["updated_at"]
-        depth = 1
-
-
 class ReviewSerializer(serializers.ModelSerializer):
     inventory = serializers.SerializerMethodField()
 
@@ -64,21 +56,10 @@ class ReviewSerializer(serializers.ModelSerializer):
         return obj.inventory.product.name
 
 
-class ProductSerializer(serializers.ModelSerializer):
-
+class InventoryViewSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Product
-        fields = [
-            "id",
-            "name",
-            "slug",
-            "ref_code",
-            "category",
-            "description",
-        ]
-        read_only = True
-        editable = False
-        depth = 2
+        model = InventoryViews
+        exclude = ["updated_at", "pkid"]
 
 
 class MediaSerializer(serializers.ModelSerializer):
@@ -128,6 +109,7 @@ class InventorySerializer(serializers.ModelSerializer):
             "order",
             "brand",
             "type",
+            "quality",
             "attribute_values",
             "is_active",
             "is_default",
@@ -176,3 +158,9 @@ class InventorySerializer(serializers.ModelSerializer):
         data.update({"specification": attr_values})
 
         return data
+
+
+class InventoryCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Inventory
+        exclude = ["updated_at", "pkid"]

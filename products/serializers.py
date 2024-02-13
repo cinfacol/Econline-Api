@@ -1,12 +1,30 @@
 from rest_framework import serializers
 
-from .models import Product, ProductViews, Media
-from reviews.models import Review
+from .models import Product
+
+# from reviews.models import Review
 
 # from categories.serializers import CategorySerializer
 
 
 class ProductSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Product
+        fields = [
+            "id",
+            "name",
+            "slug",
+            "ref_code",
+            "category",
+            "description",
+        ]
+        read_only = True
+        editable = False
+        depth = 2
+
+
+""" class ProductSerializer(serializers.ModelSerializer):
     # category: CategorySerializer
     user = serializers.SerializerMethodField()
     category = serializers.StringRelatedField()
@@ -46,22 +64,22 @@ class ProductSerializer(serializers.ModelSerializer):
         return MediaSerializer(obj.imagenes.all(), many=True).data
 
     def get_review(self, obj):
-        return ReviewSerializer(obj.product_review.all(), many=True).data
+        return ReviewSerializer(obj.product_review.all(), many=True).data """
 
 
-class ProductCreateSerializer(serializers.ModelSerializer):
+""" class ProductCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
-        exclude = ["updated_at", "pkid"]
+        exclude = ["updated_at", "pkid"] """
 
 
-class ProductViewSerializer(serializers.ModelSerializer):
+""" class ProductViewSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductViews
-        exclude = ["updated_at", "pkid"]
+        exclude = ["updated_at", "pkid"] """
 
 
-class MediaSerializer(serializers.ModelSerializer):
+""" class MediaSerializer(serializers.ModelSerializer):
     product = serializers.SerializerMethodField()
 
     class Meta:
@@ -77,10 +95,10 @@ class MediaSerializer(serializers.ModelSerializer):
         )
 
     def get_product(self, obj):
-        return obj.product.title
+        return obj.product.title """
 
 
-class ReviewSerializer(serializers.ModelSerializer):
+""" class ReviewSerializer(serializers.ModelSerializer):
     product = serializers.SerializerMethodField()
 
     class Meta:
@@ -93,4 +111,4 @@ class ReviewSerializer(serializers.ModelSerializer):
         )
 
     def get_product(self, obj):
-        return obj.product.title
+        return obj.product.title """

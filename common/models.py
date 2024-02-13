@@ -11,3 +11,15 @@ class TimeStampedUUIDModel(models.Model):
 
     class Meta:
         abstract = True
+
+
+class IsActiveQueryset(models.QuerySet):
+    def is_active(self):
+        return self.filter(is_active=True)
+
+
+class PublishedManager(models.Manager):
+    def get_queryset(self):
+        return (
+            super(PublishedManager, self).get_queryset().filter(published_status=True)
+        )

@@ -2,118 +2,23 @@ from decimal import Decimal
 
 from django.core.validators import MinValueValidator
 from django.db import models
+
+# from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 import random
 import string
-from autoslug import AutoSlugField
 
+from autoslug import AutoSlugField
 from django.conf import settings
 from common.models import TimeStampedUUIDModel
-from django.urls import reverse
+from common.models import IsActiveQueryset
+from common.models import PublishedManager
+from products.models import Product
 
 
 from .fields import OrderField
 
 User = settings.AUTH_USER_MODEL
-
-
-class IsActiveQueryset(models.QuerySet):
-    def is_active(self):
-        return self.filter(is_active=True)
-
-
-class ProductPublishedManager(models.Manager):
-    def get_queryset(self):
-        return (
-            super(ProductPublishedManager, self)
-            .get_queryset()
-            .filter(published_status=True)
-        )
-
-
-class MeasureUnit(TimeStampedUUIDModel):
-
-    class MeasureType(models.TextChoices):
-        UNITS = "Units", _("Units")
-        GRAMS = "Grams", _("Grams")
-        POUNDS = "Pounds", _("Pounds")
-        KILOGRAMS = "Kilograms", _("Kilograms")
-        MILLILITERS = "Mililiters", _("Mililiters")
-        LITERS = "Liters", _("Liters")
-        OTHER = "Other", _("Other")
-
-    description = models.CharField(
-        verbose_name=_("Descripción"),
-        max_length=50,
-        choices=MeasureType.choices,
-        default=MeasureType.UNITS,
-        unique=True,
-    )
-
-    class Meta:
-        verbose_name = _("Measure Unit")
-        verbose_name_plural = _("Measure Units")
-
-    def __str__(self):
-        return self.description
-
-
-class Category(TimeStampedUUIDModel):
-    name = models.CharField(max_length=255, unique=True)
-    slug = AutoSlugField(populate_from="name", unique=True, always_update=True)
-    is_active = models.BooleanField(
-        default=True,
-    )
-
-    is_parent = models.BooleanField(
-        default=False,
-    )
-    measure_unit = models.ForeignKey(
-        MeasureUnit,
-        on_delete=models.CASCADE,
-        related_name="MeasureUnit",
-        verbose_name=_("Measure Unit"),
-    )
-    objects = IsActiveQueryset.as_manager()
-
-    class Meta:
-        ordering = ["name"]
-        verbose_name_plural = _("Categories")
-
-    def __str__(self):
-        return self.name
-
-
-class Product(TimeStampedUUIDModel):
-
-    name = models.CharField(
-        max_length=255,
-    )
-    slug = AutoSlugField(populate_from="name", unique=True, always_update=True)
-    ref_code = models.CharField(
-        verbose_name=_("Product Reference Code"),
-        max_length=12,
-        unique=True,
-        blank=True,
-    )
-    description = models.TextField(blank=True)
-    category = models.ManyToManyField(Category)
-    is_active = models.BooleanField(
-        default=True,
-    )
-
-    objects = IsActiveQueryset.as_manager()
-
-    def __str__(self):
-        return self.name
-
-    def save(self, *args, **kwargs):
-        self.name = str.title(self.name)
-        self.description = str.capitalize(self.description)
-        self.ref_code = "".join(
-            random.choices(string.ascii_uppercase + string.digits, k=10)
-        )
-        super(Product, self).save(*args, **kwargs)
 
 
 class Attribute(TimeStampedUUIDModel):
@@ -132,6 +37,7 @@ class Type(TimeStampedUUIDModel):
         max_length=255,
         unique=True,
     )
+    slug = AutoSlugField(populate_from="name", unique=True, always_update=True)
     description = models.TextField(blank=True)
 
     def __str__(self):
@@ -163,6 +69,12 @@ class Brand(TimeStampedUUIDModel):
 
 
 class Inventory(TimeStampedUUIDModel):
+
+    class StateType(models.TextChoices):
+        NEW = "New", _("New")
+        USED = "Used", _("Used")
+        DAMAGED = "Damaged", _("for Spare Parts")
+
     sku = models.CharField(
         max_length=20,
         unique=True,
@@ -195,6 +107,12 @@ class Inventory(TimeStampedUUIDModel):
     type = models.ForeignKey(
         Type, related_name="product_type", on_delete=models.PROTECT
     )
+    quality = models.CharField(
+        verbose_name=_("State Type"),
+        max_length=50,
+        choices=StateType.choices,
+        default=StateType.NEW,
+    )
     attribute_values = models.ManyToManyField(
         AttributeValue,
         related_name="prod_attribute",
@@ -224,7 +142,7 @@ class Inventory(TimeStampedUUIDModel):
     )
     views = models.IntegerField(verbose_name=_("Total Views"), default=0)
 
-    published = ProductPublishedManager()
+    published = PublishedManager()
     objects = IsActiveQueryset.as_manager()
 
     class Meta:
@@ -237,6 +155,20 @@ class Inventory(TimeStampedUUIDModel):
         self.upc = "".join(random.choices(string.digits, k=12))
         self.sku = "".join(random.choices(string.digits, k=10))
         super(Inventory, self).save(*args, **kwargs)
+
+
+class InventoryViews(TimeStampedUUIDModel):
+    ip = models.CharField(verbose_name=_("IP Address"), max_length=250)
+    inventory = models.ForeignKey(
+        Inventory, related_name="inventory_views", on_delete=models.CASCADE
+    )
+
+    def __str__(self):
+        return f"Total views on - {self.inventory.product.name} is - {self.inventory.views} view(s)"
+
+    class Meta:
+        verbose_name = "Inventory View"
+        verbose_name_plural = "Inventory Views"
 
 
 class Media(TimeStampedUUIDModel):
