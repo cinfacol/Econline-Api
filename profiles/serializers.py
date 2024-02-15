@@ -1,9 +1,9 @@
-from django_countries.serializer_fields import CountryField
-from rest_framework import fields, serializers
+# from django_countries.serializer_fields import CountryField
+from rest_framework import serializers
 
 from reviews.serializers import ReviewSerializer
 
-from .models import Profile
+from .models import Profile, Address
 
 
 class ProfileSerializer(serializers.ModelSerializer):
@@ -12,8 +12,8 @@ class ProfileSerializer(serializers.ModelSerializer):
     last_name = serializers.CharField(source="user.last_name")
     email = serializers.EmailField(source="user.email")
     full_name = serializers.SerializerMethodField(read_only=True)
-    country = CountryField(name_only=True)
     reviews = serializers.SerializerMethodField(read_only=True)
+    address = serializers.SerializerMethodField()
 
     class Meta:
         model = Profile
@@ -29,8 +29,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             "about_me",
             "license",
             "gender",
-            "country",
-            "city",
+            "address",
             "is_buyer",
             "is_seller",
             "is_agent",
@@ -48,6 +47,9 @@ class ProfileSerializer(serializers.ModelSerializer):
         serializer = ReviewSerializer(reviews, many=True)
         return serializer.data
 
+    def get_address(self, obj):
+        return AddressSerializer(obj.profile_address.all(), many=True).data
+
     def to_representation(self, instance):
         representation = super().to_representation(instance)
         if instance.top_agent:
@@ -56,7 +58,6 @@ class ProfileSerializer(serializers.ModelSerializer):
 
 
 class UpdateProfileSerializer(serializers.ModelSerializer):
-    country = CountryField(name_only=True)
 
     class Meta:
         model = Profile
@@ -66,8 +67,6 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
             "about_me",
             "license",
             "gender",
-            "country",
-            "city",
             "is_buyer",
             "is_seller",
             "is_agent",
@@ -78,3 +77,39 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
         if instance.top_agent:
             representation["top_agent"] = True
         return representation
+
+
+class AddressSerializer(serializers.ModelSerializer):
+    # country = CountryField(name_only=True)
+    profile = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Address
+        fields = [
+            "profile",
+            "address",
+            "phone_number",
+            "country",
+            "state",
+            "city",
+            "zip_code",
+            "default",
+        ]
+
+    def get_profile(self, obj):
+        return obj.profile.username
+
+
+class UpdateAddressSerializer(serializers.ModelSerializer):
+    # country = CountryField(name_only=True)
+
+    class Meta:
+        model = Address
+        fields = [
+            "address",
+            "phone_number",
+            "country",
+            "state",
+            "city",
+            "default",
+        ]
