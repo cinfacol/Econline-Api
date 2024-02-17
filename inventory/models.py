@@ -9,16 +9,14 @@ import random
 import string
 
 from autoslug import AutoSlugField
-from django.conf import settings
-from common.models import TimeStampedUUIDModel
-from common.models import IsActiveQueryset
-from common.models import PublishedManager
+from django.contrib.auth import get_user_model
+
+from common.models import TimeStampedUUIDModel, IsActiveQueryset, PublishedManager
 from products.models import Product
-
-
+from users.models import User
 from .fields import OrderField
 
-User = settings.AUTH_USER_MODEL
+# User = get_user_model()
 
 
 class Attribute(TimeStampedUUIDModel):

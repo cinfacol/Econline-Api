@@ -23,7 +23,6 @@ class UserSerializer(serializers.ModelSerializer):
             "last_name",
             "full_name",
             "gender",
-            "phone_number",
             "profile_photo",
             "top_agent",
         ]

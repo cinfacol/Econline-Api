@@ -5,6 +5,7 @@ from rest_framework import serializers
 from reviews.models import Review
 from promotion.models import Promotion
 from products.serializers import ProductSerializer
+from users.serializers import UserSerializer
 from .models import (
     Brand,
     Media,
@@ -85,7 +86,7 @@ class StockSerializer(serializers.ModelSerializer):
 
 
 class InventorySerializer(serializers.ModelSerializer):
-    user = serializers.SerializerMethodField()
+    user = UserSerializer(many=False, read_only=True)
     product = ProductSerializer(many=False, read_only=True)
     image = serializers.SerializerMethodField()
     brand = BrandSerializer(many=False, read_only=True)
@@ -130,8 +131,8 @@ class InventorySerializer(serializers.ModelSerializer):
         read_only = True
         depth = 3
 
-    def get_user(self, obj):
-        return obj.user.username
+    # def get_user(self, obj):
+    #     return obj.user.username
 
     def get_image(self, obj):
         return MediaSerializer(obj.inventory_media.all(), many=True).data
