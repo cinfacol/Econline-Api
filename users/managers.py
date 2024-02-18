@@ -3,6 +3,10 @@ from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.utils.translation import gettext_lazy as _
 
+# from cart.models import Cart
+
+# from wishlist.models import WishList
+
 
 class CustomUserManager(BaseUserManager):
     def email_validator(self, email):
@@ -12,11 +16,6 @@ class CustomUserManager(BaseUserManager):
             raise ValueError(_("You must provide a valid email address"))
 
     def create_user(self, username, email, password=None, **kwargs):
-        """if not email:
-            raise ValueError("Users must have an email address")
-
-        email = self.normalize_email(email)
-        email = email.lower()"""
 
         if email:
             email = self.normalize_email(email)
@@ -28,6 +27,12 @@ class CustomUserManager(BaseUserManager):
 
         user.set_password(password)
         user.save(using=self._db)
+
+        """ shopping_cart = Cart.objects.create(user=user)
+        shopping_cart.save() """
+
+        """ wishlist = WishList.objects.create(user=user)
+        wishlist.save() """
 
         return user
 
