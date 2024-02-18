@@ -2,10 +2,10 @@ from django.conf import settings
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
-# from django_countries.fields import CountryField
+from .countries import Countries
 from phonenumber_field.modelfields import PhoneNumberField
-
 from common.models import TimeStampedUUIDModel
+from orders.models import Order
 
 User = settings.AUTH_USER_MODEL
 
@@ -74,6 +74,13 @@ class Address(TimeStampedUUIDModel):
     profile = models.ForeignKey(
         Profile, related_name="profile_address", on_delete=models.CASCADE
     )
+    order = models.OneToOneField(
+        Order,
+        related_name="order_address",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+    )
     address = models.CharField(max_length=255, verbose_name=_("Address Line 1"))
     address_2 = models.CharField(
         max_length=255, verbose_name=_("Address Line 2"), blank=True, null=True
@@ -81,8 +88,12 @@ class Address(TimeStampedUUIDModel):
     phone_number = PhoneNumberField(
         verbose_name=_("Phone Number"), max_length=30, default="+573142544178"
     )
-    # country = CountryField(multiple=False)
-    country = models.CharField(max_length=100, verbose_name=_("Country"))
+    country = models.CharField(
+        verbose_name=_("Country"),
+        max_length=255,
+        choices=Countries.choices,
+        default=Countries.Colombia,
+    )
     state = models.CharField(max_length=100, verbose_name=_("State"))
     city = models.CharField(max_length=100, verbose_name=_("City"))
     zip_code = models.CharField(max_length=20, verbose_name=_("Zip Code"))

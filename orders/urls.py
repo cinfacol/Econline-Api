@@ -1,4 +1,12 @@
 from django.urls import path
+from .views import ListOrdersView, ListOrderDetailView
+
+urlpatterns = [
+    path("get-orders", ListOrdersView.as_view()),
+    path("get-order/<transactionId>", ListOrderDetailView.as_view()),
+]
+
+""" from django.urls import path
 from . import views
 
 urlpatterns = [
@@ -8,4 +16,4 @@ urlpatterns = [
     path("my/orders/", views.my_orders),
     path("deliver/<int:pk>/", views.delivered),
     path("solo/<int:pk>/", views.solo_order),
-]
+] """

@@ -1,25 +1,47 @@
 from django.db import models
-from users.models import User
-from products.models import Product
+from django.conf import settings
+from django.utils.translation import gettext_lazy as _
+
+from inventory.models import Inventory
+from common.models import TimeStampedUUIDModel
+
+User = settings.AUTH_USER_MODEL
 
 
-class Order(models.Model):
+class Order(TimeStampedUUIDModel):
+
+    class OrderStatus(models.TextChoices):
+        NOTPROCESSED = "Not_Processed", _("NotProcessed")
+        PROCESSED = "Processed", _("Processed")
+        SHIPPED = "Shipped", _("Shipped")
+        DELIVERED = "Delivered", _("Delivered")
+        CANCELLED = "Cancelled", _("Cancelled")
+
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
-    total_price = models.CharField(max_length=250, blank=True)
+    status = models.CharField(
+        verbose_name=_("Status"),
+        max_length=50,
+        choices=OrderStatus.choices,
+        default=OrderStatus.NOTPROCESSED,
+    )
+    transaction_id = models.CharField(max_length=255, unique=True)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    shipping_name = models.CharField(max_length=255)
+    shipping_time = models.CharField(max_length=255)
+    shipping_price = models.DecimalField(max_digits=5, decimal_places=2)
     is_delivered = models.BooleanField(default=False)
     delivered_at = models.DateTimeField(auto_now_add=False, null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.transaction_id
 
 
-class Orderitem(models.Model):
-    product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True)
+class OrderItem(TimeStampedUUIDModel):
+    inventory = models.ForeignKey(Inventory, on_delete=models.SET_NULL, null=True)
     order = models.ForeignKey(Order, on_delete=models.SET_NULL, null=True)
-    quantity = models.IntegerField(null=True, blank=True, default=0)
-    price = models.CharField(max_length=250, blank=True)
+    name = models.CharField(max_length=255)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    count = models.IntegerField()
 
-
-class ShippingAddress(models.Model):
-    order = models.OneToOneField(Order, on_delete=models.CASCADE, null=True, blank=True)
-    address = models.CharField(max_length=250, blank=True)
-    city = models.CharField(max_length=100, blank=True)
-    postal_code = models.CharField(max_length=100, blank=True)
+    def __str__(self):
+        return self.name

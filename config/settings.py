@@ -46,6 +46,7 @@ ECOMMERCE_APPS = [
     "categories.apps.CategoriesConfig",
     "orders.apps.OrdersConfig",
     "cart.apps.CartConfig",
+    "shipping.apps.ShippingConfig",
 ]
 
 THIRD_PARTY_APPS = [

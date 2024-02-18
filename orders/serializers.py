@@ -1,15 +1,16 @@
 from rest_framework import serializers
-from .models import Order, Orderitem, ShippingAddress
+from .models import Order, Orderitem
+from profiles.serializers import AddressSerializer
 
 
-class ShippingSerializer(serializers.ModelSerializer):
+""" class ShippingSerializer(serializers.ModelSerializer):
     class Meta:
         model = ShippingAddress
-        fields = "__all__"
+        fields = "__all__" """
 
 
 class OrderItemSerializer(serializers.ModelSerializer):
-    product = serializers.ReadOnlyField(source="product.name")
+    inventory = serializers.ReadOnlyField(source="inventory__product.name")
 
     class Meta:
         model = Orderitem
@@ -32,7 +33,7 @@ class OrderSerializer(serializers.ModelSerializer):
 
     def get_shipping_address(self, obj):
         try:
-            address = ShippingSerializer(obj.shippingaddress, many=False).data
+            address = AddressSerializer(obj.order_address, many=False).data
         except:
             address = False
         return address
