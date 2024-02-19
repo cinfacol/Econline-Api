@@ -8,8 +8,10 @@ from profiles.models import Address
 class ListOrdersView(APIView):
     def get(self, request, format=None):
         user = self.request.user
+
         try:
-            orders = Order.objects.order_by("-date_issued").filter(user=user)
+            orders = Order.objects.order_by("-created_at").filter(user=user)
+            print("orders", orders)
             result = []
 
             for order in orders:
@@ -18,9 +20,9 @@ class ListOrdersView(APIView):
                 item["transaction_id"] = order.transaction_id
                 item["amount"] = order.amount
                 item["shipping_price"] = order.shipping_price
-                item["date_issued"] = order.date_issued
-                item["address"] = order.order_address.address
-                item["address_2"] = order.order_address.address_2
+                item["created_at"] = order.created_at
+                # item["address"] = order.order_address.address
+                # item["address_2"] = order.order_address.address_2
 
                 result.append(item)
 
@@ -43,20 +45,20 @@ class ListOrderDetailView(APIView):
                 result["status"] = order.status
                 result["transaction_id"] = order.transaction_id
                 result["amount"] = order.amount
-                result["full_name"] = order.full_name
-                result["address_line_1"] = order.address_line_1
-                result["address_line_2"] = order.address_line_2
-                result["city"] = order.city
-                result["state_province_region"] = order.state_province_region
-                result["postal_zip_code"] = order.postal_zip_code
-                result["country_region"] = order.country_region
-                result["telephone_number"] = order.telephone_number
+                # result["full_name"] = order.user.full_name
+                # result["address"] = order.order_address.address
+                # result["address_2"] = order.order_address.address_2
+                # result["city"] = order.order_address.city
+                # result["state"] = order.order_address.state
+                # result["zip_code"] = order.order_address.zip_code
+                # result["country"] = order.order_address.country
+                # result["phone_number"] = order.order_address.phone_number
                 result["shipping_name"] = order.shipping_name
                 result["shipping_time"] = order.shipping_time
                 result["shipping_price"] = order.shipping_price
-                result["date_issued"] = order.date_issued
+                result["created_at"] = order.created_at
 
-                order_items = OrderItem.objects.order_by("-date_added").filter(
+                order_items = OrderItem.objects.order_by("-created_at").filter(
                     order=order
                 )
                 result["order_items"] = []

@@ -12,7 +12,6 @@ class ProfileSerializer(serializers.ModelSerializer):
     last_name = serializers.CharField(source="user.last_name")
     email = serializers.EmailField(source="user.email")
     full_name = serializers.SerializerMethodField(read_only=True)
-    reviews = serializers.SerializerMethodField(read_only=True)
     address = serializers.SerializerMethodField()
 
     class Meta:
@@ -24,7 +23,6 @@ class ProfileSerializer(serializers.ModelSerializer):
             "full_name",
             "email",
             "id",
-            "phone_number",
             "profile_photo",
             "about_me",
             "license",
@@ -34,18 +32,12 @@ class ProfileSerializer(serializers.ModelSerializer):
             "is_seller",
             "is_agent",
             "num_reviews",
-            "reviews",
         ]
 
     def get_full_name(self, obj):
         first_name = obj.user.first_name.title()
         last_name = obj.user.last_name.title()
         return f"{first_name} {last_name}"
-
-    def get_reviews(self, obj):
-        reviews = obj.agent_review.all()
-        serializer = ReviewSerializer(reviews, many=True)
-        return serializer.data
 
     def get_address(self, obj):
         return AddressSerializer(obj.profile_address.all(), many=True).data
@@ -97,7 +89,7 @@ class AddressSerializer(serializers.ModelSerializer):
         ]
 
     def get_profile(self, obj):
-        return obj.profile.username
+        return obj.profile.user.username
 
 
 class UpdateAddressSerializer(serializers.ModelSerializer):
