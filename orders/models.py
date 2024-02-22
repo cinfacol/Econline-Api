@@ -11,18 +11,18 @@ User = settings.AUTH_USER_MODEL
 class Order(TimeStampedUUIDModel):
 
     class OrderStatus(models.TextChoices):
-        NOTPROCESSED = "Not_Processed", _("NotProcessed")
-        PROCESSED = "Processed", _("Processed")
-        SHIPPED = "Shipped", _("Shipped")
-        DELIVERED = "Delivered", _("Delivered")
-        CANCELLED = "Cancelled", _("Cancelled")
+        PENDING = "P", _("Pending")
+        COMPLETED = "C", _("Completed")
+        SHIPPED = "S", _("Shipped")
+        DELIVERED = "D", _("Delivered")
+        CANCELLED = "X", _("Cancelled")
 
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     status = models.CharField(
         verbose_name=_("Status"),
-        max_length=50,
+        max_length=10,
         choices=OrderStatus.choices,
-        default=OrderStatus.NOTPROCESSED,
+        default=OrderStatus.PENDING,
     )
     transaction_id = models.CharField(max_length=255, unique=True)
     amount = models.DecimalField(max_digits=10, decimal_places=2)

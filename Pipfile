@@ -17,13 +17,15 @@ django-filter = "*"
 django-phonenumber-field = "*"
 phonenumbers = "*"
 djoser = "*"
-django-ckeditor = "*"
 django-cloudinary-storage = "*"
 drf-spectacular = "*"
 faker = "*"
 celery = "*"
 redis = "*"
 django-celery-email = "*"
+stripe = "*"
+django-ckeditor-5 = "*"
+braintree = "*"
 
 [dev-packages]
 

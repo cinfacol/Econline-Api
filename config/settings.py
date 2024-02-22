@@ -47,6 +47,7 @@ ECOMMERCE_APPS = [
     "orders.apps.OrdersConfig",
     "cart.apps.CartConfig",
     "shipping.apps.ShippingConfig",
+    "payments.apps.PaymentsConfig",
 ]
 
 THIRD_PARTY_APPS = [
@@ -59,16 +60,27 @@ THIRD_PARTY_APPS = [
     "social_django",
     "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",
-    "ckeditor",
-    "ckeditor_uploader",
+    "django_ckeditor_5",
     "djcelery_email",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + PROJECT_APPS + ECOMMERCE_APPS + THIRD_PARTY_APPS
 
-CKEDITOR_CONFIGS = {"default": {"toolbar": "full", "autoParagraph": False}}
-
-CKEDITOR_UPLOAD_PATH = "/mediafiles/"
+CKEDITOR_5_CONFIGS = {
+    "default": {
+        "toolbar": [
+            "heading",
+            "|",
+            "bold",
+            "italic",
+            "link",
+            "bulletedList",
+            "numberedList",
+            "blockQuote",
+            "imageUpload",
+        ],
+    },
+}
 
 SITE_ID = 1
 
@@ -327,3 +339,12 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(minute="0", hour="1"),
     },
 }
+
+STRIPE_API_KEY = env("STRIPE_API_KEY")
+FRONTEND_STORE_URL = env("FRONTEND_STORE_URL")
+STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET")
+
+BT_ENVIRONMENT = env("BT_ENVIRONMENT")
+BT_MERCHANT_ID = env("BT_MERCHANT_ID")
+BT_PUBLIC_KEY = env("BT_PUBLIC_KEY")
+BT_PRIVATE_KEY = env("BT_PRIVATE_KEY")
