@@ -10,7 +10,7 @@ class OrderAdmin(admin.ModelAdmin):
     list_display = (
         "id",
         "transaction_id",
-        "amount",
+        # "amount",
         "status",
     )
     list_display_links = (
@@ -29,12 +29,6 @@ class OrderItemAdmin(admin.ModelAdmin):
 
     list_display = (
         "id",
-        "name",
-        "price",
         "count",
-    )
-    list_display_links = (
-        "id",
-        "name",
     )
     list_per_page = 25

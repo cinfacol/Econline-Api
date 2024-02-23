@@ -94,7 +94,7 @@ class Inventory(TimeStampedUUIDModel):
         related_name="inventory_user",
         on_delete=models.PROTECT,
     )
-    order = OrderField(unique_for_field="product", blank=True)
+    # order = OrderField(unique_for_field="product", blank=True)
     brand = models.ForeignKey(
         Brand,
         related_name="brand",

@@ -28,7 +28,9 @@ class Payment(TimeStampedUUIDModel):
     )
 
     status = models.CharField(max_length=1, choices=STATUS_CHOICES, default=PENDING)
-    payment_option = models.CharField(max_length=1, choices=PAYMENT_CHOICES)
+    payment_option = models.CharField(
+        max_length=1, choices=PAYMENT_CHOICES, default=STRIPE
+    )
     order = models.OneToOneField(
         Order, related_name="payment", on_delete=models.CASCADE
     )
@@ -37,4 +39,4 @@ class Payment(TimeStampedUUIDModel):
         ordering = ("-created_at",)
 
     def __str__(self):
-        return self.order.user.get_full_name()
+        return self.order.user.username

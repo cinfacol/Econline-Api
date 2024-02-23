@@ -34,13 +34,13 @@ class PaymentOptionSerializer(serializers.ModelSerializer):
     Payment serializer for checkout. Order will be automatically set during checkout.
     """
 
-    buyer = serializers.CharField(source="order.buyer.get_full_name", read_only=True)
+    user = serializers.CharField(source="order.user.get_full_name", read_only=True)
 
     class Meta:
         model = Payment
         fields = (
             "id",
-            "buyer",
+            "user",
             "status",
             "payment_option",
             "order",

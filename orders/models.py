@@ -1,9 +1,11 @@
 from django.db import models
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
+from django.utils.functional import cached_property
 
 from inventory.models import Inventory
 from common.models import TimeStampedUUIDModel
+from profiles.models import Address
 
 User = settings.AUTH_USER_MODEL
 
@@ -24,6 +26,20 @@ class Order(TimeStampedUUIDModel):
         choices=OrderStatus.choices,
         default=OrderStatus.PENDING,
     )
+    shipping_address = models.ForeignKey(
+        Address,
+        related_name="shipping_orders",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+    )
+    billing_address = models.ForeignKey(
+        Address,
+        related_name="billing_orders",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+    )
     transaction_id = models.CharField(max_length=255, unique=True)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     shipping_name = models.CharField(max_length=255)
@@ -32,6 +48,9 @@ class Order(TimeStampedUUIDModel):
     is_delivered = models.BooleanField(default=False)
     delivered_at = models.DateTimeField(auto_now_add=False, null=True, blank=True)
 
+    class Meta:
+        ordering = ("-created_at",)
+
     def __str__(self):
         return self.transaction_id
 
@@ -39,9 +58,16 @@ class Order(TimeStampedUUIDModel):
 class OrderItem(TimeStampedUUIDModel):
     inventory = models.ForeignKey(Inventory, on_delete=models.SET_NULL, null=True)
     order = models.ForeignKey(Order, on_delete=models.SET_NULL, null=True)
-    name = models.CharField(max_length=255)
-    price = models.DecimalField(max_digits=10, decimal_places=2)
+    # name = models.CharField(max_length=255)
+    # price = models.DecimalField(max_digits=10, decimal_places=2)
     count = models.IntegerField()
 
     def __str__(self):
-        return self.name
+        return self.order.transaction_id
+
+    @cached_property
+    def cost(self):
+        """
+        Total cost of the ordered item
+        """
+        return round(self.count * self.inventory.store_price, 2)

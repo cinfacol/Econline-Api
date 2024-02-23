@@ -14,11 +14,10 @@ class ProfileAdmin(admin.ModelAdmin):
 class AddressAdmin(admin.ModelAdmin):
     list_display = [
         "id",
-        "address",
+        "address_type",
         "phone_number",
         "country",
         "state",
         "city",
         "default",
     ]
-    list_display_links = ["id", "address"]

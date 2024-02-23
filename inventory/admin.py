@@ -61,7 +61,7 @@ class InventoryAdmin(admin.ModelAdmin):
         "product",
         "quality",
         "store_price",
-        "order",
+        # "order",
         "sku",
     ]
     list_display_links = ["pkid", "product"]

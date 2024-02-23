@@ -1,13 +1,14 @@
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from .countries import Countries
 from phonenumber_field.modelfields import PhoneNumberField
 from common.models import TimeStampedUUIDModel
-from orders.models import Order
 
-User = settings.AUTH_USER_MODEL
+# User = settings.
+User = get_user_model()
 
 
 class Gender(models.TextChoices):
@@ -70,21 +71,19 @@ class Profile(TimeStampedUUIDModel):
 
 
 class Address(TimeStampedUUIDModel):
+    # Address options
+    BILLING = "B"
+    SHIPPING = "S"
 
-    profile = models.ForeignKey(
-        Profile, related_name="profile_address", on_delete=models.CASCADE
+    ADDRESS_CHOICES = ((BILLING, _("billing")), (SHIPPING, _("shipping")))
+    address_type = models.CharField(max_length=1, choices=ADDRESS_CHOICES)
+    title = models.CharField(
+        max_length=50,
+        verbose_name=_("Reference"),
+        help_text=_("Title of Referene"),
+        default=_("My House"),
     )
-    order = models.OneToOneField(
-        Order,
-        related_name="order_address",
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-    )
-    address = models.CharField(max_length=255, verbose_name=_("Address Line 1"))
-    address_2 = models.CharField(
-        max_length=255, verbose_name=_("Address Line 2"), blank=True, null=True
-    )
+    user = models.ForeignKey(User, related_name="addresses", on_delete=models.CASCADE)
     phone_number = PhoneNumberField(
         verbose_name=_("Phone Number"), max_length=30, default="+573142544178"
     )
@@ -100,7 +99,8 @@ class Address(TimeStampedUUIDModel):
     default = models.BooleanField(default=False)
 
     def __str__(self):
-        return self.address
+        return self.title
 
     class Meta:
         verbose_name_plural = _("Address")
+        ordering = ("-created_at",)
