@@ -13,13 +13,13 @@ User = settings.AUTH_USER_MODEL
 class Order(TimeStampedUUIDModel):
 
     class OrderStatus(models.TextChoices):
-        PENDING = "P", _("Pending")
-        COMPLETED = "C", _("Completed")
-        SHIPPED = "S", _("Shipped")
-        DELIVERED = "D", _("Delivered")
-        CANCELLED = "X", _("Cancelled")
+        PENDING = "PENDING", _("Pending")
+        COMPLETED = "COMPLETED", _("Completed")
+        SHIPPED = "SHIPPED", _("Shipped")
+        DELIVERED = "DELIVERED", _("Delivered")
+        CANCELLED = "CANCELLED", _("Cancelled")
 
-    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    user = models.ForeignKey(User, related_name="orders", on_delete=models.CASCADE)
     status = models.CharField(
         verbose_name=_("Status"),
         max_length=10,
@@ -52,7 +52,7 @@ class Order(TimeStampedUUIDModel):
         ordering = ("-created_at",)
 
     def __str__(self):
-        return self.transaction_id
+        return self.user.get_full_name
 
 
 class OrderItem(TimeStampedUUIDModel):

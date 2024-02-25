@@ -122,7 +122,7 @@ class Inventory(TimeStampedUUIDModel):
         default=False,
     )
     published_status = models.BooleanField(
-        verbose_name=_("Published Status"), default=False
+        verbose_name=_("Published Status"), default=True
     )
     retail_price = models.DecimalField(
         max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal("0.01"))]

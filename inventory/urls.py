@@ -20,7 +20,7 @@ urlpatterns = [
         name="user-inventories",
     ),
     path(
-        "details/<int:sku>/",
+        "details/<str:id>/",
         InventoryDetailView.as_view(),
         name="inventory-details",
     ),

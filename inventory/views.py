@@ -74,8 +74,8 @@ class InventoryViewsAPIView(generics.ListAPIView):
 class InventoryDetailView(APIView):
     permission_classes = [permissions.AllowAny]
 
-    def get(self, request, sku):
-        inventory = Inventory.objects.get(sku=sku)
+    def get(self, request, id):
+        inventory = Inventory.objects.get(id=id)
 
         x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
         if x_forwarded_for:

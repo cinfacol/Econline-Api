@@ -92,9 +92,9 @@ class InventorySerializer(serializers.ModelSerializer):
     brand = BrandSerializer(many=False, read_only=True)
     stock = StockSerializer(source="inventory_stock", read_only=True)
     type = TypeSerializer(read_only=True)
-    attributes = AttributeValueSerializer(
+    """ attributes = AttributeValueSerializer(
         source="attribute_values", many=True, read_only=True
-    )
+    ) """
     promotion_price = serializers.SerializerMethodField()
     rating = serializers.SerializerMethodField()
 
@@ -107,7 +107,6 @@ class InventorySerializer(serializers.ModelSerializer):
             "upc",
             "product",
             "user",
-            "order",
             "brand",
             "type",
             "quality",
@@ -123,7 +122,7 @@ class InventorySerializer(serializers.ModelSerializer):
             "views",
             "stock",
             "image",
-            "attributes",
+            # "attributes",
             "updated_at",
             "created_at",
             "rating",
@@ -155,7 +154,7 @@ class InventorySerializer(serializers.ModelSerializer):
         av_data = data.pop("attribute_values")
         attr_values = {}
         for key in av_data:
-            attr_values.update({key["attribute"]["name"]: key["attribute"]})
+            attr_values.update({key["attribute"]["name"]: key["value"]})
         data.update({"specification": attr_values})
 
         return data

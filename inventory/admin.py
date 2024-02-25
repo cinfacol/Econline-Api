@@ -8,6 +8,7 @@ from .models import (
     AttributeValue,
     Stock,
     Type,
+    InventoryViews,
 )
 
 
@@ -58,15 +59,24 @@ class InventoryAdmin(admin.ModelAdmin):
     ]
     list_display = [
         "pkid",
+        "id",
         "product",
         "quality",
         "store_price",
         # "order",
         "sku",
     ]
-    list_display_links = ["pkid", "product"]
+    list_display_links = ["pkid", "id", "product"]
 
 
 @admin.register(Brand)
 class BrandAdmin(admin.ModelAdmin):
     list_display = ["name"]
+
+
+@admin.register(InventoryViews)
+class InventoryViewsAdmin(admin.ModelAdmin):
+    list_display = ["inventory", "ip"]
+
+
+# admin.site.register(InventoryViews)
