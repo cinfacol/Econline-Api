@@ -3,11 +3,13 @@ from rest_framework.response import Response
 from rest_framework import status, permissions
 from .models import Shipping
 from .serializers import ShippingSerializer
+from drf_spectacular.utils import extend_schema
 
 
 class GetShippingView(APIView):
     permission_classes = (permissions.AllowAny,)
 
+    @extend_schema(responses=ShippingSerializer)
     def get(self, request, format=None):
         if Shipping.objects.all().exists():
             shipping_options = Shipping.objects.order_by("price").all()

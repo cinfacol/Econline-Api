@@ -1,39 +1,25 @@
-from rest_framework import permissions, status
+from rest_framework import permissions, status, generics
 from rest_framework.response import Response
-from rest_framework.views import APIView
+
+# from rest_framework.views import APIView
 
 from .models import Category
+from .serializers import CategorySerializer
 
 
-class ListCategoriesView(APIView):
+class ListCategoriesView(generics.ListAPIView):
     permission_classes = (permissions.AllowAny,)
+    queryset = Category.objects.all()
+    serializer_class = CategorySerializer
 
-    def get(self, request, format=None):
-        if Category.objects.all().exists():
-            categories = Category.objects.all()
-
-            result = []
-
-            for category in categories:
-                if not category.parent:
-                    item = {}
-                    item["id"] = category.id
-                    item["name"] = category.name
-
-                    item["sub_categories"] = []
-                    for cat in categories:
-                        sub_item = {}
-                        if cat.parent and cat.parent.id == category.id:
-                            sub_item["id"] = cat.id
-                            sub_item["name"] = cat.name
-                            sub_item["sub_categories"] = []
-
-                            item["sub_categories"].append(sub_item)
-                    result.append(item)
-
-            return Response({"categories": result}, status=status.HTTP_200_OK)
-        else:
-            return Response(
-                {"categories": []},
-                status=status.HTTP_200_OK,
-            )
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        # Filtrar por query params (modificado)
+        name = self.request.query_params.get("name", None)
+        is_active = self.request.query_params.get("is_active", None)
+        if name:
+            queryset = queryset.filter(name__icontains=name)
+        if is_active is not None:
+            # Use boolean conversion to handle different truthy values
+            queryset = queryset.filter(is_active=bool(is_active))
+        return queryset

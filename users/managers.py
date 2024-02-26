@@ -3,8 +3,6 @@ from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.utils.translation import gettext_lazy as _
 
-# from cart.models import Cart
-
 # from wishlist.models import WishList
 
 
@@ -27,9 +25,6 @@ class CustomUserManager(BaseUserManager):
 
         user.set_password(password)
         user.save(using=self._db)
-
-        """ shopping_cart = Cart.objects.create(user=user)
-        shopping_cart.save() """
 
         """ wishlist = WishList.objects.create(user=user)
         wishlist.save() """

@@ -24,3 +24,9 @@ class ReviewSerializer(serializers.ModelSerializer):
             product_id=product_id, rater_id=user_id, **self.validated_data
         )
         return rating
+
+
+class UpdateProductReviewSerializer(serializers.Serializer):
+    class meta:
+        model = Review
+        fields = ["id", "rater", "product", "rating", "comment", "created_at"]

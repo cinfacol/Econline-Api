@@ -2,6 +2,8 @@ from django.contrib.auth import get_user_model
 from djoser.serializers import UserCreateSerializer
 from rest_framework import serializers
 
+# from rest_framework_simplejwt.tokens import RefreshToken, TokenError
+
 User = get_user_model()
 
 
@@ -47,3 +49,21 @@ class CreateUserSerializer(UserCreateSerializer):
     class Meta(UserCreateSerializer.Meta):
         model = User
         fields = ["id", "username", "email", "first_name", "last_name", "password"]
+
+
+# class LogoutUserSerializer(serializers.Serializer):
+#     refresh_token = serializers.CharField()
+
+#     default_error_message = {"bad_token": ("Token is expired or invalid")}
+
+#     def validate(self, attrs):
+#         self.token = attrs.get("refresh_token")
+
+#         return attrs
+
+#     def save(self, **kwargs):
+#         try:
+#             token = RefreshToken(self.token)
+#             token.blacklist()
+#         except TokenError:
+#             return self.fail("bad_token")

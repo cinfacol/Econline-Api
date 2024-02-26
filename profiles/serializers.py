@@ -54,7 +54,6 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profile
         fields = [
-            "phone_number",
             "profile_photo",
             "about_me",
             "license",
@@ -79,7 +78,6 @@ class AddressSerializer(serializers.ModelSerializer):
         model = Address
         fields = [
             "profile",
-            "address",
             "phone_number",
             "country",
             "state",

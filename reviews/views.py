@@ -2,8 +2,10 @@ from django.conf import settings
 from rest_framework import permissions, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from drf_spectacular.utils import extend_schema
 
 from products.models import Product
+from .serializers import UpdateProductReviewSerializer
 
 from .models import Review
 
@@ -170,6 +172,7 @@ class CreateProductReviewView(APIView):
 
 
 class UpdateProductReviewView(APIView):
+    @extend_schema(responses=UpdateProductReviewSerializer)
     def put(self, request, productId, format=None):
         user = self.request.user
         data = self.request.data

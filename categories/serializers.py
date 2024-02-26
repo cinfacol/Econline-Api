@@ -2,19 +2,9 @@ from rest_framework import serializers
 from .models import Category
 
 
-""" class CategorySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Category
-        fields = [
-            "id",
-            "parent",
-            "name",
-        ] """
-
-
 class CategorySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Category
-        exclude = ["updated_at"]
+        fields = ("id", "name", "slug", "is_active", "is_parent", "measure_unit")
         depth = 1

@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 urlpatterns = [
     path("supersecret/", admin.site.urls),
@@ -20,6 +21,8 @@ urlpatterns = [
     path("api/shipping/", include("shipping.urls")),
     path("api/payments/", include("payments.urls")),
     path("i18n", include("django.conf.urls.i18n")),
+    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
+    path("api/schema/docs/", SpectacularSwaggerView.as_view(url_name="schema")),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 admin.site.site_header = "Ecommerce Online Admin"
