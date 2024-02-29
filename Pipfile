@@ -26,6 +26,7 @@ django-celery-email = "*"
 stripe = "*"
 django-ckeditor-5 = "*"
 braintree = "*"
+cloudinary = "*"
 
 [dev-packages]
 

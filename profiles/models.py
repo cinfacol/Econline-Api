@@ -1,4 +1,3 @@
-from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import models
 from django.utils.translation import gettext_lazy as _
@@ -7,7 +6,6 @@ from .countries import Countries
 from phonenumber_field.modelfields import PhoneNumberField
 from common.models import TimeStampedUUIDModel
 
-# User = settings.
 User = get_user_model()
 
 
@@ -32,7 +30,7 @@ class Profile(TimeStampedUUIDModel):
     )
     profile_photo = models.ImageField(
         verbose_name=_("Profile Photo"),
-        default="/profile_default.png",
+        default="/default_avatar_qs2vrz",
         blank=True,
         null=True,
     )

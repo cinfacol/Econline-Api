@@ -4,6 +4,7 @@ from datetime import timedelta
 from django.utils.translation import gettext_lazy as _
 
 import environ
+import cloudinary
 import cloudinary_storage
 
 env = environ.Env(DEBUG=(bool, False))
@@ -25,9 +26,7 @@ DJANGO_APPS = [
     "django.contrib.auth",
     "django.contrib.sessions",
     "django.contrib.messages",
-    "cloudinary_storage",
     "django.contrib.staticfiles",
-    "cloudinary",
     "django.contrib.sites",
 ]
 
@@ -63,6 +62,8 @@ THIRD_PARTY_APPS = [
     "django_ckeditor_5",
     "djcelery_email",
     "drf_spectacular",
+    "cloudinary",
+    "cloudinary_storage",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + PROJECT_APPS + ECOMMERCE_APPS + THIRD_PARTY_APPS
@@ -232,7 +233,15 @@ CLOUDINARY_STORAGE = {
     "CLOUD_NAME": env("CLOUD_NAME"),
     "API_KEY": env("API_KEY"),
     "API_SECRET": env("API_SECRET"),
+    "SECURE": False,
+    "MEDIA_TAG": "media",  # it is useful when you have several websites which use the same Cloudinary acount, when you should set it unique to distinguish it from other websites
 }
+
+""" cloudinary.config(
+    cloud_name=env("CLOUD_NAME"),
+    api_key=env("API_KEY"),
+    api_secret=env("API_SECRET"),
+) """
 
 DEFAULT_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
 
