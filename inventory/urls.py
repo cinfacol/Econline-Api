@@ -1,7 +1,7 @@
 from django.urls import path
 
 from .views import (
-    InventoryByCategory,
+    InventoryByCategoryAPIView,
     InventoryListAPIView,
     ListUsersInventoryAPIView,
     InventoryDetailView,
@@ -26,7 +26,8 @@ urlpatterns = [
     ),
     path(
         "category/<str:query>/",
-        InventoryByCategory.as_view(),
+        InventoryByCategoryAPIView.as_view(),
+        name="inventory-by-category",
     ),
     path("product/<str:query>/", InventoryByRefCode.as_view()),
     path("update/<int:sku>/", update_inventory_api_view, name="update-inventory"),
