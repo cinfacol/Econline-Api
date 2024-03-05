@@ -33,6 +33,8 @@ djangorestframework-simplejwt==5.3.1
 djoser==2.2.2
 drf-spectacular==0.27.1
 Faker==23.3.0
+flower
+kombu
 idna==3.6
 inflection==0.5.1
 jsonschema==4.21.1
@@ -64,4 +66,5 @@ tzdata==2024.1
 uritemplate==4.1.1
 urllib3==2.2.1
 vine==5.1.0
+watchdog
 wcwidth==0.2.13
