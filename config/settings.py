@@ -133,7 +133,6 @@ DATABASES = {
 }
 
 EMAIL_BACKEND = env("EMAIL_BACKEND")
-# EMAIL_BACKEND = "djcelery_email.backends.CeleryEmailBackend"
 EMAIL_HOST = env("EMAIL_HOST")
 EMAIL_USE_TLS = True
 EMAIL_PORT = env("EMAIL_PORT")
@@ -141,7 +140,7 @@ EMAIL_HOST_USER = env("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD")
 DEFAULT_FROM_EMAIL = "cinfacol@gmail.com"
 DOMAIN = env("DOMAIN")
-SITE_NAME = "Ecommerce Online"
+SITE_NAME = env("SITE_NAME")
 
 CORS_ORIGIN_ALLOW_ALL = True
 

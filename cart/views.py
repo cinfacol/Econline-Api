@@ -120,11 +120,11 @@ class GetTotalView(APIView):
 
             if cart_items.exists():
                 for cart_item in cart_items:
-                    total_cost += float(cart_item.inventory.store_price) * float(
+                    total_cost += float(cart_item.inventory.retail_price) * float(
                         cart_item.count
                     )
                     total_compare_cost += float(
-                        cart_item.inventory.retail_price
+                        cart_item.inventory.store_price
                     ) * float(cart_item.count)
                 total_cost = round(total_cost, 2)
                 total_compare_cost = round(total_compare_cost, 2)
@@ -159,7 +159,7 @@ class UpdateItemView(APIView):
     def put(self, request, format=None):
         user = self.request.user
         data = self.request.data
-        print("data", data)
+        # print("data", data)
 
         try:
             inventory_id = str(data["inventory_id"])
@@ -238,7 +238,7 @@ class RemoveItemView(APIView):
             inventory_id = str(data["inventory_id"])
         except:
             return Response(
-                {"error": "Inventory ID must be an integer"},
+                {"error": "Inventory ID must be an string"},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
@@ -321,9 +321,11 @@ class SynchCartView(APIView):
     def put(self, request, format=None):
         user = self.request.user
         data = self.request.data
+        print("data", data)
 
         try:
             cart_items = data["cart_items"]
+            print("cart_items", cart_items)
 
             for cart_item in cart_items:
                 cart = Cart.objects.get(user=user)

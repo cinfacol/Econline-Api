@@ -6,7 +6,7 @@ ENV_FILE_PARAM = --env-file .env
 endif
 
 build:
-	docker compose up --build --remove-orphans
+	docker compose up --build -d --remove-orphans
 
 up:
 	docker compose up -d
