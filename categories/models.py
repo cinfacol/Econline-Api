@@ -5,11 +5,6 @@ from common.models import IsActiveQueryset
 from autoslug import AutoSlugField
 
 
-""" class IsActiveQueryset(models.QuerySet):
-    def is_active(self):
-        return self.filter(is_active=True) """
-
-
 class MeasureUnit(TimeStampedUUIDModel):
 
     class MeasureType(models.TextChoices):
@@ -38,15 +33,15 @@ class MeasureUnit(TimeStampedUUIDModel):
 
 
 class Category(TimeStampedUUIDModel):
+    parent = models.ForeignKey(
+        "self", related_name="children", on_delete=models.CASCADE, blank=True, null=True
+    )
     name = models.CharField(max_length=255, unique=True)
     slug = AutoSlugField(populate_from="name", unique=True, always_update=True)
     is_active = models.BooleanField(
         default=True,
     )
 
-    is_parent = models.BooleanField(
-        default=False,
-    )
     measure_unit = models.ForeignKey(
         MeasureUnit,
         on_delete=models.CASCADE,

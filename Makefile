@@ -2,7 +2,8 @@ ifneq (,$(wildcard ./.env))
 include .env
 export
 ENV_FILE_PARAM = --env-file .env
-
+else
+  $(error .env file not found or empty)
 endif
 
 build:
@@ -64,4 +65,3 @@ isort-diff:
 
 isort:
 	docker compose exec api isort . --skip env --skip migrations
-
