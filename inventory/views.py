@@ -210,6 +210,18 @@ def delete_inventory_api_view(request, sku):
         return Response(data=data)
 
 
+@api_view(["GET"])
+@permission_classes([permissions.AllowAny])
+def search_api_view(request):
+    query = request.query_params.get("query")
+    if query is None:
+        query = ""
+    inventory = Inventory.objects.filter(product__name__icontains=query)
+    inventory = Inventory.objects.filter(product__description__icontains=query)
+    serializer = InventorySerializer(inventory, many=True)
+    return Response({"inventories": serializer.data})
+
+
 class InventorySearchAPIView(APIView):
     permission_classes = [permissions.AllowAny]
     serializer_class = InventoryCreateSerializer

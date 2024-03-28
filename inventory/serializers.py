@@ -68,7 +68,7 @@ class MediaSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Media
-        fields = ["id", "image", "inventory", "alt_text"]
+        fields = ["id", "image", "inventory", "alt_text", "is_featured", "default"]
 
     def get_inventory(self, obj):
         return obj.inventory.product.name
