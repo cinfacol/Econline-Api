@@ -19,6 +19,7 @@ class ListCategoriesView(APIView):
                     item = {}
                     item["id"] = category.id
                     item["name"] = category.name
+                    item["slug"] = category.slug
 
                     item["sub_categories"] = []
                     for cat in categories:
@@ -26,6 +27,7 @@ class ListCategoriesView(APIView):
                         if cat.parent and cat.parent.id == category.id:
                             sub_item["id"] = cat.id
                             sub_item["name"] = cat.name
+                            sub_item["slug"] = cat.slug
                             sub_item["sub_categories"] = []
 
                             item["sub_categories"].append(sub_item)
