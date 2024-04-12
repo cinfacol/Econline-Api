@@ -1,394 +1,323 @@
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
+from rest_framework_api.views import StandardAPIView
+from rest_framework import permissions, status
+from rest_framework.parsers import JSONParser
+from decimal import Decimal
+import requests
+from django.core.cache import cache
+from django.conf import settings
 
 from .models import Cart, CartItem
-
+from coupons.models import Coupon
+from .serializers import CartSerializer, CartItemSerializer
 from inventory.models import Inventory
 from inventory.serializers import InventorySerializer
 
+taxes = settings.TAXES
 
-class GetItemsView(APIView):
+
+class GetItemsView(StandardAPIView):
+    permission_classes = (permissions.IsAuthenticated,)
+
     def get(self, request, format=None):
-        user = self.request.user
-        try:
-            cart = Cart.objects.get(user=user)
-            cart_items = CartItem.objects.order_by("inventory").filter(cart=cart)
+        user = request.user
+        cart = Cart.objects.get(user=user)
 
-            result = []
+        total_items = cart.total_items
 
-            if CartItem.objects.filter(cart=cart).exists():
-                for cart_item in cart_items:
-                    item = {}
+        cart_items = CartItem.objects.filter(cart=cart)
+        serialized_cart_items = CartItemSerializer(cart_items, many=True).data
 
-                    item["id"] = cart_item.id
-                    item["count"] = cart_item.count
-                    inventory = Inventory.objects.get(id=cart_item.inventory.id)
-                    inventory = InventorySerializer(inventory)
-
-                    item["inventory"] = inventory.data
-
-                    result.append(item)
-            return Response({"cart": result}, status=status.HTTP_200_OK)
-        except:
-            return Response(
-                {"error": "Something went wrong when retrieving cart items"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+        return self.send_response(
+            {
+                "cart": serialized_cart_items,
+                "total_items": total_items,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
-class AddItemView(APIView):
+class GetTotalView(StandardAPIView):
+    permission_classes = (permissions.AllowAny,)
+
     def post(self, request, format=None):
-        user = self.request.user
-        data = self.request.data
-
-        try:
-            inventory_id = str(data["inventory_id"])
-        except:
-            return Response(
-                {"error": "Inventory ID must be an string"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-        count = 1
-
-        try:
-            if not Inventory.objects.filter(id=inventory_id).exists():
-                return Response(
-                    {"error": "This inventory does not exist"},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
-
-            inventory = Inventory.objects.get(id=inventory_id)
-
-            cart = Cart.objects.get(user=user)
-
-            if CartItem.objects.filter(cart=cart, inventory=inventory).exists():
-                return Response(
-                    {"error": "Item is already in cart"},
-                    status=status.HTTP_409_CONFLICT,
-                )
-
-            if int(inventory.inventory_stock.units) > 0:
-                CartItem.objects.create(inventory=inventory, cart=cart, count=count)
-
-                if CartItem.objects.filter(cart=cart, inventory=inventory).exists():
-                    total_items = int(cart.total_items) + 1
-                    Cart.objects.filter(user=user).update(total_items=total_items)
-
-                    cart_items = CartItem.objects.order_by("inventory").filter(
-                        cart=cart
-                    )
-
-                    result = []
-
-                    for cart_item in cart_items:
-
-                        item = {}
-                        item["id"] = cart_item.id
-                        item["count"] = cart_item.count
-                        inventory = Inventory.objects.get(id=cart_item.inventory.id)
-                        inventory = InventorySerializer(inventory)
-
-                        item["inventory"] = inventory.data
-
-                        result.append(item)
-
-                    return Response({"cart": result}, status=status.HTTP_201_CREATED)
-                else:
-                    return Response(
-                        {"error": "Not enough of this item in stock"},
-                        status=status.HTTP_200_OK,
-                    )
-        except:
-            return Response(
-                {"error": "Something went wrong when adding item to cart"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-
-class GetTotalView(APIView):
-    def get(self, request, format=None):
-        user = self.request.user
-
-        try:
-            cart = Cart.objects.get(user=user)
-            cart_items = CartItem.objects.filter(cart=cart)
-
-            total_cost = 0.0
-            total_compare_cost = 0.0
-
-            if cart_items.exists():
-                for cart_item in cart_items:
-                    total_cost += float(cart_item.inventory.retail_price) * float(
-                        cart_item.count
-                    )
-                    total_compare_cost += float(
-                        cart_item.inventory.store_price
-                    ) * float(cart_item.count)
-                total_cost = round(total_cost, 2)
-                total_compare_cost = round(total_compare_cost, 2)
-            return Response(
-                {"total_cost": total_cost, "total_compare_cost": total_compare_cost},
+        data = JSONParser().parse(request)
+        if not data:
+            return self.send_response(
+                {
+                    "total_cost": 0,
+                    # "total_cost_ethereum": 0,
+                    # "maticCost": 0,
+                    "total_compare_cost": 0,
+                    "finalPrice": 0,
+                    "tax_estimate": 0,
+                    "shipping_estimate": 0,
+                },
                 status=status.HTTP_200_OK,
             )
-        except:
-            return Response(
-                {"error": "Something went wrong when retrieving total costs"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
 
+        inventories = []
+        # products = []
+        # tiers = []
+        total_cost = Decimal(0)
+        total_compare_cost = Decimal(0)
+        tax_estimate = Decimal(0)
+        shipping_estimate = Decimal(0)
+        # finalProductPrice = Decimal(0)
+        # finalCoursePrice = Decimal(0)
+        # finalTierPrice = Decimal(0)
+        finalPrice = Decimal(0)
 
-class GetItemTotalView(APIView):
-    def get(self, request, format=None):
-        user = self.request.user
+        for item in data.get("items"):
+            if item.get("inventory"):
+                inventories.append(item)
+            # elif item.get("product"):
+            #     products.append(item)
+            # elif item.get("tier"):
+            #     tiers.append(item)
 
-        try:
-            cart = Cart.objects.get(user=user)
-            total_items = cart.total_items
+        for object in inventories:
+            inventory = object["inventory"] if object["inventory"] else None
+            coupon = object["coupon"] if object["coupon"] else None
 
-            return Response({"total_items": total_items}, status=status.HTTP_200_OK)
-        except:
-            return Response(
-                {"error": "Something went wrong when getting total number of items"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+            if coupon:
+                coupon_fixed_price_coupon = coupon.get("fixed_price_coupon")
+                coupon_percentage_coupon = coupon.get("percentage_coupon")
 
+                if coupon_fixed_price_coupon:
+                    coupon_fixed_discount_price = coupon_fixed_price_coupon.get(
+                        "discount_price"
+                    )
 
-class UpdateItemView(APIView):
-    def put(self, request, format=None):
-        user = self.request.user
-        data = self.request.data
-        # print("data", data)
+                else:
+                    coupon_fixed_discount_price = None
 
-        try:
-            inventory_id = str(data["inventory_id"])
-        except:
-            return Response(
-                {"error": "Inventory ID must be an string"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+                if coupon_percentage_coupon:
+                    coupon_discount_percentage = coupon_percentage_coupon.get(
+                        "discount_percentage"
+                    )
 
-        try:
-            count = int(data["count"])
-        except:
-            return Response(
-                {"error": "Count value must be an integer"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-        try:
-            if not Inventory.objects.filter(id=inventory_id).exists():
-                return Response(
-                    {"error": "This inventory does not exist"},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
-
-            inventory = Inventory.objects.get(id=inventory_id)
-            cart = Cart.objects.get(user=user)
-
-            if not CartItem.objects.filter(cart=cart, inventory=inventory).exists():
-                return Response(
-                    {"error": "This inventory is not in your cart"},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
-
-            quantity = inventory.inventory_stock.units
-
-            if count <= quantity:
-                CartItem.objects.filter(inventory=inventory, cart=cart).update(
-                    count=count
-                )
-
-                cart_items = CartItem.objects.order_by("inventory").filter(cart=cart)
-
-                result = []
-
-                for cart_item in cart_items:
-                    item = {}
-
-                    item["id"] = cart_item.id
-                    item["count"] = cart_item.count
-                    inventory = Inventory.objects.get(id=cart_item.inventory.id)
-                    inventory = InventorySerializer(inventory)
-
-                    item["inventory"] = inventory.data
-
-                    result.append(item)
-
-                return Response({"cart": result}, status=status.HTTP_200_OK)
+                else:
+                    coupon_discount_percentage = None
             else:
-                return Response(
-                    {"error": "Not enough of this item in stock"},
-                    status=status.HTTP_200_OK,
+                coupon_fixed_price_coupon = None
+                coupon_fixed_discount_price = None
+                coupon_percentage_coupon = None
+                coupon_discount_percentage = None
+
+            inventory_price = inventory.get("price")
+            inventory_compare_price = inventory.get("compare_price", inventory_price)
+            inventory_discount = inventory.get("discount", False)
+
+            # Calculate Total Cost Without Discounts and Coupons and Taxes (total_cost)
+            if inventory_discount == False:
+                total_cost += Decimal(inventory_price)
+            else:
+                total_cost += Decimal(inventory_compare_price)
+
+            # Calculate Total Cost With Discount and Coupons if present (total_compare_cost)
+            if inventory_discount == True:
+                if coupon_fixed_discount_price is not None:
+                    total_compare_cost += max(
+                        Decimal(inventory_compare_price)
+                        - Decimal(coupon_fixed_discount_price),
+                        0,
+                    )
+                elif coupon_discount_percentage is not None:
+                    total_compare_cost += Decimal(inventory_compare_price) * (
+                        1 - (Decimal(coupon_discount_percentage) / 100)
+                    )
+                else:
+                    total_compare_cost += Decimal(inventory_compare_price)
+            else:
+                if coupon_fixed_discount_price is not None:
+                    total_compare_cost += max(
+                        Decimal(inventory_price) - Decimal(coupon_fixed_discount_price),
+                        0,
+                    )
+                elif coupon_discount_percentage is not None:
+                    total_compare_cost += Decimal(inventory_price) * (
+                        1 - (Decimal(coupon_discount_percentage) / 100)
+                    )
+                else:
+                    total_compare_cost += Decimal(inventory_price)
+
+            # Calculate Taxes for Total Cost (tax_estimate)
+            tax_estimate = Decimal(total_compare_cost) * Decimal(taxes)
+            # print('Tax Estimate: ',tax_estimate )
+            finalinventoryPrice = Decimal(total_compare_cost) + Decimal(tax_estimate)
+
+        finalPrice = Decimal(finalinventoryPrice)
+
+        return self.send_response(
+            {
+                "total_cost": total_cost,
+                "total_compare_cost": total_compare_cost,
+                "finalPrice": finalPrice,
+                "tax_estimate": tax_estimate,
+                "shipping_estimate": shipping_estimate,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class AddItemView(StandardAPIView):
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def post(self, request, format=None):
+        user = request.user
+        data = request.data
+
+        print(data)
+
+        item_id = data["itemID"]
+        item_type = data["type"]
+        coupon_id = (
+            data.get("coupon", {}).get("id") if data.get("coupon").get("id") else None
+        )
+        cart, created = Cart.objects.get_or_create(user=user)
+
+        total_items = cart.total_items or 0
+
+        if item_type == "Inventory":
+            inventory = Inventory.objects.get(id=item_id)
+            # Check if item already in cart
+            if CartItem.objects.filter(cart=cart, inventory=inventory).exists():
+                return self.send_error(
+                    "Item is already in cart", status=status.HTTP_409_CONFLICT
                 )
-        except:
-            return Response(
-                {"error": "Something went wrong when updating cart item"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
 
+            cart_item_object = CartItem.objects.create(inventory=inventory, cart=cart)
 
-class RemoveItemView(APIView):
-    def delete(self, request, format=None):
-        user = self.request.user
-        data = self.request.data
+            if data.get("coupon").get("id") is not None:
+                # Get the coupon object
+                coupon = Coupon.objects.get(id=coupon_id)
 
-        try:
-            inventory_id = str(data["inventory_id"])
-        except:
-            return Response(
-                {"error": "Inventory ID must be an string"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+                # Validate that the coupon applies to the inventory
+                if (
+                    coupon.content_type != "inventories"
+                    or coupon.inventory != inventory
+                ):
+                    return self.send_error(
+                        "Coupon does not apply to this inventory",
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
-        try:
-            if not Inventory.objects.filter(id=inventory_id).exists():
-                return Response(
-                    {"error": "This inventory does not exist"},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
+                cart_item_object.coupon = coupon
+                cart_item_object.save()
 
-            inventory = Inventory.objects.get(id=inventory_id)
-            cart = Cart.objects.get(user=user)
-
-            if not CartItem.objects.filter(cart=cart, inventory=inventory).exists():
-                return Response(
-                    {"error": "This inventory is not in your cart"},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
-
-            CartItem.objects.filter(cart=cart, inventory=inventory).delete()
-
-            if not CartItem.objects.filter(cart=cart, inventory=inventory).exists():
-                # actualizar numero total en el carrito
-                total_items = int(cart.total_items) - 1
+            if CartItem.objects.filter(cart=cart, inventory=item_id).exists():
+                # Update the total number of items in the cart
+                total_items = int(cart.total_items) + 1
                 Cart.objects.filter(user=user).update(total_items=total_items)
 
-            cart_items = CartItem.objects.order_by("inventory").filter(cart=cart)
+        cart_items = CartItem.objects.filter(cart=cart)
+        serialized_cart_items = CartItemSerializer(cart_items, many=True).data
 
-            result = []
-
-            if CartItem.objects.filter(cart=cart).exists():
-                for cart_item in cart_items:
-                    item = {}
-
-                    item["id"] = cart_item.id
-                    item["count"] = cart_item.count
-                    inventory = Inventory.objects.get(id=cart_item.inventory.id)
-                    inventory = InventorySerializer(inventory)
-
-                    item["inventory"] = inventory.data
-
-                    result.append(item)
-
-            return Response({"cart": result}, status=status.HTTP_200_OK)
-        except:
-            return Response(
-                {"error": "Something went wrong when removing item"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+        return self.send_response(
+            {"cart": serialized_cart_items, "total_items": total_items},
+            status=status.HTTP_200_OK,
+        )
 
 
-class EmptyCartView(APIView):
-    def delete(self, request, format=None):
-        user = self.request.user
+class RemoveItemView(StandardAPIView):
+    permission_classes = (permissions.IsAuthenticated,)
 
-        try:
-            cart = Cart.objects.get(user=user)
+    def post(self, request, format=None):
+        user = request.user
+        data = request.data
 
-            if not CartItem.objects.filter(cart=cart).exists():
-                return Response(
-                    {"success": "Cart is already empty"}, status=status.HTTP_200_OK
+        item_id = data["itemID"]
+        item_type = data["type"]
+        cart, _ = Cart.objects.get_or_create(user=user)
+
+        if item_type == "Inventory":
+            inventory = Inventory.objects.get(id=item_id)
+            cart_item = CartItem.objects.filter(cart=cart, inventory=inventory)
+
+            if not cart_item.exists():
+                return self.send_error(
+                    "Item is not in cart", status=status.HTTP_404_NOT_FOUND
                 )
 
-            CartItem.objects.filter(cart=cart).delete()
+            cart_item.delete()
 
-            # Actualizamos carrito
-            Cart.objects.filter(user=user).update(total_items=0)
+            # Update the total number of items in the cart
+            total_items = max(0, int(cart.total_items) - 1)
+            Cart.objects.filter(user=user).update(total_items=total_items)
 
-            return Response(
-                {"success": "Cart emptied successfully"}, status=status.HTTP_200_OK
-            )
-        except:
-            return Response(
-                {"error": "Something went wrong emptying cart"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+        cart_items = CartItem.objects.filter(cart=cart)
+        serialized_cart_items = CartItemSerializer(cart_items, many=True).data
+
+        return self.send_response(
+            {"cart": serialized_cart_items, "total_items": total_items},
+            status=status.HTTP_200_OK,
+        )
 
 
-class SynchCartView(APIView):
+class ClearCartView(StandardAPIView):
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def get(self, request, format=None):
+        user = request.user
+        cart, _ = Cart.objects.get_or_create(user=user)
+        cart_items = CartItem.objects.filter(cart=cart)
+        cart_items.delete()
+        cart.total_items = 0
+        cart.save()
+        serializer = CartSerializer(cart)
+        return self.send_response(serializer.data, status=status.HTTP_200_OK)
+
+
+class SynchCartItemsView(StandardAPIView):
+    permission_classes = (permissions.IsAuthenticated,)
+
     def put(self, request, format=None):
-        user = self.request.user
-        data = self.request.data
-        print("data", data)
+        items = []
+        inventories = []
+        # products = []
+        # tiers = []
 
-        try:
-            cart_items = data["cart_items"]
-            print("cart_items", cart_items)
+        data = request.data
 
-            for cart_item in cart_items:
-                cart = Cart.objects.get(user=user)
+        cart, _ = Cart.objects.get_or_create(user=request.user)
+        cart_items = data["items"]
 
-                try:
-                    inventory_id = str(cart_item["inventory_id"])
-                except:
-                    return Response(
-                        {"error": "Inventory ID must be an string"},
-                        status=status.HTTP_404_NOT_FOUND,
-                    )
+        # Clear all existing items in the cart
+        cart.cartitem_set.all().delete()
 
-                if not Inventory.objects.filter(id=inventory_id).exists():
-                    return Response(
-                        {"error": "Inventory with this ID does not exist"},
-                        status=status.HTTP_404_NOT_FOUND,
-                    )
+        for item in cart_items:
+            if item["type"] == "Inventory":
+                inventories.append(item)
 
-                inventory = Inventory.objects.get(id=inventory_id)
-                quantity = inventory.inventory_stock.units
+        # Add inventories to the cart
+        for inventory_data in inventories:
+            inventory = Inventory.objects.get(id=inventory_data["inventory"]["id"])
 
-                if CartItem.objects.filter(cart=cart, inventory=inventory).exists():
-                    # Actualiizamos el item del carrito
-                    item = CartItem.objects.get(cart=cart, inventory=inventory)
-                    count = item.count
+            coupon_id = inventory_data.get("coupon").get("id")
+            if coupon_id is not None:
+                coupon = Coupon.objects.get(id=coupon_id)
+            else:
+                coupon = None
 
-                    try:
-                        cart_item_count = int(cart_item["count"])
-                    except:
-                        cart_item_count = 1
-
-                    # Chqueo con base de datos
-                    if (cart_item_count + int(count)) <= int(quantity):
-                        updated_count = cart_item_count + int(count)
-                        CartItem.objects.filter(cart=cart, inventory=inventory).update(
-                            count=updated_count
-                        )
-                else:
-                    # Agregar el item al carrito del usuario
-                    try:
-                        cart_item_count = int(cart_item["count"])
-                    except:
-                        cart_item_count = 1
-
-                    if cart_item_count <= quantity:
-                        CartItem.objects.create(
-                            inventory=inventory, cart=cart, count=cart_item_count
-                        )
-
-                        if CartItem.objects.filter(
-                            cart=cart, inventory=inventory
-                        ).exists():
-                            # Sumar item
-                            total_items = int(cart.total_items) + 1
-                            Cart.objects.filter(user=user).update(
-                                total_items=total_items
-                            )
-
-                return Response(
-                    {"success": "Cart Synchronized"}, status=status.HTTP_201_CREATED
-                )
-        except:
-            return Response(
-                {"error": "Something went wrong when synching cart"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            # create and save the cart item
+            item = CartItem(
+                cart=cart,
+                inventory=inventory,
+                coupon=coupon,
+                referrer=inventory_data.get("referrer"),
             )
+            item.save()
+
+            items.append(item)
+
+        # calculate total_items based on newly added items
+        cart.total_items = CartItem.objects.filter(cart=cart).count()
+        cart.save()
+
+        cart_items = CartItem.objects.filter(cart=cart)
+        serialized_cart_items = CartItemSerializer(cart_items, many=True).data
+
+        return self.send_response(
+            {"cart": serialized_cart_items, "total_items": cart.total_items},
+            status=status.HTTP_200_OK,
+        )

@@ -47,11 +47,13 @@ ECOMMERCE_APPS = [
     "cart.apps.CartConfig",
     "shipping.apps.ShippingConfig",
     "payments.apps.PaymentsConfig",
+    "coupons.apps.CouponsConfig",
 ]
 
 THIRD_PARTY_APPS = [
     "corsheaders",
     "rest_framework",
+    "rest_framework_api",
     "django_filters",
     "django_countries",
     "phonenumber_field",
@@ -132,6 +134,8 @@ DATABASES = {
     }
 }
 
+TAXES = env("TAXES")
+
 EMAIL_BACKEND = env("EMAIL_BACKEND")
 EMAIL_HOST = env("EMAIL_HOST")
 EMAIL_USE_TLS = True
@@ -140,6 +144,7 @@ EMAIL_HOST_USER = env("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD")
 DEFAULT_FROM_EMAIL = "cinfacol@gmail.com"
 DOMAIN = env("DOMAIN")
+BACKEND_DOMAIN = env("BACKEND_DOMAIN")
 SITE_NAME = env("SITE_NAME")
 
 CORS_ORIGIN_ALLOW_ALL = True
@@ -206,9 +211,10 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 
-LANGUAGE_CODE = "es-es"
+LANGUAGE_CODE = "es"
 TIME_ZONE = "America/Bogota"
 USE_I18N = True
+USE_L10N = True
 USE_TZ = True
 
 STATIC_URL = "/staticfiles/"

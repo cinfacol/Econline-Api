@@ -16,7 +16,7 @@ from .views import (
 urlpatterns = [
     path("all/", InventoryListAPIView.as_view()),
     path(
-        "users/",
+        "user/",
         ListUsersInventoryAPIView.as_view(),
         name="user-inventories",
     ),

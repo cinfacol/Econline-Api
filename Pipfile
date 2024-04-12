@@ -27,6 +27,7 @@ stripe = "*"
 django-ckeditor-5 = "*"
 braintree = "*"
 cloudinary = "*"
+djangorestframework-api-response = "*"
 
 [dev-packages]
 
