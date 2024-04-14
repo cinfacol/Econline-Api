@@ -20,7 +20,7 @@ class CouponAdmin(admin.ModelAdmin):
         "user",
         "fixed_price_coupon",
         "percentage_coupon",
-        "content_type",
+        # "content_type",
     ]
-    list_filter = ["content_type"]
+    # list_filter = ["content_type"]
     search_fields = ["name"]

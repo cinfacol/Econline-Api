@@ -5,7 +5,7 @@ from .models import Cart, CartItem
 
 @admin.register(Cart)
 class CartAdmin(admin.ModelAdmin):
-    list_display = ["id", "user", "total_items"]
+    list_display = ["pkid", "id", "user", "total_items"]
     list_display_links = ["id", "user"]
     search_fields = ["id", "user__username"]
     list_filter = ["user"]

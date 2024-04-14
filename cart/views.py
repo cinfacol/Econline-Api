@@ -29,7 +29,7 @@ class GetItemsView(StandardAPIView):
 
         return self.send_response(
             {
-                "cart": serialized_cart_items,
+                "cart_items": serialized_cart_items,
                 "total_items": total_items,
             },
             status=status.HTTP_200_OK,
@@ -167,48 +167,47 @@ class AddItemView(StandardAPIView):
         user = request.user
         data = request.data
 
-        print(data)
+        print("data", data)
 
-        item_id = data["itemID"]
-        item_type = data["type"]
+        item_id = data["inventory_id"]  # inventory's id to add
         coupon_id = (
             data.get("coupon", {}).get("id") if data.get("coupon").get("id") else None
         )
+        count = data["count"]
         cart, created = Cart.objects.get_or_create(user=user)
 
         total_items = cart.total_items or 0
 
-        if item_type == "Inventory":
-            inventory = Inventory.objects.get(id=item_id)
-            # Check if item already in cart
-            if CartItem.objects.filter(cart=cart, inventory=inventory).exists():
+        inventory = Inventory.objects.get(id=item_id)
+
+        # Check if item already in cart
+        if CartItem.objects.filter(cart=cart, inventory=inventory).exists():
+            return self.send_error(
+                "Item is already in cart", status=status.HTTP_409_CONFLICT
+            )
+
+        cart_item_object = CartItem.objects.create(
+            inventory=inventory, cart=cart, count=count, coupon=coupon_id
+        )
+
+        if data.get("coupon").get("id") is not None:
+            # Get the coupon object
+            coupon = Coupon.objects.get(id=coupon_id)
+
+            # Validate that the coupon applies to the inventory
+            if coupon.inventory != inventory:
                 return self.send_error(
-                    "Item is already in cart", status=status.HTTP_409_CONFLICT
+                    "Coupon does not apply to this inventory",
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            cart_item_object = CartItem.objects.create(inventory=inventory, cart=cart)
+            cart_item_object.coupon = coupon
+            cart_item_object.save()
 
-            if data.get("coupon").get("id") is not None:
-                # Get the coupon object
-                coupon = Coupon.objects.get(id=coupon_id)
-
-                # Validate that the coupon applies to the inventory
-                if (
-                    coupon.content_type != "inventories"
-                    or coupon.inventory != inventory
-                ):
-                    return self.send_error(
-                        "Coupon does not apply to this inventory",
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
-
-                cart_item_object.coupon = coupon
-                cart_item_object.save()
-
-            if CartItem.objects.filter(cart=cart, inventory=item_id).exists():
-                # Update the total number of items in the cart
-                total_items = int(cart.total_items) + 1
-                Cart.objects.filter(user=user).update(total_items=total_items)
+        if CartItem.objects.filter(cart=cart, inventory=inventory).exists():
+            # Update the total number of items in the cart
+            total_items = int(cart.total_items) + 1
+            Cart.objects.filter(user=user).update(total_items=total_items)
 
         cart_items = CartItem.objects.filter(cart=cart)
         serialized_cart_items = CartItemSerializer(cart_items, many=True).data

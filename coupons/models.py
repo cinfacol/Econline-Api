@@ -11,7 +11,7 @@ User = settings.AUTH_USER_MODEL
 
 
 class Coupon(TimeStampedUUIDModel):
-    types = (("inventories", "Inventories"),)
+    # types = (("inventories", "Inventories"),)
     name = models.CharField(max_length=255, unique=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     fixed_price_coupon = models.ForeignKey(
@@ -20,7 +20,7 @@ class Coupon(TimeStampedUUIDModel):
     percentage_coupon = models.ForeignKey(
         "PercentageCoupon", on_delete=models.CASCADE, blank=True, null=True
     )
-    content_type = models.CharField(choices=types, max_length=20, default="inventories")
+    # content_type = models.CharField(choices=types, max_length=20, default="inventories")
     inventory = models.ForeignKey(
         Inventory, on_delete=models.CASCADE, blank=True, null=True
     )

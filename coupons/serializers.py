@@ -17,7 +17,7 @@ class PercentageCouponSerializer(serializers.ModelSerializer):
 class CouponSerializer(serializers.ModelSerializer):
     fixed_price_coupon = FixedPriceCouponSerializer(required=False)
     percentage_coupon = PercentageCouponSerializer(required=False)
-    content_type = serializers.CharField(read_only=True)
+    # content_type = serializers.CharField(read_only=True)
 
     class Meta:
         model = Coupon
@@ -27,5 +27,5 @@ class CouponSerializer(serializers.ModelSerializer):
             "user",
             "fixed_price_coupon",
             "percentage_coupon",
-            "content_type",
+            # "content_type",
         )
