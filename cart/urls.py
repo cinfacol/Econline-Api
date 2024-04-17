@@ -1,7 +1,7 @@
 from django.urls import path
 from .views import (
     GetItemsView,
-    AddItemView,
+    AddItemToCartView,
     GetTotalView,
     # GetItemTotalView,
     # UpdateItemView,
@@ -12,7 +12,7 @@ from .views import (
 
 urlpatterns = [
     path("cart-items/", GetItemsView.as_view()),
-    path("add-item/", AddItemView.as_view()),
+    path("add-item/", AddItemToCartView.as_view()),
     path("get-total/", GetTotalView.as_view()),
     # path("get-item-total/", GetItemTotalView.as_view()),
     # path("update-item/", UpdateItemView.as_view()),

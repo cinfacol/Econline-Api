@@ -160,7 +160,7 @@ class GetTotalView(StandardAPIView):
         )
 
 
-class AddItemView(StandardAPIView):
+class AddItemToCartView(StandardAPIView):
     permission_classes = (permissions.IsAuthenticated,)
 
     def post(self, request, format=None):
@@ -173,7 +173,7 @@ class AddItemView(StandardAPIView):
         coupon_id = (
             data.get("coupon", {}).get("id") if data.get("coupon").get("id") else None
         )
-        count = data["count"]
+        quantity = data["quantity"]
         cart, created = Cart.objects.get_or_create(user=user)
 
         total_items = cart.total_items or 0
@@ -187,7 +187,7 @@ class AddItemView(StandardAPIView):
             )
 
         cart_item_object = CartItem.objects.create(
-            inventory=inventory, cart=cart, count=count, coupon=coupon_id
+            inventory=inventory, cart=cart, quantity=quantity, coupon=coupon_id
         )
 
         if data.get("coupon").get("id") is not None:
@@ -310,7 +310,7 @@ class SynchCartItemsView(StandardAPIView):
             items.append(item)
 
         # calculate total_items based on newly added items
-        cart.total_items = CartItem.objects.filter(cart=cart).count()
+        cart.total_items = CartItem.objects.filter(cart=cart).quantity()
         cart.save()
 
         cart_items = CartItem.objects.filter(cart=cart)
