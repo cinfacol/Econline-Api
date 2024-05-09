@@ -21,7 +21,7 @@ class GetItemsView(StandardAPIView):
     def get(self, request, format=None):
         user = request.user
         cart = Cart.objects.get(user=user)
-
+        cartId = cart.id
         total_items = cart.total_items
 
         cart_items = CartItem.objects.filter(cart=cart)
@@ -29,6 +29,7 @@ class GetItemsView(StandardAPIView):
 
         return self.send_response(
             {
+                "cartId": cartId,
                 "cart_items": serialized_cart_items,
                 "total_items": total_items,
             },
