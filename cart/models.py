@@ -26,3 +26,25 @@ class CartItem(TimeStampedUUIDModel):
 
     def __str__(self):
         return f"{self.quantity} x {self.inventory.product.name}"
+
+
+class DeliveryCost(TimeStampedUUIDModel):
+    name = models.CharField(max_length=255, unique=True)
+    status = models.CharField(
+        max_length=7,
+        choices=(("Active", "active"), ("Passive", "passive")),
+        default="passive",
+        null=False,
+    )
+    cost_per_delivery = models.DecimalField(max_digits=10, decimal_places=2, null=False)
+    cost_per_product = models.DecimalField(max_digits=10, decimal_places=2, null=False)
+    fixed_cost = models.DecimalField(max_digits=10, decimal_places=2, null=False)
+
+    def __str__(self):
+        return "{} - {} - {} - {} - {}".format(
+            self.name,
+            self.status,
+            self.cost_per_delivery,
+            self.cost_per_product,
+            self.fixed_cost,
+        )

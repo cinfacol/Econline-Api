@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Coupon, FixedPriceCoupon, PercentageCoupon
+from .models import Coupon, FixedPriceCoupon, PercentageCoupon, Campaign
 
 
 @admin.register(FixedPriceCoupon)
@@ -24,3 +24,16 @@ class CouponAdmin(admin.ModelAdmin):
     ]
     # list_filter = ["content_type"]
     search_fields = ["name"]
+
+
+@admin.register(Campaign)
+class CouponAdmin(admin.ModelAdmin):
+    list_display = [
+        "id",
+        "discount_type",
+        "discount_rate",
+        "discount_amount",
+        "min_purchased_items",
+        "target_product",
+        "target_category",
+    ]

@@ -1,33 +1,36 @@
-from rest_framework_api.views import StandardAPIView
-from rest_framework import permissions, status
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.parsers import JSONParser
 from decimal import Decimal
 import requests
 from django.core.cache import cache
 from django.conf import settings
 
-from .models import Cart, CartItem
+from .models import Cart, CartItem, DeliveryCost
 from coupons.models import Coupon
-from .serializers import CartSerializer, CartItemSerializer
+from .serializers import CartSerializer, CartItemSerializer, DeliveryCostSerializer
 from inventory.models import Inventory
 from inventory.serializers import InventorySerializer
 
 taxes = settings.TAXES
 
 
-class GetItemsView(StandardAPIView):
-    permission_classes = (permissions.IsAuthenticated,)
+class GetItemsView(APIView):
+    permission_classes = (IsAuthenticated,)
 
     def get(self, request, format=None):
         user = request.user
         cart = Cart.objects.get(user=user)
         cartId = cart.id
         total_items = cart.total_items
+        print("cartId", cart.id)
 
         cart_items = CartItem.objects.filter(cart=cart)
         serialized_cart_items = CartItemSerializer(cart_items, many=True).data
 
-        return self.send_response(
+        return Response(
             {
                 "cartId": cartId,
                 "cart_items": serialized_cart_items,
@@ -37,17 +40,15 @@ class GetItemsView(StandardAPIView):
         )
 
 
-class GetTotalView(StandardAPIView):
-    permission_classes = (permissions.AllowAny,)
+class GetTotalView(APIView):
+    permission_classes = (AllowAny,)
 
     def post(self, request, format=None):
         data = JSONParser().parse(request)
         if not data:
-            return self.send_response(
+            return Response(
                 {
                     "total_cost": 0,
-                    # "total_cost_ethereum": 0,
-                    # "maticCost": 0,
                     "total_compare_cost": 0,
                     "finalPrice": 0,
                     "tax_estimate": 0,
@@ -72,9 +73,9 @@ class GetTotalView(StandardAPIView):
             if item.get("inventory"):
                 inventories.append(item)
             # elif item.get("product"):
-            #     products.append(item)
+            #    products.append(item)
             # elif item.get("tier"):
-            #     tiers.append(item)
+            #    tiers.append(item)
 
         for object in inventories:
             inventory = object["inventory"] if object["inventory"] else None
@@ -149,7 +150,7 @@ class GetTotalView(StandardAPIView):
 
         finalPrice = Decimal(finalinventoryPrice)
 
-        return self.send_response(
+        return Response(
             {
                 "total_cost": total_cost,
                 "total_compare_cost": total_compare_cost,
@@ -161,14 +162,12 @@ class GetTotalView(StandardAPIView):
         )
 
 
-class AddItemToCartView(StandardAPIView):
-    permission_classes = (permissions.IsAuthenticated,)
+class AddItemToCartView(APIView):
+    permission_classes = (IsAuthenticated,)
 
     def post(self, request, format=None):
         user = request.user
         data = request.data
-
-        print("data", data)
 
         item_id = data["inventory_id"]  # inventory's id to add
         coupon_id = (
@@ -183,8 +182,9 @@ class AddItemToCartView(StandardAPIView):
 
         # Check if item already in cart
         if CartItem.objects.filter(cart=cart, inventory=inventory).exists():
-            return self.send_error(
-                "Item is already in cart", status=status.HTTP_409_CONFLICT
+            return Response(
+                {"error": "Item is already in cart"},
+                status=status.HTTP_409_CONFLICT,
             )
 
         cart_item_object = CartItem.objects.create(
@@ -197,8 +197,8 @@ class AddItemToCartView(StandardAPIView):
 
             # Validate that the coupon applies to the inventory
             if coupon.inventory != inventory:
-                return self.send_error(
-                    "Coupon does not apply to this inventory",
+                return Response(
+                    {"error": "Coupon does not apply to this inventory"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
@@ -213,37 +213,35 @@ class AddItemToCartView(StandardAPIView):
         cart_items = CartItem.objects.filter(cart=cart)
         serialized_cart_items = CartItemSerializer(cart_items, many=True).data
 
-        return self.send_response(
+        return Response(
             {"cart": serialized_cart_items, "total_items": total_items},
             status=status.HTTP_200_OK,
         )
 
 
-class RemoveItemView(StandardAPIView):
-    permission_classes = (permissions.IsAuthenticated,)
+class RemoveItemView(APIView):
+    permission_classes = (IsAuthenticated,)
 
     def post(self, request, format=None):
         user = request.user
-        data = request.data
+        inventory_id = request.data
+        item_id = inventory_id
 
-        item_id = data["itemID"]
-        item_type = data["type"]
         cart, _ = Cart.objects.get_or_create(user=user)
 
-        if item_type == "Inventory":
-            inventory = Inventory.objects.get(id=item_id)
-            cart_item = CartItem.objects.filter(cart=cart, inventory=inventory)
+        inventory = Inventory.objects.get(id=item_id)
+        cart_item = CartItem.objects.filter(cart=cart, inventory=inventory)
 
-            if not cart_item.exists():
-                return self.send_error(
-                    "Item is not in cart", status=status.HTTP_404_NOT_FOUND
-                )
+        if not cart_item.exists():
+            return Response(
+                {"error": "Item is not in cart"}, status=status.HTTP_404_NOT_FOUND
+            )
 
-            cart_item.delete()
+        cart_item.delete()
 
-            # Update the total number of items in the cart
-            total_items = max(0, int(cart.total_items) - 1)
-            Cart.objects.filter(user=user).update(total_items=total_items)
+        # Update the total number of items in the cart
+        total_items = max(0, int(cart.total_items) - 1)
+        Cart.objects.filter(user=user).update(total_items=total_items)
 
         cart_items = CartItem.objects.filter(cart=cart)
         serialized_cart_items = CartItemSerializer(cart_items, many=True).data
@@ -254,8 +252,8 @@ class RemoveItemView(StandardAPIView):
         )
 
 
-class ClearCartView(StandardAPIView):
-    permission_classes = (permissions.IsAuthenticated,)
+class ClearCartView(APIView):
+    permission_classes = (IsAuthenticated,)
 
     def get(self, request, format=None):
         user = request.user
@@ -268,8 +266,8 @@ class ClearCartView(StandardAPIView):
         return self.send_response(serializer.data, status=status.HTTP_200_OK)
 
 
-class SynchCartItemsView(StandardAPIView):
-    permission_classes = (permissions.IsAuthenticated,)
+class SynchCartItemsView(APIView):
+    permission_classes = (IsAuthenticated,)
 
     def put(self, request, format=None):
         items = []
@@ -286,8 +284,7 @@ class SynchCartItemsView(StandardAPIView):
         cart.cartitem_set.all().delete()
 
         for item in cart_items:
-            if item["type"] == "Inventory":
-                inventories.append(item)
+            inventories.append(item)
 
         # Add inventories to the cart
         for inventory_data in inventories:
@@ -321,3 +318,57 @@ class SynchCartItemsView(StandardAPIView):
             {"cart": serialized_cart_items, "total_items": cart.total_items},
             status=status.HTTP_200_OK,
         )
+
+
+class DeliveryCostListAPIView(APIView):
+    """
+    API endpoint for listing and creating delivery costs.
+    """
+
+    def get(self, request):
+        delivery_costs = DeliveryCost.objects.all().order_by("id")
+        serializer = DeliveryCostSerializer(delivery_costs, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        serializer = DeliveryCostSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class DeliveryCostDetailAPIView(APIView):
+    """
+    API endpoint for retrieving, updating, and deleting a specific delivery cost.
+    """
+
+    def get_object(self, pk):
+        try:
+            return DeliveryCost.objects.get(pk=pk)
+        except DeliveryCost.DoesNotExist:
+            return None
+
+    def get(self, request, pk):
+        delivery_cost = self.get_object(pk)
+        if not delivery_cost:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        serializer = DeliveryCostSerializer(delivery_cost)
+        return Response(serializer.data)
+
+    def put(self, request, pk):
+        delivery_cost = self.get_object(pk)
+        if not delivery_cost:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        serializer = DeliveryCostSerializer(delivery_cost, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, pk):
+        delivery_cost = self.get_object(pk)
+        if not delivery_cost:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        delivery_cost.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

@@ -17,6 +17,7 @@ urlpatterns = [
     # path("get-item-total/", GetItemTotalView.as_view()),
     # path("update-item/", UpdateItemView.as_view()),
     path("remove-item/", RemoveItemView.as_view()),
+    path("delivery-cost/", RemoveItemView.as_view()),
     path("clear/", ClearCartView.as_view()),
     path("synch/", SynchCartItemsView.as_view()),
 ]

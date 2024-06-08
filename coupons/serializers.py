@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import FixedPriceCoupon, PercentageCoupon, Coupon
+from .models import FixedPriceCoupon, PercentageCoupon, Coupon, Campaign
 
 
 class FixedPriceCouponSerializer(serializers.ModelSerializer):
@@ -17,7 +17,6 @@ class PercentageCouponSerializer(serializers.ModelSerializer):
 class CouponSerializer(serializers.ModelSerializer):
     fixed_price_coupon = FixedPriceCouponSerializer(required=False)
     percentage_coupon = PercentageCouponSerializer(required=False)
-    # content_type = serializers.CharField(read_only=True)
 
     class Meta:
         model = Coupon
@@ -27,5 +26,21 @@ class CouponSerializer(serializers.ModelSerializer):
             "user",
             "fixed_price_coupon",
             "percentage_coupon",
-            # "content_type",
         )
+
+
+class CampaignSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Campaign
+        fields = [
+            "id",
+            "discount_type",
+            "discount_rate",
+            "discount_amount",
+            "min_purchased_items",
+            "apply_to",
+            "target_product",
+            "target_category",
+            "created_at",
+            "updated_at",
+        ]

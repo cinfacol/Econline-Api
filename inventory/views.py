@@ -112,29 +112,6 @@ class InventoryByCategoryAPIView(generics.ListAPIView):
         return self.queryset
 
 
-""" class InventoryByCategoryAPIView(generics.ListAPIView):
-    permission_classes = (permissions.AllowAny,)  # Inherit from your view
-    pagination_class = InventoryPagination  # Inherit from your view
-    serializer_class = InventorySerializer
-    queryset = Inventory.objects.all()  # Modify queryset as needed
-
-    def get_queryset(self):
-        query = self.kwargs.get("query", None)  # Get slug from URL kwargs
-        if query:
-            self.queryset = self.queryset.filter(product__category__slug=query)
-        return self.queryset """
-
-
-""" class InventoryByCategory(APIView):
-    permission_classes = (permissions.AllowAny,)
-    pagination_class = InventoryPagination
-
-    def get(self, request, query=None):
-        queryset = Inventory.objects.filter(product__category__slug=query)
-        serializer = InventorySerializer(queryset, many=True)
-        return Response(serializer.data) """
-
-
 class InventoryByRefCode(APIView):
     permission_classes = (permissions.AllowAny,)
 
