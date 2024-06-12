@@ -246,7 +246,7 @@ class RemoveItemView(APIView):
         cart_items = CartItem.objects.filter(cart=cart)
         serialized_cart_items = CartItemSerializer(cart_items, many=True).data
 
-        return self.send_response(
+        return Response(
             {"cart": serialized_cart_items, "total_items": total_items},
             status=status.HTTP_200_OK,
         )
@@ -263,7 +263,7 @@ class ClearCartView(APIView):
         cart.total_items = 0
         cart.save()
         serializer = CartSerializer(cart)
-        return self.send_response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class SynchCartItemsView(APIView):
@@ -314,7 +314,7 @@ class SynchCartItemsView(APIView):
         cart_items = CartItem.objects.filter(cart=cart)
         serialized_cart_items = CartItemSerializer(cart_items, many=True).data
 
-        return self.send_response(
+        return Response(
             {"cart": serialized_cart_items, "total_items": cart.total_items},
             status=status.HTTP_200_OK,
         )
