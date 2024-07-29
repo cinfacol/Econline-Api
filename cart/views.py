@@ -25,7 +25,7 @@ class GetItemsView(APIView):
         cart = Cart.objects.get(user=user)
         cartId = cart.id
         total_items = cart.total_items
-        print("cartId", cart.id)
+        # print("cartId", cart.id)
 
         cart_items = CartItem.objects.filter(cart=cart)
         serialized_cart_items = CartItemSerializer(cart_items, many=True).data
@@ -41,45 +41,34 @@ class GetItemsView(APIView):
 
 
 class GetTotalView(APIView):
-    permission_classes = (AllowAny,)
+    permission_classes = (IsAuthenticated,)
 
     def post(self, request, format=None):
         data = JSONParser().parse(request)
-        if not data:
+        print("data", data)
+        # Check for missing data and return error if necessary
+        if not data or not data.get("items"):
             return Response(
-                {
-                    "total_cost": 0,
-                    "total_compare_cost": 0,
-                    "finalPrice": 0,
-                    "tax_estimate": 0,
-                    "shipping_estimate": 0,
-                },
-                status=status.HTTP_200_OK,
+                {"error": "Missing required data (items) in request"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         inventories = []
-        # products = []
-        # tiers = []
         total_cost = Decimal(0)
         total_compare_cost = Decimal(0)
         tax_estimate = Decimal(0)
         shipping_estimate = Decimal(0)
-        # finalProductPrice = Decimal(0)
-        # finalCoursePrice = Decimal(0)
-        # finalTierPrice = Decimal(0)
-        finalPrice = Decimal(0)
+        # finalPrice = Decimal(0)
 
         for item in data.get("items"):
             if item.get("inventory"):
                 inventories.append(item)
-            # elif item.get("product"):
-            #    products.append(item)
-            # elif item.get("tier"):
-            #    tiers.append(item)
 
         for object in inventories:
-            inventory = object["inventory"] if object["inventory"] else None
-            coupon = object["coupon"] if object["coupon"] else None
+            inventory = object.get("inventory", {})  # Use default empty dict if missing
+            coupon = object.get("coupon", None)
+            # inventory = object["inventory"] if object["inventory"] else None
+            # coupon = object["coupon"] if object["coupon"] else None
 
             if coupon:
                 coupon_fixed_price_coupon = coupon.get("fixed_price_coupon")
@@ -111,7 +100,7 @@ class GetTotalView(APIView):
             inventory_discount = inventory.get("discount", False)
 
             # Calculate Total Cost Without Discounts and Coupons and Taxes (total_cost)
-            if inventory_discount == False:
+            """ if inventory_discount == False:
                 total_cost += Decimal(inventory_price)
             else:
                 total_cost += Decimal(inventory_compare_price)
@@ -148,15 +137,51 @@ class GetTotalView(APIView):
             # print('Tax Estimate: ',tax_estimate )
             finalinventoryPrice = Decimal(total_compare_cost) + Decimal(tax_estimate)
 
-        finalPrice = Decimal(finalinventoryPrice)
+        finalPrice = Decimal(finalinventoryPrice) """
+            # Calculate total cost based on discounts
+            if inventory_discount:
+                discount_price = coupon.get("fixed_price_coupon", {}).get(
+                    "discount_price"
+                )
+                discount_percentage = coupon.get("percentage_coupon", {}).get(
+                    "discount_percentage"
+                )
+                total_compare_cost += max(
+                    (
+                        inventory_compare_price - discount_price
+                        if discount_price
+                        else (
+                            inventory_compare_price * (1 - discount_percentage / 100)
+                            if discount_percentage
+                            else inventory_compare_price
+                        )
+                    ),
+                    0,
+                )
+            else:
+                total_compare_cost += inventory_price
+
+            total_cost += (
+                inventory_compare_price  # Accumulate total cost regardless of discounts
+            )
+
+        # Calculate tax estimate
+        tax_estimate = Decimal(total_compare_cost) * Decimal(taxes)
+
+        final_price = Decimal(total_compare_cost) + Decimal(tax_estimate)
 
         return Response(
             {
                 "total_cost": total_cost,
                 "total_compare_cost": total_compare_cost,
-                "finalPrice": finalPrice,
+                "finalPrice": final_price,
                 "tax_estimate": tax_estimate,
-                "shipping_estimate": shipping_estimate,
+                "shipping_estimate": shipping_estimate,  # Include shipping estimate if available
+                # "total_cost": total_cost,
+                # "total_compare_cost": total_compare_cost,
+                # "finalPrice": finalPrice,
+                # "tax_estimate": tax_estimate,
+                # "shipping_estimate": shipping_estimate,
             },
             status=status.HTTP_200_OK,
         )

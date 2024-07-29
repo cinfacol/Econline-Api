@@ -7,14 +7,14 @@ from coupons.serializers import CouponSerializer
 class CartItemSerializer(serializers.ModelSerializer):
     inventory = InventorySerializer()
     coupon = CouponSerializer()
-    cart = serializers.SerializerMethodField()
+    # cart = serializers.SerializerMethodField()
 
     class Meta:
         model = CartItem
         fields = ("id", "cart", "coupon", "inventory", "quantity")
 
-    def get_cart(self, obj):
-        return obj.cart.id
+    # def get_cart(self, obj):
+    #     return obj.cart.id
 
 
 class CartSerializer(serializers.ModelSerializer):
@@ -22,6 +22,7 @@ class CartSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Cart
+        depth = 1
         fields = ("id", "user", "total_items", "items")
 
 
