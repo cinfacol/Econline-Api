@@ -42,7 +42,7 @@ jsonschema==4.23.0
 jsonschema-specifications==2023.12.1
 kombu==5.3.7
 oauthlib==3.2.2
-phonenumbers==8.13.40
+phonenumbers==8.13.42
 pillow==10.4.0
 prometheus_client==0.20.0
 prompt_toolkit==3.0.47

@@ -11,7 +11,7 @@ class CartItemSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CartItem
-        fields = ("id", "cart", "coupon", "inventory", "quantity")
+        fields = ["id", "cart", "coupon", "inventory", "quantity"]
 
     # def get_cart(self, obj):
     #     return obj.cart.id
@@ -23,7 +23,7 @@ class CartSerializer(serializers.ModelSerializer):
     class Meta:
         model = Cart
         depth = 1
-        fields = ("id", "user", "total_items", "items")
+        fields = ["id", "user", "total_items", "items"]
 
 
 class DeliveryCostSerializer(serializers.ModelSerializer):

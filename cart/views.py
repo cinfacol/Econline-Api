@@ -49,7 +49,13 @@ class GetTotalView(APIView):
         # Check for missing data and return error if necessary
         if not data or not data.get("items"):
             return Response(
-                {"error": "Missing required data (items) in request"},
+                {
+                    "total_cost": 0,
+                    "total_compare_cost": 0,
+                    "finalPrice": 0,
+                    "tax_estimate": 0,
+                    "shipping_estimate": 0,
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -58,7 +64,7 @@ class GetTotalView(APIView):
         total_compare_cost = Decimal(0)
         tax_estimate = Decimal(0)
         shipping_estimate = Decimal(0)
-        # finalPrice = Decimal(0)
+        finalInventoryPrice = Decimal(0)
 
         for item in data.get("items"):
             if item.get("inventory"):
@@ -100,7 +106,7 @@ class GetTotalView(APIView):
             inventory_discount = inventory.get("discount", False)
 
             # Calculate Total Cost Without Discounts and Coupons and Taxes (total_cost)
-            """ if inventory_discount == False:
+            if inventory_discount == False:
                 total_cost += Decimal(inventory_price)
             else:
                 total_cost += Decimal(inventory_compare_price)
@@ -132,56 +138,19 @@ class GetTotalView(APIView):
                 else:
                     total_compare_cost += Decimal(inventory_price)
 
-            # Calculate Taxes for Total Cost (tax_estimate)
-            tax_estimate = Decimal(total_compare_cost) * Decimal(taxes)
-            # print('Tax Estimate: ',tax_estimate )
-            finalinventoryPrice = Decimal(total_compare_cost) + Decimal(tax_estimate)
-
-        finalPrice = Decimal(finalinventoryPrice) """
-            # Calculate total cost based on discounts
-            if inventory_discount:
-                discount_price = coupon.get("fixed_price_coupon", {}).get(
-                    "discount_price"
-                )
-                discount_percentage = coupon.get("percentage_coupon", {}).get(
-                    "discount_percentage"
-                )
-                total_compare_cost += max(
-                    (
-                        inventory_compare_price - discount_price
-                        if discount_price
-                        else (
-                            inventory_compare_price * (1 - discount_percentage / 100)
-                            if discount_percentage
-                            else inventory_compare_price
-                        )
-                    ),
-                    0,
-                )
-            else:
-                total_compare_cost += inventory_price
-
-            total_cost += (
-                inventory_compare_price  # Accumulate total cost regardless of discounts
-            )
-
-        # Calculate tax estimate
+        # Calculate Taxes for Total Cost (tax_estimate)
         tax_estimate = Decimal(total_compare_cost) * Decimal(taxes)
 
-        final_price = Decimal(total_compare_cost) + Decimal(tax_estimate)
+        print("Tax Estimate: ", tax_estimate)
+        finalInventoryPrice = Decimal(total_compare_cost) + Decimal(tax_estimate)
 
         return Response(
             {
                 "total_cost": total_cost,
                 "total_compare_cost": total_compare_cost,
-                "finalPrice": final_price,
+                "finalPrice": finalInventoryPrice,
                 "tax_estimate": tax_estimate,
                 "shipping_estimate": shipping_estimate,  # Include shipping estimate if available
-                # "total_cost": total_cost,
-                # "total_compare_cost": total_compare_cost,
-                # "finalPrice": finalPrice,
-                # "tax_estimate": tax_estimate,
-                # "shipping_estimate": shipping_estimate,
             },
             status=status.HTTP_200_OK,
         )
