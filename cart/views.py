@@ -49,8 +49,6 @@ class GetTotalView(APIView):
         # print("data", data)
         # Check for missing data and return error if necessary
         if not data or not data.get("items"):
-            # if not data:
-            # if not isinstance(data, dict) or not data.get("items"):
             return Response(
                 {
                     "total_cost": 0,
@@ -77,8 +75,6 @@ class GetTotalView(APIView):
             inventory = object.get("inventory", {})  # Use default empty dict if missing
             # print("inventory", inventory)
             coupon = object.get("coupon", None)
-            # inventory = object["inventory"] if object["inventory"] else None
-            # coupon = object["coupon"] if object["coupon"] else None
 
             if coupon:
                 coupon_fixed_price_coupon = coupon.get("fixed_price_coupon")
@@ -145,9 +141,9 @@ class GetTotalView(APIView):
         # Calculate Taxes for Total Cost (tax_estimate)
         tax_estimate = Decimal(total_compare_cost) * Decimal(taxes)
 
-        print("Tax Estimate: ", tax_estimate)
+        # print("Tax Estimate: ", tax_estimate)
         finalInventoryPrice = Decimal(total_compare_cost) + Decimal(tax_estimate)
-        print("finalInventoryPrice: ", finalInventoryPrice)
+        # print("finalInventoryPrice: ", finalInventoryPrice)
 
         return Response(
             {
