@@ -44,10 +44,13 @@ class GetTotalView(APIView):
     permission_classes = (IsAuthenticated,)
 
     def post(self, request, format=None):
-        data = JSONParser().parse(request)
-        print("data", data)
+        original_data = JSONParser().parse(request)
+        data = {"items": original_data}
+        # print("data", data)
         # Check for missing data and return error if necessary
         if not data or not data.get("items"):
+            # if not data:
+            # if not isinstance(data, dict) or not data.get("items"):
             return Response(
                 {
                     "total_cost": 0,
@@ -72,6 +75,7 @@ class GetTotalView(APIView):
 
         for object in inventories:
             inventory = object.get("inventory", {})  # Use default empty dict if missing
+            # print("inventory", inventory)
             coupon = object.get("coupon", None)
             # inventory = object["inventory"] if object["inventory"] else None
             # coupon = object["coupon"] if object["coupon"] else None
@@ -101,9 +105,9 @@ class GetTotalView(APIView):
                 coupon_percentage_coupon = None
                 coupon_discount_percentage = None
 
-            inventory_price = inventory.get("price")
-            inventory_compare_price = inventory.get("compare_price", inventory_price)
-            inventory_discount = inventory.get("discount", False)
+            inventory_price = inventory.get("retail_price")
+            inventory_compare_price = inventory.get("store_price", inventory_price)
+            inventory_discount = inventory.get("promotion_price", False)
 
             # Calculate Total Cost Without Discounts and Coupons and Taxes (total_cost)
             if inventory_discount == False:
@@ -143,6 +147,7 @@ class GetTotalView(APIView):
 
         print("Tax Estimate: ", tax_estimate)
         finalInventoryPrice = Decimal(total_compare_cost) + Decimal(tax_estimate)
+        print("finalInventoryPrice: ", finalInventoryPrice)
 
         return Response(
             {
