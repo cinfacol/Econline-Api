@@ -41,7 +41,6 @@ class GetItemsView(APIView):
 
 
 class GetTotalView(APIView):
-    permission_classes = (IsAuthenticated,)
 
     def post(self, request, format=None):
         original_data = JSONParser().parse(request)
@@ -215,7 +214,6 @@ class AddItemToCartView(APIView):
 
 
 class RemoveItemView(APIView):
-    permission_classes = (IsAuthenticated,)
 
     def post(self, request, format=None):
         user = request.user
@@ -248,7 +246,6 @@ class RemoveItemView(APIView):
 
 
 class ClearCartView(APIView):
-    permission_classes = (IsAuthenticated,)
 
     def get(self, request, format=None):
         user = request.user
@@ -262,7 +259,6 @@ class ClearCartView(APIView):
 
 
 class SynchCartItemsView(APIView):
-    permission_classes = (IsAuthenticated,)
 
     def put(self, request, format=None):
         items = []
@@ -296,7 +292,6 @@ class SynchCartItemsView(APIView):
                 cart=cart,
                 inventory=inventory,
                 coupon=coupon,
-                referrer=inventory_data.get("referrer"),
             )
             item.save()
 
@@ -313,6 +308,34 @@ class SynchCartItemsView(APIView):
             {"cart": serialized_cart_items, "total_items": cart.total_items},
             status=status.HTTP_200_OK,
         )
+
+
+""" class IncreaseQuantityView(APIView):
+
+    def post(self, request, format=None):
+        user = request.user
+        item_id = request.data
+
+        cart, _ = Cart.objects.get_or_create(user=user)
+        inventory = Inventory.objects.get(id=item_id)
+        cart_item = CartItem.objects.filter(cart=cart, inventory=inventory)
+
+        if not cart_item.exists():
+            return Response(
+                {"error": "Item is not in cart"}, status=status.HTTP_404_NOT_FOUND
+            ) """
+
+
+""" class DecreaseQuantityView(generic.View):
+    def get(self, request, *args, **kwargs):
+        order_item = get_object_or_404(OrderItem, id=kwargs["pk"])
+
+        if order_item.quantity <= 1:
+            order_item.delete()
+        else:
+            order_item.quantity -= 1
+            order_item.save()
+        return redirect("cart:summary") """
 
 
 class DeliveryCostListAPIView(APIView):
