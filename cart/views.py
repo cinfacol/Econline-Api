@@ -25,7 +25,7 @@ class GetItemsView(APIView):
         cart = Cart.objects.get(user=user)
         cartId = cart.id
         total_items = cart.total_items
-        # print("cartId", cart.id)
+        # print("total_items", total_items)
 
         cart_items = CartItem.objects.filter(cart=cart)
         serialized_cart_items = CartItemSerializer(cart_items, many=True).data
