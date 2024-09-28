@@ -11,7 +11,6 @@ User = settings.AUTH_USER_MODEL
 
 class Cart(TimeStampedUUIDModel):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
-    # products = models.ManyToManyField(Inventory, through="CartItem")
     total_items = models.IntegerField(default=0)
 
     def __str__(self):

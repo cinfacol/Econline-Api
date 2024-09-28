@@ -28,7 +28,6 @@ class GetItemsView(APIView):
         cart = Cart.objects.get(user=user)
         cartId = cart.id
         total_items = cart.total_items
-        # print("total_items", total_items)
 
         cart_items = CartItem.objects.filter(cart=cart)
         serialized_cart_items = CartItemSerializer(cart_items, many=True).data
@@ -68,6 +67,7 @@ class GetTotalView(APIView):
         tax_estimate = Decimal(0)
         final_inventory_price = Decimal(0)
         shipping_estimate = Decimal(0)
+        quantity = Decimal(0)
 
         for item in data.get("items", []):
             if item.get("inventory"):
@@ -75,7 +75,6 @@ class GetTotalView(APIView):
 
         for object in inventories:
             inventory = object.get("inventory", {})  # Use default empty dict if missing
-            # print("inventory", inventory)
             coupon = object.get("coupon", None)
 
             if coupon:
@@ -141,11 +140,9 @@ class GetTotalView(APIView):
                     total_compare_cost += Decimal(inventory_price)
 
         # Calculate Taxes for Total Cost (tax_estimate)
-        tax_estimate = Decimal(total_compare_cost) * Decimal(taxes)
+        tax_estimate = Decimal(inventory_price) * Decimal(taxes)
 
-        # print("Tax Estimate: ", tax_estimate)
-        final_inventory_price = Decimal(total_compare_cost) + Decimal(tax_estimate)
-        # print("final_inventory_price: ", final_inventory_price)
+        final_inventory_price = Decimal(inventory_price) + Decimal(tax_estimate)
 
         return Response(
             {
@@ -172,6 +169,10 @@ class AddItemToCartView(APIView):
 
         try:
             inventory = Inventory.objects.get(id=item_id)
+            stock = (
+                inventory.inventory_stock.units - inventory.inventory_stock.units_sold
+            )
+
         except Inventory.DoesNotExist:
             return Response(
                 {"error": "Inventory not found"}, status=status.HTTP_404_NOT_FOUND
@@ -183,6 +184,12 @@ class AddItemToCartView(APIView):
         if CartItem.objects.filter(cart=cart, inventory=inventory).exists():
             return Response(
                 {"error": "Item is already in cart"}, status=status.HTTP_409_CONFLICT
+            )
+
+        if int(stock) <= 0:
+            return Response(
+                {"error": "This product is out of stock"},
+                status=status.HTTP_409_CONFLICT,
             )
 
         with transaction.atomic():
@@ -275,9 +282,6 @@ class SynchCartItemsView(APIView):
         cart, _ = Cart.objects.get_or_create(user=user)
         cart_items = data.get("cart_items", [])
 
-        # Clear all existing items in the cart
-        # cart.cartitem_set.all().delete()
-
         # Si no hay ítems en el carrito, devolver error
         if not cart_items:
             return Response(
@@ -305,7 +309,7 @@ class SynchCartItemsView(APIView):
 
                 # Manejo seguro del cupón
                 coupon_data = item_data.get("coupon")
-                print("coupon_data:", coupon_data)
+                # print("coupon_data:", coupon_data)
                 coupon = None
                 if isinstance(coupon_data, dict):
                     coupon_id = coupon_data.get("id")

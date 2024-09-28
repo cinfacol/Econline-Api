@@ -21,6 +21,9 @@ down-v:
 show-logs:
 	docker compose logs -f
 
+shell:
+	docker compose exec api python3 manage.py shell
+
 migrate:
 	docker compose exec api python3 manage.py migrate
 

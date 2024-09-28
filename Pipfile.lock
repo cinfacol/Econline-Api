@@ -283,7 +283,7 @@
                 "sha256:fe1a5309734814b481de637ab3041e8699995387df965ec0f2d8f767db7067a2"
             ],
             "index": "pypi",
-            "version": "==1.40.0"
+            "version": "==1.41.0"
         },
         "cryptography": {
             "hashes": [
@@ -335,7 +335,7 @@
             ],
             "index": "pypi",
             "markers": "python_version >= '3.10'",
-            "version": "==5.0.7"
+            "version": "==5.1.1"
         },
         "django-appconf": {
             "hashes": [
@@ -361,15 +361,6 @@
             ],
             "index": "pypi",
             "version": "==3.0.0"
-        },
-        "django-ckeditor-5": {
-            "hashes": [
-                "sha256:0850402680fb6b9dc255b1883910173ed37cc28906712558008f1d5a29045e6f",
-                "sha256:76fa26bdd65842262be7deb1b4cdb419cb080c89c62e0af933dfdd035b13b688"
-            ],
-            "index": "pypi",
-            "markers": "python_version >= '3.7'",
-            "version": "==0.2.13"
         },
         "django-cloudinary-storage": {
             "hashes": [
@@ -863,7 +854,7 @@
             ],
             "index": "pypi",
             "markers": "python_version >= '3.7'",
-            "version": "==5.0.7"
+            "version": "==5.0.8"
         },
         "referencing": {
             "hashes": [
@@ -1045,7 +1036,7 @@
             ],
             "index": "pypi",
             "markers": "python_version >= '3.6'",
-            "version": "==10.5.0"
+            "version": "==10.12.0"
         },
         "tornado": {
             "hashes": [
@@ -1146,7 +1137,7 @@
             ],
             "index": "pypi",
             "markers": "python_version >= '3.8'",
-            "version": "==4.0.1"
+            "version": "==5.0.2"
         },
         "wcwidth": {
             "hashes": [

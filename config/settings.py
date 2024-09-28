@@ -5,7 +5,6 @@ from django.utils.translation import gettext_lazy as _
 
 import environ
 import cloudinary
-import cloudinary_storage
 
 env = environ.Env(DEBUG=(bool, False))
 
@@ -61,16 +60,14 @@ THIRD_PARTY_APPS = [
     "social_django",
     "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",
-    "django_ckeditor_5",
     "djcelery_email",
     "drf_spectacular",
     "cloudinary",
-    "cloudinary_storage",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + PROJECT_APPS + ECOMMERCE_APPS + THIRD_PARTY_APPS
 
-CKEDITOR_5_CONFIGS = {
+""" CKEDITOR_5_CONFIGS = {
     "default": {
         "toolbar": [
             "heading",
@@ -84,9 +81,11 @@ CKEDITOR_5_CONFIGS = {
             "imageUpload",
         ],
     },
-}
+} """
 
 SITE_ID = 1
+
+CART_SESSION_ID = "cart"
 
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
@@ -224,7 +223,6 @@ USE_TZ = True
 STATIC_URL = "/staticfiles/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = []
-# STATICFILES_STORAGE = "cloudinary_storage.storage.StaticHashedCloudinaryStorage"
 MEDIA_URL = "/mediafiles/"
 MEDIA_ROOT = BASE_DIR / "mediafiles"
 
@@ -238,21 +236,9 @@ LOCALE_PATH = BASE_DIR / "locale/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-CLOUDINARY_STORAGE = {
-    "CLOUD_NAME": env("CLOUD_NAME"),
-    "API_KEY": env("API_KEY"),
-    "API_SECRET": env("API_SECRET"),
-    "SECURE": False,
-    "MEDIA_TAG": "media",  # it is useful when you have several websites which use the same Cloudinary acount, when you should set it unique to distinguish it from other websites
-}
-
-""" cloudinary.config(
-    cloud_name=env("CLOUD_NAME"),
-    api_key=env("API_KEY"),
-    api_secret=env("API_SECRET"),
-) """
-
-DEFAULT_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
+CLOUD_NAME = env("CLOUD_NAME")
+API_KEY = env("API_KEY")
+API_SECRET = env("API_SECRET")
 
 AUTH_USER_MODEL = "users.User"
 

@@ -1,7 +1,9 @@
+import helpers
 from decimal import Decimal
 
 from django.core.validators import MinValueValidator
 from django.db import models
+from django.utils.text import slugify
 
 # from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
@@ -11,11 +13,13 @@ import string
 from autoslug import AutoSlugField
 from django.contrib.auth import get_user_model
 
+from cloudinary.models import CloudinaryField
 from common.models import TimeStampedUUIDModel, IsActiveQueryset, PublishedManager
 from products.models import Product
 from users.models import User
 from .fields import OrderField
 
+helpers.cloudinary_init()
 # User = get_user_model()
 
 
@@ -169,20 +173,45 @@ class InventoryViews(TimeStampedUUIDModel):
         verbose_name_plural = "Inventory Views"
 
 
+def get_public_id_prefix(instance, *args, **kwargs):
+    if hasattr(instance, "path"):
+        path = instance.path
+        if path.startswith("/"):
+            path = path[1:]
+        if path.endswith("/"):
+            path = path[:-1]
+        return path
+    public_id = instance.inventory.id
+    model_class = instance.__class__
+    model_name = model_class.__name__
+    model_name_slug = slugify(model_name)
+    if not public_id:
+        return f"{model_name_slug}"
+    return f"{model_name_slug}/{public_id}"
+
+
+def get_display_name(instance, *args, **kwargs):
+    if hasattr(instance, "get_display_name"):
+        return instance.get_display_name()
+    elif hasattr(instance, "title"):
+        return instance.title
+    model_class = instance.__class__
+    model_name = model_class.__name__
+    return f"{model_name} Upload"
+
+
 class Media(TimeStampedUUIDModel):
     inventory = models.ForeignKey(
         Inventory,
         on_delete=models.PROTECT,
         related_name="inventory_media",
     )
-    image = models.ImageField(
-        unique=False,
-        null=False,
-        blank=False,
-        verbose_name=_("imagen"),
-        upload_to="images/",
-        default="images/default.png",
-        help_text=_("format: required, default-default.png"),
+    image = CloudinaryField(
+        "image",
+        null=True,
+        # public_id_prefix=get_public_id_prefix,
+        # display_name=get_display_name,
+        tags=["inventory", "thumbnail"],
     )
     alt_text = models.CharField(
         max_length=255,
@@ -203,9 +232,16 @@ class Media(TimeStampedUUIDModel):
         help_text=_("format: default=false, true=default image"),
     )
 
+    """ def get_thumbnail(self):
+        if not self.image:
+            return None
+        return helpers.get_cloudinary_image_object(
+            self, field_name="image", as_html=False, width=382
+        ) """
+
     class Meta:
-        verbose_name = _("inventory image")
-        verbose_name_plural = _("inventory images")
+        verbose_name = _("Image")
+        verbose_name_plural = _("Photos")
         ordering = ("created_at",)
 
     def __str__(self):
