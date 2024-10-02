@@ -70,3 +70,4 @@ urllib3==2.2.2
 vine==5.1.0
 watchdog==5.0.2
 wcwidth==0.2.13
+zipp>=3.19.1 # not directly required, pinned by Snyk to avoid a vulnerability
