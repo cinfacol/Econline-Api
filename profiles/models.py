@@ -30,7 +30,7 @@ class Profile(TimeStampedUUIDModel):
     )
     profile_photo = models.ImageField(
         verbose_name=_("Profile Photo"),
-        default="/default_avatar_qs2vrz",
+        default="/author-1.png",
         blank=True,
         null=True,
     )

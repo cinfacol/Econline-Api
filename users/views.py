@@ -1,7 +1,6 @@
 from django.conf import settings
 from rest_framework.views import APIView
 
-# from rest_framework.generics import GenericAPIView
 from rest_framework.response import Response
 from rest_framework import status
 from djoser.social.views import ProviderAuthView
@@ -10,10 +9,6 @@ from rest_framework_simplejwt.views import (
     TokenRefreshView,
     TokenVerifyView,
 )
-
-# from drf_spectacular.utils import extend_schema
-# from .serializers import LogoutUserSerializer
-# from rest_framework.permissions import IsAuthenticated
 
 
 class CustomProviderAuthView(ProviderAuthView):
@@ -112,21 +107,12 @@ class CustomTokenVerifyView(TokenVerifyView):
 
 
 class LogoutView(APIView):
+
     def post(self, request, *args, **kwargs):
+        print("request =>", request)
         response = Response(status=status.HTTP_204_NO_CONTENT)
+        print("response =>", response)
         response.delete_cookie("access")
         response.delete_cookie("refresh")
 
         return response
-
-
-# class LogoutView(GenericAPIView):
-#     serializer_class = LogoutUserSerializer
-#     permission_classes = [IsAuthenticated]
-
-#     @extend_schema(responses=LogoutUserSerializer)
-#     def post(self, request, *args, **kwargs):
-#         serializer = self.serializer_class(data=request.data)
-#         serializer.is_valid(raise_exception=True)
-#         serializer.save()
-#         return Response(status=status.HTTP_204_NO_CONTENT)
