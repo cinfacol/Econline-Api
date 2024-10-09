@@ -2,6 +2,7 @@ from django.conf import settings
 from rest_framework.views import APIView
 
 from rest_framework.response import Response
+from rest_framework.permissions import AllowAny
 from rest_framework import status
 from djoser.social.views import ProviderAuthView
 from rest_framework_simplejwt.views import (
@@ -107,11 +108,10 @@ class CustomTokenVerifyView(TokenVerifyView):
 
 
 class LogoutView(APIView):
+    permission_classes = (AllowAny,)
 
     def post(self, request, *args, **kwargs):
-        print("request =>", request)
         response = Response(status=status.HTTP_204_NO_CONTENT)
-        print("response =>", response)
         response.delete_cookie("access")
         response.delete_cookie("refresh")
 
