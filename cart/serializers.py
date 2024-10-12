@@ -1,20 +1,19 @@
+from django.conf import settings
 from rest_framework import serializers
 from .models import Cart, CartItem, DeliveryCost
 from inventory.serializers import InventorySerializer
 from coupons.serializers import CouponSerializer
 
+taxes = settings.TAXES
+
 
 class CartItemSerializer(serializers.ModelSerializer):
     inventory = InventorySerializer()
     coupon = CouponSerializer()
-    # cart = serializers.SerializerMethodField()
 
     class Meta:
         model = CartItem
         fields = ["id", "cart", "coupon", "inventory", "quantity"]
-
-    # def get_cart(self, obj):
-    #     return obj.cart.id
 
 
 class CartSerializer(serializers.ModelSerializer):

@@ -20,7 +20,6 @@ from users.models import User
 from .fields import OrderField
 
 helpers.cloudinary_init()
-# User = get_user_model()
 
 
 class Attribute(TimeStampedUUIDModel):
@@ -132,8 +131,13 @@ class Inventory(TimeStampedUUIDModel):
         max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal("0.01"))]
     )
     store_price = models.DecimalField(  # precio de tienda
-        max_digits=10,
+        max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal("0.01"))]
+    )
+    taxe = models.DecimalField(  # precio de tienda
+        max_digits=6,
         decimal_places=2,
+        default=(Decimal("0.19")),
+        validators=[MinValueValidator(Decimal("0.01"))],
     )
     is_digital = models.BooleanField(
         default=False,

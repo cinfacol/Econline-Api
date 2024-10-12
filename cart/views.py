@@ -6,9 +6,6 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.parsers import JSONParser
 from decimal import Decimal
-import requests
-from django.core.cache import cache
-from django.conf import settings
 
 
 from .models import Cart, CartItem, DeliveryCost
@@ -16,8 +13,7 @@ from coupons.models import Coupon
 from .serializers import CartSerializer, CartItemSerializer, DeliveryCostSerializer
 from inventory.models import Inventory
 from inventory.serializers import InventorySerializer
-
-taxes = settings.TAXES
+from django.shortcuts import get_object_or_404
 
 
 class GetItemsView(APIView):
@@ -65,7 +61,7 @@ class GetTotalView(APIView):
         total_cost = Decimal(0)
         total_compare_cost = Decimal(0)
         tax_estimate = Decimal(0)
-        final_inventory_price = Decimal(0)
+        final_inventory_retail_price = Decimal(0)
         shipping_estimate = Decimal(0)
         quantity = Decimal(0)
 
@@ -102,13 +98,16 @@ class GetTotalView(APIView):
                 coupon_percentage_coupon = None
                 coupon_discount_percentage = None
 
-            inventory_price = inventory.get("retail_price")
-            inventory_compare_price = inventory.get("store_price", inventory_price)
+            inventory_retail_price = inventory.get("retail_price")
+            inventory_compare_price = inventory.get(
+                "store_price", inventory_retail_price
+            )
             inventory_discount = inventory.get("promotion_price", False)
+            taxes = inventory.get("taxe")
 
             # Calculate Total Cost Without Discounts and Coupons and Taxes (total_cost)
             if inventory_discount == False:
-                total_cost += Decimal(inventory_price)
+                total_cost += Decimal(inventory_retail_price)
             else:
                 total_cost += Decimal(inventory_compare_price)
 
@@ -129,26 +128,29 @@ class GetTotalView(APIView):
             else:
                 if coupon_fixed_discount_price is not None:
                     total_compare_cost += max(
-                        Decimal(inventory_price) - Decimal(coupon_fixed_discount_price),
+                        Decimal(inventory_retail_price)
+                        - Decimal(coupon_fixed_discount_price),
                         0,
                     )
                 elif coupon_discount_percentage is not None:
-                    total_compare_cost += Decimal(inventory_price) * (
+                    total_compare_cost += Decimal(inventory_retail_price) * (
                         1 - (Decimal(coupon_discount_percentage) / 100)
                     )
                 else:
-                    total_compare_cost += Decimal(inventory_price)
+                    total_compare_cost += Decimal(inventory_retail_price)
 
         # Calculate Taxes for Total Cost (tax_estimate)
-        tax_estimate = Decimal(inventory_price) * Decimal(taxes)
+        tax_estimate = Decimal(inventory_retail_price) * Decimal(taxes)
 
-        final_inventory_price = Decimal(inventory_price) + Decimal(tax_estimate)
+        final_inventory_retail_price = Decimal(inventory_retail_price) + Decimal(
+            tax_estimate
+        )
 
         return Response(
             {
                 "total_cost": total_cost,
                 "total_compare_cost": total_compare_cost,
-                "finalPrice": final_inventory_price,
+                "finalPrice": final_inventory_retail_price,
                 "tax_estimate": tax_estimate,
                 "shipping_estimate": shipping_estimate,  # Include shipping estimate if available
             },
@@ -229,15 +231,18 @@ class RemoveItemView(APIView):
 
     def post(self, request, format=None):
         user = request.user
-        inventory_id = request.data
-        item_id = inventory_id
+        item_id = request.data
+
+        if item_id is None:
+            return Response(
+                {"error": "Item ID is required"}, status=status.HTTP_400_BAD_REQUEST
+            )
 
         cart, _ = Cart.objects.get_or_create(user=user)
+        inventory = get_object_or_404(Inventory, id=item_id)
+        cart_item = CartItem.objects.filter(cart=cart, inventory=inventory).first()
 
-        inventory = Inventory.objects.get(id=item_id)
-        cart_item = CartItem.objects.filter(cart=cart, inventory=inventory)
-
-        if not cart_item.exists():
+        if not cart_item:
             return Response(
                 {"error": "Item is not in cart"}, status=status.HTTP_404_NOT_FOUND
             )
@@ -246,7 +251,9 @@ class RemoveItemView(APIView):
 
         # Update the total number of items in the cart
         total_items = max(0, int(cart.total_items) - 1)
-        Cart.objects.filter(user=user).update(total_items=total_items)
+        cart.total_items = total_items
+        cart.save()
+        # Cart.objects.filter(user=user).update(total_items=total_items)
 
         cart_items = CartItem.objects.filter(cart=cart)
         serialized_cart_items = CartItemSerializer(cart_items, many=True).data
@@ -268,6 +275,88 @@ class ClearCartView(APIView):
         cart.save()
         serializer = CartSerializer(cart)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class DecreaseQuantityView(APIView):
+
+    def put(self, request, format=None):
+        user = request.user
+        inventory_id = request.data
+        item_id = inventory_id["inventoryId"]
+
+        # Obtener o crear el carrito del usuario
+        cart = Cart.objects.get(user=user)
+        inventory = Inventory.objects.get(id=item_id)
+        cart_item = CartItem.objects.get(cart=cart, inventory=inventory)
+        quantity = cart_item.quantity
+
+        if not cart_item:
+            return Response(
+                {"error": "Item is not in cart"}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        if quantity <= 1:
+            return Response(
+                {"message": "Proceed to remove the Product"},
+                status=status.HTTP_200_OK,
+            )
+
+        # Utilizar una transacción atómica para garantizar la coherencia de los datos
+        with transaction.atomic():
+            # Limpiar el item existente
+            cart_item.delete()
+
+            # Update the total number of items in the cart
+            quantity = max(0, int(cart_item.quantity) - 1)
+
+            # Crear y guardar el ítem del carrito
+            cart_item_quantity = CartItem(
+                cart=cart, inventory=inventory, quantity=quantity
+            )
+            cart_item_quantity.save()
+
+        return Response(
+            {"quantity": cart_item.quantity},
+            status=status.HTTP_200_OK,
+        )
+
+
+class IncreaseQuantityView(APIView):
+
+    def put(self, request, format=None):
+        user = request.user
+        inventory_id = request.data
+        item_id = inventory_id["inventoryId"]
+
+        # Obtener o crear el carrito del usuario
+        cart = Cart.objects.get(user=user)
+        inventory = Inventory.objects.get(id=item_id)
+        cart_item = CartItem.objects.get(cart=cart, inventory=inventory)
+        quantity = cart_item.quantity
+
+        if not cart_item:
+            return Response(
+                {"error": "Item is not in cart"}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Utilizar una transacción atómica para garantizar la coherencia de los datos
+        with transaction.atomic():
+            # Limpiar el item existente
+            cart_item.delete()
+
+            # Update the total number of items in the cart
+            quantity = max(0, int(cart_item.quantity) + 1)
+
+            # Crear y guardar el ítem del carrito
+            cart_item_quantity = CartItem(
+                cart=cart, inventory=inventory, quantity=quantity
+            )
+            cart_item_quantity.save()
+
+        return Response(
+            {"quantity": cart_item.quantity},
+            status=status.HTTP_200_OK,
+        )
 
 
 class SynchCartItemsView(APIView):

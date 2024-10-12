@@ -116,6 +116,7 @@ class InventorySerializer(serializers.ModelSerializer):
             "published_status",
             "retail_price",
             "store_price",
+            "taxe",
             "promotion_price",
             "is_digital",
             "weight",
