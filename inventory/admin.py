@@ -89,6 +89,3 @@ class BrandAdmin(admin.ModelAdmin):
 @admin.register(InventoryViews)
 class InventoryViewsAdmin(admin.ModelAdmin):
     list_display = ["inventory", "ip"]
-
-
-# admin.site.register(InventoryViews)

@@ -8,8 +8,12 @@ class ShippingAdmin(admin.ModelAdmin):
         "id",
         "name",
         "price",
+        "time_to_delivery",
     )
-    list_display_links = ("name",)
+    list_display_links = (
+        "id",
+        "name",
+    )
     list_editable = ("price",)
     search_fields = ("name",)
     list_per_page = 25

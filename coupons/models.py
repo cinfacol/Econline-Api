@@ -13,11 +13,16 @@ class PercentageCoupon(TimeStampedUUIDModel):
     uses = models.IntegerField()
 
 
+class FixedPriceCoupon(TimeStampedUUIDModel):
+    discount_price = models.DecimalField(max_digits=5, decimal_places=2)
+    uses = models.IntegerField()
+
+
 class Coupon(TimeStampedUUIDModel):
     name = models.CharField(max_length=255, unique=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     fixed_price_coupon = models.ForeignKey(
-        "FixedPriceCoupon", on_delete=models.CASCADE, blank=True, null=True
+        FixedPriceCoupon, on_delete=models.CASCADE, blank=True, null=True
     )
     percentage_coupon = models.ForeignKey(
         PercentageCoupon, on_delete=models.CASCADE, blank=True, null=True
@@ -28,11 +33,6 @@ class Coupon(TimeStampedUUIDModel):
 
     def __str__(self):
         return self.name
-
-
-class FixedPriceCoupon(TimeStampedUUIDModel):
-    discount_price = models.DecimalField(max_digits=5, decimal_places=2)
-    uses = models.IntegerField()
 
 
 class Campaign(TimeStampedUUIDModel):
