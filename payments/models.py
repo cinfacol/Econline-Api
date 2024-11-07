@@ -1,4 +1,4 @@
-from django.db import models
+""" from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from orders.models import Order
@@ -39,4 +39,4 @@ class Payment(TimeStampedUUIDModel):
         ordering = ("-created_at",)
 
     def __str__(self):
-        return self.order.user.username
+        return self.order.user.username """

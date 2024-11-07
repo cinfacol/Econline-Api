@@ -2,6 +2,8 @@ from django.db import models
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 from django.utils.functional import cached_property
+from .contries import Countries
+from datetime import datetime
 
 from inventory.models import Inventory
 from common.models import TimeStampedUUIDModel
@@ -19,14 +21,26 @@ class Order(TimeStampedUUIDModel):
         DELIVERED = "DELIVERED", _("Delivered")
         CANCELLED = "CANCELLED", _("Cancelled")
 
-    user = models.ForeignKey(User, related_name="orders", on_delete=models.CASCADE)
     status = models.CharField(
         verbose_name=_("Status"),
-        max_length=10,
+        max_length=50,
         choices=OrderStatus.choices,
         default=OrderStatus.PENDING,
     )
-    shipping_address = models.ForeignKey(
+    user = models.ForeignKey(User, related_name="orders", on_delete=models.CASCADE)
+    transaction_id = models.CharField(max_length=255, unique=True)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    full_name = models.CharField(max_length=255)
+    address_line_1 = models.CharField(max_length=255)
+    address_line_2 = models.CharField(max_length=255, blank=True)
+    city = models.CharField(max_length=255)
+    state_province_region = models.CharField(max_length=255)
+    postal_zip_code = models.CharField(max_length=20)
+    country_region = models.CharField(
+        max_length=255, choices=Countries.choices, default=Countries.Colombia
+    )
+    telephone_number = models.CharField(max_length=255)
+    """ shipping_address = models.ForeignKey(
         Address,
         related_name="shipping_orders",
         on_delete=models.SET_NULL,
@@ -39,27 +53,25 @@ class Order(TimeStampedUUIDModel):
         on_delete=models.SET_NULL,
         blank=True,
         null=True,
-    )
-    transaction_id = models.CharField(max_length=255, unique=True)
-    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    ) """
     shipping_name = models.CharField(max_length=255)
     shipping_time = models.CharField(max_length=255)
     shipping_price = models.DecimalField(max_digits=5, decimal_places=2)
-    is_delivered = models.BooleanField(default=False)
-    delivered_at = models.DateTimeField(auto_now_add=False, null=True, blank=True)
+    # is_delivered = models.BooleanField(default=False)
+    date_issued = models.DateTimeField(default=datetime.now)
 
     class Meta:
         ordering = ("-created_at",)
 
     def __str__(self):
-        return self.user.get_full_name
+        return self.transaction_id
 
 
 class OrderItem(TimeStampedUUIDModel):
     inventory = models.ForeignKey(Inventory, on_delete=models.SET_NULL, null=True)
     order = models.ForeignKey(Order, on_delete=models.SET_NULL, null=True)
-    # name = models.CharField(max_length=255)
-    # price = models.DecimalField(max_digits=10, decimal_places=2)
+    name = models.CharField(max_length=255)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
     count = models.IntegerField()
 
     def __str__(self):

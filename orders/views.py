@@ -10,7 +10,6 @@ class ListOrdersView(APIView):
 
         try:
             orders = Order.objects.order_by("-created_at").filter(user=user)
-            print("orders", orders)
             result = []
 
             for order in orders:
@@ -65,6 +64,8 @@ class ListOrderDetailView(APIView):
                 for order_item in order_items:
                     sub_item = {}
 
+                    sub_item["id"] = order_item.inventory.id
+                    sub_item["description"] = order_item.inventory.product.description
                     sub_item["name"] = order_item.name
                     sub_item["price"] = order_item.price
                     sub_item["count"] = order_item.count
