@@ -2,6 +2,12 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .models import Order, OrderItem
+from django.utils import timezone
+import datetime
+
+# Convertir un datetime naive a aware
+naive_datetime = datetime.datetime.now()
+aware_datetime = timezone.make_aware(naive_datetime)
 
 
 class ListOrdersView(APIView):

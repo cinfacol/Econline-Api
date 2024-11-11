@@ -5,6 +5,7 @@ from .views import (
     CustomTokenRefreshView,
     CustomTokenVerifyView,
     LogoutView,
+    AuthStatusView,
 )
 
 urlpatterns = [
@@ -13,8 +14,16 @@ urlpatterns = [
         CustomProviderAuthView.as_view(),
         name="provider-auth",
     ),
-    path("jwt/create/", CustomTokenObtainPairView.as_view()),
-    path("jwt/refresh/", CustomTokenRefreshView.as_view()),
-    path("jwt/verify/", CustomTokenVerifyView.as_view()),
-    path("logout/", LogoutView.as_view()),
+    path(
+        "jwt/create/",
+        CustomTokenObtainPairView.as_view(),
+        name="token_obtain_pair",
+    ),
+    path(
+        "jwt/refresh/",
+        CustomTokenRefreshView.as_view(),
+        name="token_refresh",
+    ),
+    path("jwt/verify/", CustomTokenVerifyView.as_view(), name="token_verify"),
+    path("logout/", LogoutView.as_view(), name="auth_logout"),
 ]

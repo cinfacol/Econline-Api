@@ -3,6 +3,7 @@ FROM python:3.11.4-slim-buster
 ENV APP_HOME=/app
 RUN mkdir $APP_HOME
 RUN mkdir $APP_HOME/staticfiles
+RUN mkdir $APP_HOME/logs && chmod 755 $APP_HOME/logs
 WORKDIR $APP_HOME
 
 LABEL maintainer='cinfacol@gmail.com'

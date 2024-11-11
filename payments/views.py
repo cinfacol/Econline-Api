@@ -37,119 +37,96 @@ class GenerateTokenView(APIView):
 class GetPaymentTotalView(APIView):
     def get(self, request, format=None):
         user = self.request.user
-
-        tax = settings.TAXES
-
-        shipping_id = request.query_params.get("shipping_id")
-        shipping_id = str(shipping_id)
-
-        coupon_name = request.query_params.get("coupon_name")
-        coupon_name = str(coupon_name)
+        shipping_id = str(request.query_params.get("shipping_id", ""))
+        coupon_name = str(request.query_params.get("coupon_name", ""))
 
         try:
-            cart = Cart.objects.get(user=user)
+            cart = Cart.objects.prefetch_related(
+                "cartitem_set__inventory__inventory_stock"
+            ).get(user=user)
 
-            # revisar si existen items
-            if not CartItem.objects.filter(cart=cart).exists():
+            if not cart.cartitem_set.exists():
                 return Response(
                     {"error": "Need to have items in cart"},
                     status=status.HTTP_404_NOT_FOUND,
                 )
 
-            cart_items = CartItem.objects.filter(cart=cart)
-
-            for cart_item in cart_items:
-                if not Inventory.objects.filter(id=cart_item.inventory.id).exists():
-                    return Response(
-                        {"error": "A product with ID provided does not exist"},
-                        status=status.HTTP_404_NOT_FOUND,
-                    )
-                if int(cart_item.quantity) > int(
-                    cart_item.inventory.inventory_stock.units
-                    - cart_item.inventory.inventory_stock.units_sold
-                ):
-                    return Response(
-                        {"error": "Not enough items in stock"},
-                        status=status.HTTP_200_OK,
-                    )
-
+            def calculate_totals(cart_items):
                 total_amount = 0.0
                 total_compare_amount = 0.0
+                total_tax = 0.0
 
-                for cart_item in cart_items:
-                    total_amount += float(cart_item.inventory.retail_price) * float(
-                        cart_item.quantity
-                    )
-                    total_compare_amount += float(
-                        cart_item.inventory.store_price
-                    ) * float(cart_item.quantity)
+                for item in cart_items:
+                    # Convertir valores a float
+                    store_price = float(str(item.inventory.store_price))
+                    retail_price = float(str(item.inventory.retail_price))
+                    quantity = float(item.quantity)
+                    tax_rate = float(str(item.inventory.taxe))
 
-                total_compare_amount = round(total_compare_amount, 2)
-                original_price = round(total_amount, 2)
+                    # Calcular subtotal por item
+                    item_subtotal = store_price * quantity
 
-                # Cupones
-                """ if coupon_name != "":
-                    # Revisar si cupon de precio fijo es valido
-                    if FixedPriceCoupon.objects.filter(
-                        name__iexact=coupon_name
-                    ).exists():
-                        fixed_price_coupon = FixedPriceCoupon.objects.get(
-                            name=coupon_name
-                        )
-                    discount_amount = float(fixed_price_coupon.discount_price)
-                    if discount_amount < total_amount:
-                        total_amount -= discount_amount
-                        total_after_coupon = total_amount
+                    # Calcular impuesto por item
+                    item_tax = round(item_subtotal * tax_rate, 2)
 
-                    elif PercentageCoupon.objects.filter(
-                        name__iexact=coupon_name
-                    ).exists():
-                        percentage_coupon = PercentageCoupon.objects.get(
-                            name=coupon_name
-                        )
-                        discount_percentage = float(
-                            percentage_coupon.discount_percentage
-                        )
+                    total_amount += item_subtotal
+                    total_compare_amount += retail_price * quantity
+                    total_tax += item_tax
 
-                        if discount_percentage > 1 and discount_percentage < 100:
-                            total_amount -= total_amount * (discount_percentage / 100)
-                            total_after_coupon = total_amount """
-
-                # Total despues del cupon
-                # total_after_coupon = round(total_after_coupon, 2)
-
-                # Impuesto estimado
-                # estimated_tax = round(total_amount * tax, 2)
-
-                # total_amount += total_amount * tax
-
-                shipping_cost = 0.0
-                # verificar que el envio sea valido
-                """ if Shipping.objects.filter(id__iexact=shipping_id).exists():
-                    # agregar shipping a total amount
-                    shipping = Shipping.objects.get(id=shipping_id)
-                    shipping_cost = shipping.price
-                    total_amount += float(shipping_cost) """
-
-                total_amount = round(total_amount, 2)
-
-                return Response(
-                    {
-                        "original_price": f"{original_price:.2f}",
-                        # "total_after_coupon": f"{total_after_coupon:.2f}",
-                        # "total_amount": f"{total_amount:.2f}",
-                        "total_compare_amount": f"{total_compare_amount:.2f}",
-                        # "estimated_tax": f"{estimated_tax:.2f}",
-                        "shipping_cost": f"{shipping_cost:.2f}",
-                    },
-                    status=status.HTTP_200_OK,
+                return (
+                    round(total_amount, 2),
+                    round(total_compare_amount, 2),
+                    round(total_tax, 2),
                 )
 
-        except:
+            # Validar inventario
+            for item in cart.cartitem_set.all():
+                available_stock = int(item.inventory.inventory_stock.units) - int(
+                    item.inventory.inventory_stock.units_sold
+                )
+                if int(item.quantity) > available_stock:
+                    return Response(
+                        {"error": f"Not enough stock for product {item.inventory.id}"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+            total_amount, total_compare_amount, estimated_tax = calculate_totals(
+                cart.cartitem_set.all()
+            )
+            original_price = total_amount
+
+            # Agregar impuestos al total
+            total_amount += estimated_tax
+
+            # Agregar shipping si está habilitado
+            shipping_cost = 0.0
+            print("shipping_id", shipping_id)
+            if shipping_id:
+                try:
+                    shipping = Shipping.objects.get(id=shipping_id)
+                    shipping_cost = float(str(shipping.price))
+                    total_amount += shipping_cost
+                except Shipping.DoesNotExist:
+                    pass
+
             return Response(
                 {
-                    "error": "Something went wrong when retrieving payment total information"
+                    "original_price": f"{original_price:.2f}",
+                    "total_amount": f"{total_amount:.2f}",
+                    "total_compare_amount": f"{total_compare_amount:.2f}",
+                    "estimated_tax": f"{estimated_tax:.2f}",
+                    "shipping_cost": f"{shipping_cost:.2f}",
                 },
+                status=status.HTTP_200_OK,
+            )
+
+        except Cart.DoesNotExist:
+            return Response(
+                {"error": "Cart not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {"error": f"Error processing payment total: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 

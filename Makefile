@@ -21,6 +21,9 @@ down-v:
 show-logs:
 	docker compose logs -f
 
+security-logs:
+	docker compose exec api tail -f logs/security.log
+
 shell:
 	docker compose exec api python3 manage.py shell
 
