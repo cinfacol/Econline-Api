@@ -301,6 +301,11 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 REST_FRAMEWORK = {
+    "DEFAULT_PARSER_CLASSES": [
+        "rest_framework.parsers.JSONParser",
+        "rest_framework.parsers.FormParser",
+        "rest_framework.parsers.MultiPartParser",
+    ],
     "DEFAULT_PERMISSION_CLASSES": [
         # "rest_framework.permissions.IsAuthenticatedOrReadOnly",
         "rest_framework.permissions.IsAuthenticated",
@@ -338,7 +343,20 @@ DJOSER = {
     "ACTIVATION_URL": "activation/{uid}/{token}",
     "SEND_ACTIVATION_EMAIL": True,
     "SOCIAL_AUTH_TOKEN_STRATEGY": "djoser.social.token.jwt.TokenStrategy",
-    "SOCIAL_AUTH_ALLOWED_REDIRECT_URIS": env("REDIRECT_URLS").split(","),
+    "SOCIAL_AUTH_ALLOWED_REDIRECT_URIS": env.list(
+        "REDIRECT_URLS",
+        default=[
+            "http://localhost:3000/auth/google",
+            "http://localhost:3000/auth/google/",
+            "http://127.0.0.1:3000/auth/google",
+            "http://127.0.0.1:3000/auth/google/",
+            "http://localhost:3000/auth/facebook",
+            "http://localhost:3000/auth/facebook/",
+            "http://127.0.0.1:3000/auth/facebook",
+            "http://127.0.0.1:3000/auth/facebook/",
+            "http://localhost:9090/auth/facebook/callback/",
+        ],
+    ),
     "SERIALIZERS": {
         "user_create": "users.serializers.CreateUserSerializer",
         "user": "users.serializers.UserSerializer",
@@ -355,11 +373,46 @@ SOCIAL_AUTH_GOOGLE_OAUTH2_SCOPE = [
     "openid",
 ]
 SOCIAL_AUTH_GOOGLE_OAUTH2_EXTRA_DATA = ["username", "first_name", "last_name"]
+SOCIAL_AUTH_GOOGLE_OAUTH2_AUTH_EXTRA_ARGUMENTS = {
+    "access_type": "offline",
+    "prompt": "consent",
+}
+SOCIAL_AUTH_ALLOWED_REDIRECT_URIS = env.list(
+    "REDIRECT_URLS",
+    default=[
+        "http://localhost:3000/auth/google",
+        "http://localhost:3000/auth/google/",  # Agregar ambas versiones con y sin slash
+        "http://127.0.0.1:3000/auth/google",
+        "http://127.0.0.1:3000/auth/google/",
+        "http://localhost:3000/auth/facebook",
+        "http://localhost:3000/auth/facebook/",
+        "http://127.0.0.1:3000/auth/facebook",
+        "http://127.0.0.1:3000/auth/facebook/",
+        "http://localhost:9090/auth/facebook/callback/",
+    ],
+)
 
 SOCIAL_AUTH_FACEBOOK_KEY = env("FACEBOOK_AUTH_KEY")
 SOCIAL_AUTH_FACEBOOK_SECRET = env("FACEBOOK_AUTH_SECRET_KEY")
 SOCIAL_AUTH_FACEBOOK_SCOPE = ["email"]
-SOCIAL_AUTH_FACEBOOK_PROFILE_EXTRA_PARAMS = {"fields": "email, first_name, last_name"}
+SOCIAL_AUTH_FACEBOOK_PROFILE_EXTRA_PARAMS = {
+    "fields": "id, email, first_name, last_name"
+}
+SOCIAL_AUTH_RAISE_EXCEPTIONS = True
+RAISE_EXCEPTIONS = True
+
+# Configuración general de social auth
+SOCIAL_AUTH_PIPELINE = (
+    "social_core.pipeline.social_auth.social_details",
+    "social_core.pipeline.social_auth.social_uid",
+    "social_core.pipeline.social_auth.auth_allowed",
+    "social_core.pipeline.social_auth.social_user",
+    "social_core.pipeline.user.get_username",
+    "social_core.pipeline.user.create_user",
+    "social_core.pipeline.social_auth.associate_user",
+    "social_core.pipeline.social_auth.load_extra_data",
+    "social_core.pipeline.user.user_details",
+)
 
 AUTH_COOKIE = "access"
 
@@ -393,7 +446,7 @@ SIMPLE_JWT = {
     "AUTH_COOKIE_SECURE": env("AUTH_COOKIE_SECURE"),
     "AUTH_COOKIE_HTTP_ONLY": True,
     "AUTH_COOKIE_PATH": "/",
-    "AUTH_COOKIE_SAMESITE": "Lax",
+    "AUTH_COOKIE_SAMESITE": "Lax" if DEBUG else "Strict",
 }
 
 

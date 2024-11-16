@@ -96,7 +96,7 @@ class CustomProviderAuthView(CookieMixin, ProviderAuthView):
         except Exception as e:
             logger.warning(f"Token error during login: {str(e)}")
             return Response(
-                {"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZEDT
+                {"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED
             )
         except Exception as e:
             logger.error(f"Login error: {str(e)}", exc_info=True)
