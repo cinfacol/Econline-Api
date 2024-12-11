@@ -136,7 +136,7 @@ class ProcessPaymentView(APIView):
         user = self.request.user
         data = self.request.data
 
-        tax = settings.TAXES
+        tax = 19 / 100
 
         nonce = data["nonce"]
         shipping_id = str(data["shipping_id"])

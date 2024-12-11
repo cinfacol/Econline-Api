@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
-  title: EcOnLine API
+  title: VirtualEline API
   version: 1.0.0
-  description: EcOnLine description
+  description: VirtualEline description
 paths:
   /api/auth/jwt/create/:
     post:

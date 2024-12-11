@@ -4,8 +4,6 @@ from .models import Cart, CartItem, DeliveryCost
 from inventory.serializers import InventorySerializer
 from coupons.serializers import CouponSerializer
 
-taxes = settings.TAXES
-
 
 class CartItemSerializer(serializers.ModelSerializer):
     inventory = InventorySerializer()

@@ -13,11 +13,6 @@ env = environ.Env(DEBUG=(bool, False))
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Crear directorio de logs si no existe
-LOGS_DIR = os.path.join(BASE_DIR, "logs")
-if not os.path.exists(LOGS_DIR):
-    os.makedirs(LOGS_DIR)
-
 env = environ.Env(
     DEBUG=(bool, False),
     ALLOWED_HOSTS=(list, ["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "192.168.1.4"]),
@@ -153,7 +148,6 @@ WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
 DATABASES = {
-    # "default": env.db("DATABASE_URL", default="postgres:///econline-api"),
     "default": {
         "ENGINE": env("POSTGRES_ENGINE", default="django.db.backends.postgresql"),
         "NAME": env("POSTGRES_DB"),
@@ -163,15 +157,6 @@ DATABASES = {
         "PORT": env("PG_PORT", default="5432"),
     }
 }
-
-TAXES = env("TAXES")
-
-# EMAIL_BACKEND = env("EMAIL_BACKEND")
-# EMAIL_HOST = env("EMAIL_HOST")
-# EMAIL_USE_TLS = True
-# EMAIL_PORT = env("EMAIL_PORT")
-# EMAIL_HOST_USER = env("EMAIL_HOST_USER")
-# EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD")
 
 EMAIL_BACKEND = env(
     "EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend"
@@ -320,8 +305,8 @@ REST_FRAMEWORK = {
 
 
 SPECTACULAR_SETTINGS = {
-    "TITLE": "EcOnLine API",
-    "DESCRIPTION": "EcOnLine description",
+    "TITLE": "VirtualEline API",
+    "DESCRIPTION": "VirtualEline description",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
 }
