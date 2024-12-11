@@ -30,9 +30,23 @@ class CustomRateThrottleMixin:
 class LoginRateThrottle(CustomRateThrottleMixin, AnonRateThrottle):
     scope = "login"
     rate = "5/minute"
-    cache = caches["throttling"]  # Asegurar que esta clase use la caché de throttling
+    cache = caches["throttling"]
+
+    # Lista blanca de IPs
+    WHITELISTED_IPS = ["172.18.0.7"]
+
+    def __init__(self):
+        super().__init__()
+        self.history = []
 
     def allow_request(self, request, view):
+        ip_current = request.META.get("REMOTE_ADDR")
+        logger.info(f"IP de la solicitud: {ip_current}")
+
+        # Verificar si la IP está en la lista blanca
+        if ip_current in self.WHITELISTED_IPS:
+            return True
+
         ip = SecurityUtils.get_client_ip(request)
 
         # Verificar si la petición es sospechosa

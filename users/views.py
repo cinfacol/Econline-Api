@@ -40,7 +40,7 @@ class CookieMixin:
         try:
             if access:
                 response.set_cookie(
-                    "access",
+                    settings.SIMPLE_JWT["AUTH_COOKIE"],
                     access,
                     max_age=settings.SIMPLE_JWT[
                         "ACCESS_TOKEN_LIFETIME"
@@ -53,7 +53,7 @@ class CookieMixin:
 
             if refresh:
                 response.set_cookie(
-                    "refresh",
+                    settings.SIMPLE_JWT["AUTH_COOKIE_REFRESH"],
                     refresh,
                     max_age=settings.SIMPLE_JWT[
                         "REFRESH_TOKEN_LIFETIME"
@@ -83,21 +83,29 @@ class CustomProviderAuthView(CookieMixin, ProviderAuthView):
                 # Obtener los tokens de la respuesta
                 access_token = response.data.get("access")
                 refresh_token = response.data.get("refresh")
+                user = response.data.get("user")
 
                 self.set_auth_cookies(
                     response,
-                    access=response.data.get("access"),
-                    refresh=response.data.get("refresh"),
+                    access=access_token,
+                    refresh=refresh_token,
+                    user=user,
                 )
-                # Limpiar tokens de la respuesta
-                response.data = {"detail": "Authentication successful"}
+
+                response.data = {
+                    "status": "success",
+                    "message": "Authentication successful",
+                    "tokens": {
+                        "access": access_token,
+                        "refresh": refresh_token,
+                    },
+                    "user": user,
+                }
+                logger.info(
+                    f"Social login successful for user ID: {user.get('id') if user else None}"
+                )
 
             return response
-        except Exception as e:
-            logger.warning(f"Token error during login: {str(e)}")
-            return Response(
-                {"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED
-            )
         except Exception as e:
             logger.error(f"Login error: {str(e)}", exc_info=True)
             return Response(
@@ -239,7 +247,7 @@ class CustomTokenRefreshView(CookieMixin, TokenRefreshView):
 class CustomTokenVerifyView(TokenVerifyView):
     def post(self, request, *args, **kwargs):
         try:
-            access_token = request.COOKIES.get("access")
+            access_token = request.COOKIES.get(settings.SIMPLE_JWT["AUTH_COOKIE"])
             if not access_token:
                 raise TokenError("No access token found")
 

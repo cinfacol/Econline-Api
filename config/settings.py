@@ -278,7 +278,6 @@ STATICFILES_DIRS = []
 MEDIA_URL = "/mediafiles/"
 MEDIA_ROOT = BASE_DIR / "mediafiles"
 
-LANGUAGE_CODE = "es"
 LANGUAGES = [
     ("en", _("English")),
     ("es", _("Spanish")),
@@ -450,16 +449,8 @@ SIMPLE_JWT = {
 }
 
 
-CELERY_BROKER_URL = env("CELERY_BROKER")
-CELERY_RESULT_BACKEND = env("CELERY_BACKEND")
-CELERY_TIMEZONE = "America/Bogota"
-
-CELERY_BEAT_SCHEDULE = {
-    "sample_task": {
-        "task": "ecommerce.promotion.promotion_management",
-        "schedule": crontab(minute="0", hour="1"),
-    },
-}
+# CELERY_BROKER_URL = env("CELERY_BROKER")
+# CELERY_RESULT_BACKEND = env("CELERY_BACKEND")
 
 STRIPE_API_KEY = env("STRIPE_API_KEY")
 FRONTEND_STORE_URL = env("FRONTEND_STORE_URL")
@@ -488,7 +479,7 @@ RATELIMIT_FAIL_OPEN = False
 RATELIMIT_IP_META_KEY = "HTTP_X_FORWARDED_FOR"
 
 # Lista blanca de IPs (opcional)
-RATELIMIT_WHITELIST = ["127.0.0.1"]
+RATELIMIT_WHITELIST = ["127.0.0.1", "172.18.0.1"]
 
 # Redis Configuration
 REDIS_HOST = env("REDIS_HOST", default="localhost")
@@ -505,6 +496,14 @@ CELERY_BROKER_URL = env(
 CELERY_RESULT_BACKEND = env(
     "CELERY_BACKEND", default=f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB_CELERY}"
 )
+CELERY_TIMEZONE = "America/Bogota"
+
+CELERY_BEAT_SCHEDULE = {
+    "sample_task": {
+        "task": "ecommerce.promotion.promotion_management",
+        "schedule": crontab(minute="0", hour="1"),
+    },
+}
 
 # Configuración de Celery
 # CELERY_BROKER_URL = f"redis://redis:6379/{REDIS_DB_CELERY}"
