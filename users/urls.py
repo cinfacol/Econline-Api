@@ -5,7 +5,7 @@ from .views import (
     CustomTokenRefreshView,
     CustomTokenVerifyView,
     LogoutView,
-    AuthStatusView,
+    HealthView,
 )
 
 urlpatterns = [
@@ -25,5 +25,14 @@ urlpatterns = [
         name="token_refresh",
     ),
     path("jwt/verify/", CustomTokenVerifyView.as_view(), name="token_verify"),
-    path("logout/", LogoutView.as_view(), name="auth_logout"),
+    path(
+        "logout/",
+        LogoutView.as_view(),
+        name="auth_logout",
+    ),
+    path(
+        "health/",
+        HealthView.as_view(),
+        name="docker_health",
+    ),
 ]

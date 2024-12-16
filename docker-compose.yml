@@ -25,10 +25,11 @@ services:
         networks:
             - frontend
         healthcheck:
-            test: ["CMD", "curl", "--fail", "http://localhost:8000/api/health/"]
+            test: ["CMD", "curl", "--fail", "http://localhost:8000/api/auth/health/"]
             interval: 10s
             timeout: 5s
             retries: 3
+            start_period: 30s
         restart: unless-stopped
         logging:
             driver: "json-file"

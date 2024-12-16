@@ -16,9 +16,10 @@ RUN apt-get update \
   && apt-get install -y build-essential \
   && apt-get install -y libpq-dev \
   && apt-get install -y gettext \
+  && apt-get install -y curl \
   && apt-get -y install netcat gcc postgresql \
   && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
-  && rm -rf /var/lib/apt/lists/*
+  && rm -rf /var/lib/apt/lists/*lear
 
 RUN pip3 install --upgrade pip
 
