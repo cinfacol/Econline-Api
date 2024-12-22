@@ -2,9 +2,6 @@ import re
 from typing import Optional
 from django.core.cache import caches
 from django.conf import settings
-import logging
-
-logger = logging.getLogger("security")
 
 
 class RedisUtils:
@@ -145,27 +142,18 @@ class SecurityUtils:
         for key, value in request.headers.items():
             for pattern in suspicious_patterns:
                 if re.search(pattern, str(value), re.I):
-                    logger.warning(
-                        f"Patrón sospechoso detectado en header {key} desde IP: {SecurityUtils.get_client_ip(request)}"
-                    )
                     return True
 
         # Verificar parámetros POST
         for key, value in request.POST.items():
             for pattern in suspicious_patterns:
                 if re.search(pattern, str(value), re.I):
-                    logger.warning(
-                        f"Patrón sospechoso detectado en POST {key} desde IP: {SecurityUtils.get_client_ip(request)}"
-                    )
                     return True
 
         # Verificar parámetros GET
         for key, value in request.GET.items():
             for pattern in suspicious_patterns:
                 if re.search(pattern, str(value), re.I):
-                    logger.warning(
-                        f"Patrón sospechoso detectado en GET {key} desde IP: {SecurityUtils.get_client_ip(request)}"
-                    )
                     return True
 
         return False
@@ -181,15 +169,9 @@ class SecurityUtils:
             attempts += 1
             throttling_cache.set(cache_key, attempts, timeout=3600)  # 1 hora
 
-            # Log del incremento de intentos fallidos
-            logger.warning(f"Intento fallido #{attempts} desde IP: {ip}")
-
             # Si se alcanza el límite, agregar a la lista negra
             if attempts >= settings.MAX_LOGIN_ATTEMPTS:
                 SecurityUtils.add_to_blacklist(ip)
-                logger.critical(
-                    f"IP {ip} agregada a la lista negra después de {attempts} intentos fallidos"
-                )
 
         return attempts
 
@@ -199,7 +181,6 @@ class SecurityUtils:
         throttling_cache = caches["throttling"]
         key = f"blacklist_{ip}"
         throttling_cache.set(key, True, duration)  # Por defecto 24 horas
-        logger.warning(f"IP {ip} agregada a la lista negra por {duration} segundos")
 
     @staticmethod
     def is_blacklisted(ip: str) -> bool:
@@ -212,4 +193,3 @@ class SecurityUtils:
         """Elimina una IP de la lista negra"""
         throttling_cache = caches["throttling"]
         throttling_cache.delete(f"blacklist_{ip}")
-        logger.info(f"IP {ip} removida de la lista negra")

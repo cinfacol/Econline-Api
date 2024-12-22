@@ -78,6 +78,7 @@ class CustomTokenRefreshView(TokenRefreshView):
             request.data["refresh"] = refresh_token
 
         response = super().post(request, *args, **kwargs)
+        print("response-verify", response)
 
         if response.status_code == 200:
             access_token = response.data.get("access")

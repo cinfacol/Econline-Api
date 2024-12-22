@@ -26,8 +26,8 @@ services:
             - frontend
         healthcheck:
             test: ["CMD", "curl", "--fail", "http://localhost:8000/api/auth/health/"]
-            interval: 10s
-            timeout: 5s
+            interval: 30m
+            timeout: 30s
             retries: 3
             start_period: 30s
         restart: unless-stopped

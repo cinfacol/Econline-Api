@@ -1,13 +1,9 @@
-import os
 from pathlib import Path
 from celery.schedules import crontab
 from datetime import timedelta
 from django.utils.translation import gettext_lazy as _
-from django.core.cache import cache
 
 import environ
-import cloudinary
-import logging
 
 env = environ.Env(DEBUG=(bool, False))
 
@@ -28,7 +24,7 @@ env = environ.Env(
 
 environ.Env.read_env(BASE_DIR / ".env")
 
-DEBUG = env("DEBUG")
+DEBUG = env("DEBUG", default=False)
 
 SECRET_KEY = env("SECRET_KEY")
 
@@ -114,10 +110,10 @@ SITE_ID = 1
 CART_SESSION_ID = "cart"
 
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.locale.LocaleMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -172,16 +168,19 @@ DOMAIN = env("DOMAIN")
 BACKEND_DOMAIN = env("BACKEND_DOMAIN")
 SITE_NAME = env("SITE_NAME")
 
-CORS_ORIGIN_ALLOW_ALL = True
+CORS_ORIGIN_ALLOW_ALL = False
 CORS_ALLOW_CREDENTIALS = True
 CORS_EXPOSE_HEADERS = ["Content-Type", "X-CSRFToken"]
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://localhost:9090",
-    "http://127.0.0.1:9090",
-    "http://127.0.0.1:3000",
-]
+CORS_ALLOWED_ORIGINS = env.list(
+    "CORS_ALLOWED_ORIGINS",
+    default=[
+        "http://localhost:3000",
+        "http://localhost:9090",
+        "http://127.0.0.1:9090",
+        "http://127.0.0.1:3000",
+    ],
+)
 
 CORS_ALLOW_METHODS = [
     "DELETE",
@@ -295,7 +294,7 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.IsAuthenticated",
     ],
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        # "rest_framework_simplejwt.authentication.JWTAuthentication",
         "users.authentication.CustomJWTAuthentication",
     ),
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.LimitOffsetPagination",
@@ -399,6 +398,13 @@ SOCIAL_AUTH_PIPELINE = (
 )
 
 AUTH_COOKIE = "access"
+AUTH_COOKIE_MAX_AGE = 60 * 60 * 24
+AUTH_COOKIE_SECURE = env("AUTH_COOKIE_SECURE")
+AUTH_COOKIE_HTTP_ONLY = True
+AUTH_COOKIE_PATH = "/"
+AUTH_COOKIE_SAMESITE = "None"
+
+AUTH_COOKIE = "access"
 
 SIMPLE_JWT = {
     "AUTH_HEADER_TYPES": (
@@ -426,11 +432,11 @@ SIMPLE_JWT = {
     "TOKEN_USER_CLASS": "rest_framework_simplejwt.models.TokenUser",
     "JTI_CLAIM": "jti",
     "AUTH_COOKIE": AUTH_COOKIE,
-    "AUTH_COOKIE_MAX_AGE": 60 * 60 * 24,
-    "AUTH_COOKIE_SECURE": env("AUTH_COOKIE_SECURE"),
-    "AUTH_COOKIE_HTTP_ONLY": True,
-    "AUTH_COOKIE_PATH": "/",
-    "AUTH_COOKIE_SAMESITE": "Lax" if DEBUG else "Strict",
+    # "AUTH_COOKIE_MAX_AGE": 60 * 60 * 24,
+    # "AUTH_COOKIE_SECURE": env("AUTH_COOKIE_SECURE"),
+    # "AUTH_COOKIE_HTTP_ONLY": True,
+    # "AUTH_COOKIE_PATH": "/",
+    # "AUTH_COOKIE_SAMESITE": "Lax" if DEBUG else "Strict",
 }
 
 
@@ -563,94 +569,6 @@ LOGIN_ATTEMPT_TIMEOUT = env.int(
 ACCOUNT_LOGIN_ATTEMPTS_LIMIT = MAX_LOGIN_ATTEMPTS
 ACCOUNT_LOGIN_ATTEMPTS_TIMEOUT = LOGIN_ATTEMPT_TIMEOUT
 
-LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "formatters": {
-        "verbose": {
-            "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
-            "style": "{",
-        },
-        "simple": {
-            "format": "{levelname} {asctime} {message}",
-            "style": "{",
-        },
-        "security": {
-            "format": "{levelname} {asctime} {message} - IP: {ip} User: {user}",
-            "style": "{",
-        },
-    },
-    "filters": {
-        "require_debug_false": {
-            "()": "django.utils.log.RequireDebugFalse",
-        },
-        "require_debug_true": {
-            "()": "django.utils.log.RequireDebugTrue",
-        },
-    },
-    "handlers": {
-        "console": {
-            "class": "logging.StreamHandler",
-            "formatter": "simple",
-            "stream": "ext://sys.stdout",
-        },
-        "security_file": {
-            "level": "INFO",
-            "class": "logging.handlers.RotatingFileHandler",
-            "filename": os.path.join(LOGS_DIR, "security.log"),
-            "maxBytes": 1024 * 1024 * 5,  # 5 MB
-            "backupCount": 5,
-            "formatter": "verbose",
-        },
-        "throttling_file": {
-            "level": "INFO",
-            "class": "logging.handlers.RotatingFileHandler",
-            "filename": os.path.join(LOGS_DIR, "throttling.log"),
-            "maxBytes": 1024 * 1024 * 5,  # 5 MB
-            "backupCount": 5,
-            "formatter": "verbose",
-        },
-        "auth_file": {
-            "level": "INFO",
-            "class": "logging.handlers.RotatingFileHandler",
-            "filename": os.path.join(LOGS_DIR, "auth.log"),
-            "maxBytes": 1024 * 1024 * 5,  # 5 MB
-            "backupCount": 5,
-            "formatter": "security",
-        },
-    },
-    "loggers": {
-        "django": {
-            "handlers": ["console"],
-            "level": "INFO",
-            "propagate": True,
-        },
-        "security": {
-            "handlers": ["security_file", "console"],
-            "level": "INFO",
-            "propagate": True,
-        },
-        "throttling": {
-            "handlers": ["throttling_file", "console"],
-            "level": "INFO",
-            "propagate": True,
-        },
-        "auth": {
-            "handlers": ["auth_file", "console"],
-            "level": "INFO",
-            "propagate": True,
-        },
-        "django.security": {
-            "handlers": ["security_file", "console"],
-            "level": "INFO",
-            "propagate": True,
-        },
-    },
-    "root": {
-        "handlers": ["console"],
-        "level": "INFO",
-    },
-}
 
 # Agregar middleware de seguridad
 MIDDLEWARE += [

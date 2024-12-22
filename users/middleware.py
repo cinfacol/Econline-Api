@@ -1,11 +1,8 @@
 from django.utils.deprecation import MiddlewareMixin
 from django.conf import settings
 from django.http import HttpResponseForbidden
-from .utils import SecurityUtils
-import logging
-import re
 
-logger = logging.getLogger("security")
+# from .utils import SecurityUtils
 
 
 class SecurityHeadersMiddleware(MiddlewareMixin):
@@ -33,34 +30,28 @@ class SecurityHeadersMiddleware(MiddlewareMixin):
     def process_request(self, request):
         """Procesa la petición antes de que llegue a la vista"""
         # Obtener IP del cliente
-        ip = SecurityUtils.get_client_ip(request)
+        # ip = SecurityUtils.get_client_ip(request)
 
         # No aplicar verificaciones para rutas API
-        if request.path.startswith("/api/"):
+        """ if request.path.startswith("/api/"):
             request.client_ip = ip
             return None
-
+ """
         # Verificar origen de la petición
         origin = request.headers.get("Origin", "")
         if origin and origin not in settings.CORS_ALLOWED_ORIGINS:
-            logger.warning(f"Origen no permitido detectado: {origin} desde IP: {ip}")
             return HttpResponseForbidden("Forbidden - Origin not allowed")
 
         # Verificar si la petición es sospechosa
-        if SecurityUtils.is_suspicious_request(request):
-            logger.warning(
-                f"Petición bloqueada - Patrón sospechoso detectado desde IP: {ip}"
-            )
-            return HttpResponseForbidden("Forbidden - Suspicious request detected")
+        """ if SecurityUtils.is_suspicious_request(request):
+            return HttpResponseForbidden("Forbidden - Suspicious request detected") """
 
         # Agregar IP a request para uso posterior
-        request.client_ip = ip
-
-        logger.debug(f"Petición recibida desde IP: {ip} - Path: {request.path}")
+        # request.client_ip = ip
 
     def process_response(self, request, response):
         # Obtener IP (ya sea de request o usando SecurityUtils)
-        ip = getattr(request, "client_ip", SecurityUtils.get_client_ip(request))
+        # ip = getattr(request, "client_ip", SecurityUtils.get_client_ip(request))
 
         # Security Headers Básicos
         response["X-XSS-Protection"] = "1; mode=block"
@@ -110,19 +101,8 @@ class SecurityHeadersMiddleware(MiddlewareMixin):
             )
 
         # Agregar header personalizado con IP (opcional, solo para debugging)
-        if settings.DEBUG:
-            response["X-Client-IP"] = ip
-
-        # Logging de respuesta
-        status_code = response.status_code
-        if status_code >= 400:
-            logger.warning(
-                f"Respuesta con error {status_code} enviada a IP: {ip} - Path: {request.path}"
-            )
-        else:
-            logger.debug(
-                f"Respuesta exitosa {status_code} enviada a IP: {ip} - Path: {request.path}"
-            )
+        """ if settings.DEBUG:
+            response["X-Client-IP"] = ip """
 
         # CORS headers para API
         if request.path.startswith("/api/"):
@@ -140,11 +120,6 @@ class SecurityHeadersMiddleware(MiddlewareMixin):
 
     def process_exception(self, request, exception):
         """Maneja excepciones no capturadas"""
-        ip = getattr(request, "client_ip", SecurityUtils.get_client_ip(request))
-
-        logger.error(
-            f"Excepción no manejada para IP: {ip} - Path: {request.path} - Error: {str(exception)}",
-            exc_info=True,
-        )
+        # ip = getattr(request, "client_ip", SecurityUtils.get_client_ip(request))
 
         return None  # Permite que Django maneje la excepción normalmente

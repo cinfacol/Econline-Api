@@ -2,9 +2,6 @@ from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 from django.core.cache import caches
 from django.conf import settings
 from .utils import SecurityUtils
-import logging
-
-logger = logging.getLogger("security")
 
 
 class CustomRateThrottleMixin:
@@ -41,7 +38,6 @@ class LoginRateThrottle(CustomRateThrottleMixin, AnonRateThrottle):
 
     def allow_request(self, request, view):
         ip_current = request.META.get("REMOTE_ADDR")
-        logger.info(f"IP de la solicitud: {ip_current}")
 
         # Verificar si la IP está en la lista blanca
         if ip_current in self.WHITELISTED_IPS:
@@ -51,21 +47,13 @@ class LoginRateThrottle(CustomRateThrottleMixin, AnonRateThrottle):
 
         # Verificar si la petición es sospechosa
         if SecurityUtils.is_suspicious_request(request):
-            logger.warning(
-                f"Petición sospechosa bloqueada por throttling desde IP: {ip}"
-            )
             return False
 
         # Verificar si la IP está en la lista negra
         if self.is_blacklisted(ip):
-            logger.warning(f"IP bloqueada por throttling: {ip}")
             return False
 
         allowed = super().allow_request(request, view)
-
-        if not allowed:
-            logger.warning(f"Rate limit excedido para IP: {ip}")
-            self.increment_blocked_attempts(ip)
 
         return allowed
 
@@ -82,7 +70,6 @@ class LoginRateThrottle(CustomRateThrottleMixin, AnonRateThrottle):
         if attempts >= 10:  # Si hay más de 10 intentos bloqueados
             # Agregar a la lista negra por 24 horas
             self.cache.set(f"blacklist_{ip}", True, 86400)
-            logger.warning(f"IP agregada a la lista negra: {ip}")
 
         self.cache.set(key, attempts, 3600)  # Expira en 1 hora
 
@@ -100,9 +87,6 @@ class UserLoginRateThrottle(CustomRateThrottleMixin, UserRateThrottle):
 
         if not allowed:
             ip = SecurityUtils.get_client_ip(request)
-            logger.warning(
-                f"Rate limit excedido para usuario autenticado: {request.user.email} desde IP: {ip}"
-            )
 
         return allowed
 
