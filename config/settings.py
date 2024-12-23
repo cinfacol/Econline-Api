@@ -330,14 +330,7 @@ DJOSER = {
         "REDIRECT_URLS",
         default=[
             "http://localhost:3000/auth/google",
-            "http://localhost:3000/auth/google/",
-            "http://127.0.0.1:3000/auth/google",
-            "http://127.0.0.1:3000/auth/google/",
             "http://localhost:3000/auth/facebook",
-            "http://localhost:3000/auth/facebook/",
-            "http://127.0.0.1:3000/auth/facebook",
-            "http://127.0.0.1:3000/auth/facebook/",
-            "http://localhost:9090/auth/facebook/callback/",
         ],
     ),
     "SERIALIZERS": {
@@ -385,17 +378,17 @@ SOCIAL_AUTH_RAISE_EXCEPTIONS = True
 RAISE_EXCEPTIONS = True
 
 # Configuración general de social auth
-SOCIAL_AUTH_PIPELINE = (
-    "social_core.pipeline.social_auth.social_details",
-    "social_core.pipeline.social_auth.social_uid",
-    "social_core.pipeline.social_auth.auth_allowed",
-    "social_core.pipeline.social_auth.social_user",
-    "social_core.pipeline.user.get_username",
-    "social_core.pipeline.user.create_user",
-    "social_core.pipeline.social_auth.associate_user",
-    "social_core.pipeline.social_auth.load_extra_data",
-    "social_core.pipeline.user.user_details",
-)
+# SOCIAL_AUTH_PIPELINE = (
+#     "social_core.pipeline.social_auth.social_details",
+#     "social_core.pipeline.social_auth.social_uid",
+#     "social_core.pipeline.social_auth.auth_allowed",
+#     "social_core.pipeline.social_auth.social_user",
+#     "social_core.pipeline.user.get_username",
+#     "social_core.pipeline.user.create_user",
+#     "social_core.pipeline.social_auth.associate_user",
+#     "social_core.pipeline.social_auth.load_extra_data",
+#     "social_core.pipeline.user.user_details",
+# )
 
 AUTH_COOKIE = "access"
 AUTH_COOKIE_MAX_AGE = 60 * 60 * 24

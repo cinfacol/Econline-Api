@@ -14,25 +14,9 @@ urlpatterns = [
         CustomProviderAuthView.as_view(),
         name="provider-auth",
     ),
-    path(
-        "jwt/create/",
-        CustomTokenObtainPairView.as_view(),
-        name="token_obtain_pair",
-    ),
-    path(
-        "jwt/refresh/",
-        CustomTokenRefreshView.as_view(),
-        name="token_refresh",
-    ),
+    path("jwt/create/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("jwt/refresh/", CustomTokenRefreshView.as_view(), name="token_refresh"),
     path("jwt/verify/", CustomTokenVerifyView.as_view(), name="token_verify"),
-    path(
-        "logout/",
-        LogoutView.as_view(),
-        name="auth_logout",
-    ),
-    path(
-        "health/",
-        HealthView.as_view(),
-        name="docker_health",
-    ),
+    path("logout/", LogoutView.as_view(), name="auth_logout"),
+    path("health/", HealthView.as_view(), name="docker_health"),
 ]
