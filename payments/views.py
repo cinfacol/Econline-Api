@@ -1,4 +1,3 @@
-from django.shortcuts import render
 from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -37,6 +36,8 @@ class GenerateTokenView(APIView):
 class GetPaymentTotalView(APIView):
     def get(self, request, format=None):
         user = self.request.user
+
+        tax = str(request.query_params.get("taxe", ""))
         shipping_id = str(request.query_params.get("shipping_id", ""))
         coupon_name = str(request.query_params.get("coupon_name", ""))
 
@@ -100,7 +101,7 @@ class GetPaymentTotalView(APIView):
 
             # Agregar shipping si está habilitado
             shipping_cost = 0.0
-            print("shipping_id", shipping_id)
+
             if shipping_id:
                 try:
                     shipping = Shipping.objects.get(id=shipping_id)
@@ -311,7 +312,7 @@ class ProcessPaymentView(APIView):
                     + "\n\nYou can go on your user dashboard to check the status of your order."
                     + "\n\nSincerely,"
                     + "\nShop Time",
-                    "mail@ninerogues.com",
+                    "mail@virtualeline.com",
                     [user.email],
                     fail_silently=False,
                 )

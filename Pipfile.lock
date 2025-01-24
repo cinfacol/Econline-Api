@@ -67,7 +67,7 @@
                 "sha256:8283eceb7099e94cbd0c895499e32132e735f885cf2f26c5f5ab432834ac3c5e"
             ],
             "index": "pypi",
-            "version": "==4.29.0"
+            "version": "==4.32.0"
         },
         "celery": {
             "hashes": [

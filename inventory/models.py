@@ -133,7 +133,7 @@ class Inventory(TimeStampedUUIDModel):
     store_price = models.DecimalField(  # precio de tienda
         max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal("0.01"))]
     )
-    taxe = models.DecimalField(  # precio de tienda
+    taxe = models.DecimalField(  # impuesto
         max_digits=6,
         decimal_places=2,
         default=(Decimal("0.19")),

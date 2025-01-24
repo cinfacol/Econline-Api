@@ -40,25 +40,9 @@ class Order(TimeStampedUUIDModel):
         max_length=255, choices=Countries.choices, default=Countries.Colombia
     )
     telephone_number = models.CharField(max_length=255)
-    """ shipping_address = models.ForeignKey(
-        Address,
-        related_name="shipping_orders",
-        on_delete=models.SET_NULL,
-        blank=True,
-        null=True,
-    )
-    billing_address = models.ForeignKey(
-        Address,
-        related_name="billing_orders",
-        on_delete=models.SET_NULL,
-        blank=True,
-        null=True,
-    ) """
     shipping_name = models.CharField(max_length=255)
     shipping_time = models.CharField(max_length=255)
     shipping_price = models.DecimalField(max_digits=5, decimal_places=2)
-    # is_delivered = models.BooleanField(default=False)
-    date_issued = models.DateTimeField(default=timezone.now)
 
     class Meta:
         ordering = ("-created_at",)
@@ -75,7 +59,7 @@ class OrderItem(TimeStampedUUIDModel):
     count = models.IntegerField()
 
     def __str__(self):
-        return self.order.transaction_id
+        return self.name
 
     @cached_property
     def cost(self):
