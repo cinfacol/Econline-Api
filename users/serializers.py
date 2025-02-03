@@ -2,6 +2,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth import get_user_model
 from djoser.serializers import UserCreateSerializer
 from rest_framework import serializers
+from .models import Address
 
 User = get_user_model()
 
@@ -64,19 +65,33 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         return token
 
 
-# class LogoutUserSerializer(serializers.Serializer):
-#     refresh_token = serializers.CharField()
+class AddressSerializer(serializers.ModelSerializer):
+    # country = CountryField(name_only=True)
+    # profile = serializers.SerializerMethodField()
 
-#     default_error_message = {"bad_token": ("Token is expired or invalid")}
+    class Meta:
+        model = Address
+        fields = [
+            "user",
+            "phone_number",
+            "country_region",
+            "state_province_region",
+            "city",
+            "postal_zip_code",
+        ]
 
-#     def validate(self, attrs):
-#         self.token = attrs.get("refresh_token")
 
-#         return attrs
+class UpdateAddressSerializer(serializers.ModelSerializer):
+    # country = CountryField(name_only=True)
 
-#     def save(self, **kwargs):
-#         try:
-#             token = RefreshToken(self.token)
-#             token.blacklist()
-#         except TokenError:
-#             return self.fail("bad_token")
+    class Meta:
+        model = Address
+        fields = [
+            "address_line_1",
+            "address_line_2",
+            "phone_number",
+            "country_region",
+            "state_province_region",
+            "city",
+            "postal_zip_code",
+        ]

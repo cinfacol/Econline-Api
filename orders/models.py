@@ -7,7 +7,6 @@ from .contries import Countries
 
 from inventory.models import Inventory
 from common.models import TimeStampedUUIDModel
-from profiles.models import Address
 
 User = settings.AUTH_USER_MODEL
 

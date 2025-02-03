@@ -136,6 +136,7 @@ class ProcessPaymentView(APIView):
     def post(self, request, format=None):
         user = self.request.user
         data = self.request.data
+        # print("data =", data) # card data
 
         tax = 19 / 100
 

@@ -3,7 +3,7 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.translation import gettext_lazy as _
 
 from .forms import CustomUserChangeForm, CustomUserCreationForm
-from .models import User
+from .models import User, Address
 
 
 class UserAdmin(BaseUserAdmin):
@@ -78,6 +78,24 @@ class UserAdmin(BaseUserAdmin):
         ),
     )
     search_fields = ["email", "username", "first_name", "last_name"]
+
+
+@admin.register(Address)
+class AddressAdmin(admin.ModelAdmin):
+    model = Address
+    list_display = [
+        "pkid",
+        "id",
+        "user",
+        "address_line_1",
+        # "address_line_2",
+        "city",
+        "state_province_region",
+    ]
+    list_display_links = [
+        "id",
+        "user",
+    ]
 
 
 admin.site.register(User, UserAdmin)

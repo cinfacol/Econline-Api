@@ -2,7 +2,6 @@ from django.contrib.auth import get_user_model
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
-from .countries import Countries
 from phonenumber_field.modelfields import PhoneNumberField
 from common.models import TimeStampedUUIDModel
 
@@ -66,39 +65,3 @@ class Profile(TimeStampedUUIDModel):
 
     def __str__(self):
         return f"{self.user.username}'s profile"
-
-
-class Address(TimeStampedUUIDModel):
-    # Address options
-    BILLING = "B"
-    SHIPPING = "S"
-
-    ADDRESS_CHOICES = ((BILLING, _("billing")), (SHIPPING, _("shipping")))
-    address_type = models.CharField(max_length=1, choices=ADDRESS_CHOICES)
-    title = models.CharField(
-        max_length=50,
-        verbose_name=_("Reference"),
-        help_text=_("Title of Referene"),
-        default=_("My House"),
-    )
-    user = models.ForeignKey(User, related_name="addresses", on_delete=models.CASCADE)
-    phone_number = PhoneNumberField(
-        verbose_name=_("Phone Number"), max_length=30, default="+573142544178"
-    )
-    country = models.CharField(
-        verbose_name=_("Country"),
-        max_length=255,
-        choices=Countries.choices,
-        default=Countries.Colombia,
-    )
-    state = models.CharField(max_length=100, verbose_name=_("State"))
-    city = models.CharField(max_length=100, verbose_name=_("City"))
-    zip_code = models.CharField(max_length=20, verbose_name=_("Zip Code"))
-    default = models.BooleanField(default=False)
-
-    def __str__(self):
-        return self.title
-
-    class Meta:
-        verbose_name_plural = _("Address")
-        ordering = ("-created_at",)
