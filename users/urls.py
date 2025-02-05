@@ -6,6 +6,11 @@ from .views import (
     CustomTokenVerifyView,
     LogoutView,
     HealthView,
+    AddressListView,
+    AddressCreateView,
+    AddressUpdateView,
+    AddressDeleteView,
+    SetDefaultAddressView,
 )
 
 urlpatterns = [
@@ -19,4 +24,17 @@ urlpatterns = [
     path("jwt/verify/", CustomTokenVerifyView.as_view(), name="token_verify"),
     path("logout/", LogoutView.as_view(), name="auth_logout"),
     path("health/", HealthView.as_view(), name="docker_health"),
+    path("address/", AddressListView.as_view(), name="Address"),
+    path("address/create/", AddressCreateView.as_view(), name="new_address"),
+    path("address/edit/<uuid:id>", AddressUpdateView.as_view(), name="edit_address"),
+    path(
+        "address/delete/<uuid:id>",
+        AddressDeleteView.as_view(),
+        name="delete_address",
+    ),
+    path(
+        "address/default/<uuid:id>",
+        SetDefaultAddressView.as_view(),
+        name="default_address",
+    ),
 ]

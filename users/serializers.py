@@ -66,32 +66,17 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
 
 class AddressSerializer(serializers.ModelSerializer):
-    # country = CountryField(name_only=True)
-    # profile = serializers.SerializerMethodField()
-
     class Meta:
         model = Address
         fields = [
+            "id",
             "user",
-            "phone_number",
-            "country_region",
-            "state_province_region",
-            "city",
-            "postal_zip_code",
-        ]
-
-
-class UpdateAddressSerializer(serializers.ModelSerializer):
-    # country = CountryField(name_only=True)
-
-    class Meta:
-        model = Address
-        fields = [
             "address_line_1",
             "address_line_2",
-            "phone_number",
             "country_region",
-            "state_province_region",
             "city",
+            "state_province_region",
             "postal_zip_code",
+            "phone_number",
+            "default",
         ]

@@ -91,6 +91,7 @@ class AddressAdmin(admin.ModelAdmin):
         # "address_line_2",
         "city",
         "state_province_region",
+        "default",
     ]
     list_display_links = [
         "id",

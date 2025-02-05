@@ -46,8 +46,8 @@ class User(AbstractBaseUser, PermissionsMixin):
 class Address(TimeStampedUUIDModel):
 
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    address_line_1 = models.CharField(max_length=150)
-    address_line_2 = models.CharField(max_length=150, blank=True, null=True)
+    address_line_1 = models.CharField(max_length=255)
+    address_line_2 = models.CharField(max_length=255, blank=True, null=True)
     city = models.CharField(max_length=100, verbose_name=_("City"))
     state_province_region = models.CharField(max_length=100, verbose_name=_("State"))
     postal_zip_code = models.CharField(max_length=20, verbose_name=_("Zip Code"))
@@ -60,6 +60,7 @@ class Address(TimeStampedUUIDModel):
     phone_number = PhoneNumberField(
         verbose_name=_("Phone Number"), max_length=30, default="+573142544178"
     )
+    default = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.address_line_1}, {self.city}, {self.postal_zip_code}, {self.country_region}"
