@@ -18,6 +18,7 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
+            "pk",
             "id",
             "username",
             "email",
@@ -27,6 +28,7 @@ class UserSerializer(serializers.ModelSerializer):
             "gender",
             "profile_photo",
             "top_agent",
+            "date_joined",
         ]
 
     def get_first_name(self, obj):
