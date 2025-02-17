@@ -130,6 +130,14 @@ class HealthView(APIView):
         return Response({"status": "healthy"})
 
 
+class AddressDetailView(APIView):
+
+    def get(self, request, id, format=None):
+        address = get_object_or_404(Address, id=id, user=request.user)
+        serializer = AddressSerializer(address)
+        return Response(serializer.data)
+
+
 class AddressListView(APIView):
 
     def get(self, request):

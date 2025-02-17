@@ -244,6 +244,7 @@ class Countries(models.TextChoices):
         "United Kingdom of Great Britain and Northern Ireland",
     )
     United_States_Minor_Outlying_Islands = ("United States Minor Outlying Islands",)
+    United_States = ("United States",)
     United_States_of_America = ("United States of America",)
     Uruguay = ("Uruguay",)
     Uzbekistan = ("Uzbekistan",)
