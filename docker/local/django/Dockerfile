@@ -44,6 +44,12 @@ COPY ./docker/local/django/celery/flower/start /start-flower
 RUN sed -i 's/\r$//g' /start-flower
 RUN chmod +x /start-flower
 
+# Crear un usuario no privilegiado
+RUN addgroup --system celeryuser && adduser --system --ingroup celeryuser celeryuser
+
+# Cambiar al usuario no privilegiado
+USER celeryuser
+
 
 ENTRYPOINT [ "/entrypoint.sh"]
 
