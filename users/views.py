@@ -178,6 +178,6 @@ class AddressDeleteView(APIView):
 class SetDefaultAddressView(APIView):
 
     def post(self, request, id, format=None):
-        Address.objects.filter(user=request.user, default=True).update(default=False)
-        Address.objects.filter(id=id, user=request.user).update(default=True)
+        Address.objects.filter(user=request.user, is_default=True).update(is_default=False)
+        Address.objects.filter(id=id, user=request.user).update(is_default=True)
         return Response(status=status.HTTP_200_OK)

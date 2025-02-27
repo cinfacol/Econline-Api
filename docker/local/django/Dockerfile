@@ -45,10 +45,10 @@ RUN sed -i 's/\r$//g' /start-flower
 RUN chmod +x /start-flower
 
 # Crear un usuario no privilegiado
-RUN addgroup --system celeryuser && adduser --system --ingroup celeryuser celeryuser
+# RUN addgroup --system celeryuser && adduser --system --ingroup celeryuser celeryuser
 
 # Cambiar al usuario no privilegiado
-USER celeryuser
+# USER celeryuser
 
 
 ENTRYPOINT [ "/entrypoint.sh"]

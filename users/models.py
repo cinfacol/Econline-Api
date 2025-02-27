@@ -60,7 +60,7 @@ class Address(TimeStampedUUIDModel):
     phone_number = PhoneNumberField(
         verbose_name=_("Phone Number"), max_length=30, default="+573142544178"
     )
-    default = models.BooleanField(default=False)
+    is_default = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.address_line_1}, {self.city}, {self.postal_zip_code}, {self.country_region}"

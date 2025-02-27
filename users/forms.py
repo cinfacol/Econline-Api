@@ -29,6 +29,6 @@ class UserAddressForm(forms.ModelForm):
             "state_province_region",
             "postal_zip_code",
             "phone_number",
-            "default",
+            "is_default",
         ]
         error_class = "error"
