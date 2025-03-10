@@ -1,349 +1,155 @@
+from django.shortcuts import render
+
+# Create your views here.
+import stripe
 from django.conf import settings
-from rest_framework.views import APIView
-from rest_framework.response import Response
+from django.shortcuts import get_object_or_404
 from rest_framework import status
-from cart.models import Cart, CartItem
-from coupons.models import FixedPriceCoupon, PercentageCoupon
-from orders.models import Order, OrderItem
-from inventory.models import Inventory
-from shipping.models import Shipping
-from django.core.mail import send_mail
-import braintree
+from rest_framework.generics import RetrieveUpdateAPIView
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework.viewsets import ModelViewSet
 
-gateway = braintree.BraintreeGateway(
-    braintree.Configuration(
-        environment=settings.BT_ENVIRONMENT,
-        merchant_id=settings.BT_MERCHANT_ID,
-        public_key=settings.BT_PUBLIC_KEY,
-        private_key=settings.BT_PRIVATE_KEY,
-    )
-)
+from orders.models import Order
 
+# from orders.permissions import IsOrderByBuyerOrAdmin
+from .models import Payment
 
-class GenerateTokenView(APIView):
-    def get(self, request, format=None):
-        try:
-            token = gateway.client_token.generate()
+""" from .permissions import (
+    DoesOrderHaveAddress,
+    IsOrderPendingWhenCheckout,
+    IsPaymentByUser,
+    IsPaymentForOrderNotCompleted,
+    IsPaymentPending,
+) """
+from .serializers import CheckoutSerializer, PaymentSerializer
+from .tasks import send_payment_success_email_task
 
-            return Response({"braintree_token": token}, status=status.HTTP_200_OK)
-        except:
-            return Response(
-                {"error": "Something went wrong when retrieving braintree token"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+stripe.api_key = settings.STRIPE_SECRET_KEY
 
 
-class GetPaymentTotalView(APIView):
-    def get(self, request, format=None):
+class PaymentViewSet(ModelViewSet):
+    """
+    CRUD payment for an order
+    """
+
+    queryset = Payment.objects.all()
+    serializer_class = PaymentSerializer
+    # permission_classes = [IsPaymentByUser]
+
+    def get_queryset(self):
+        res = super().get_queryset()
         user = self.request.user
+        return res.filter(order__buyer=user)
 
-        tax = str(request.query_params.get("taxe", ""))
-        shipping_id = str(request.query_params.get("shipping_id", ""))
-        coupon_name = str(request.query_params.get("coupon_name", ""))
+    """ def get_permissions(self):
+        if self.action in ("update", "partial_update", "destroy"):
+            self.permission_classes += [IsPaymentPending]
 
-        try:
-            cart = Cart.objects.prefetch_related(
-                "cartitem_set__inventory__inventory_stock"
-            ).get(user=user)
+        return super().get_permissions() """
 
-            if not cart.cartitem_set.exists():
-                return Response(
-                    {"error": "Need to have items in cart"},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
 
-            def calculate_totals(cart_items):
-                total_amount = 0.0
-                total_compare_amount = 0.0
-                total_tax = 0.0
+class CheckoutAPIView(RetrieveUpdateAPIView):
+    """
+    Create, Retrieve, Update billing address, shipping address and payment of an order
+    """
 
-                for item in cart_items:
-                    # Convertir valores a float
-                    store_price = float(str(item.inventory.store_price))
-                    retail_price = float(str(item.inventory.retail_price))
-                    quantity = float(item.quantity)
-                    tax_rate = float(str(item.inventory.taxe))
+    queryset = Order.objects.all()
+    serializer_class = CheckoutSerializer
+    # permission_classes = [IsOrderByBuyerOrAdmin]
 
-                    # Calcular subtotal por item
-                    item_subtotal = store_price * quantity
+    """ def get_permissions(self):
+        if self.request.method in ("PUT", "PATCH"):
+            self.permission_classes += [IsOrderPendingWhenCheckout]
 
-                    # Calcular impuesto por item
-                    item_tax = round(item_subtotal * tax_rate, 2)
+        return super().get_permissions() """
 
-                    total_amount += item_subtotal
-                    total_compare_amount += retail_price * quantity
-                    total_tax += item_tax
 
-                return (
-                    round(total_amount, 2),
-                    round(total_compare_amount, 2),
-                    round(total_tax, 2),
-                )
+class StripeCheckoutSessionCreateAPIView(APIView):
+    """
+    Create and return checkout session ID for order payment of type 'Stripe'
+    """
 
-            # Validar inventario
-            for item in cart.cartitem_set.all():
-                available_stock = int(item.inventory.inventory_stock.units) - int(
-                    item.inventory.inventory_stock.units_sold
-                )
-                if int(item.quantity) > available_stock:
-                    return Response(
-                        {"error": f"Not enough stock for product {item.inventory.id}"},
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
+    """ permission_classes = (
+        IsPaymentForOrderNotCompleted,
+        DoesOrderHaveAddress,
+    ) """
 
-            total_amount, total_compare_amount, estimated_tax = calculate_totals(
-                cart.cartitem_set.all()
-            )
-            original_price = total_amount
+    def post(self, request, *args, **kwargs):
+        order = get_object_or_404(Order, id=self.kwargs.get("order_id"))
 
-            # Agregar impuestos al total
-            total_amount += estimated_tax
+        order_items = []
 
-            # Agregar shipping si está habilitado
-            shipping_cost = 0.0
+        for order_item in order.order_items.all():
+            product = order_item.product
+            quantity = order_item.quantity
 
-            if shipping_id:
-                try:
-                    shipping = Shipping.objects.get(id=shipping_id)
-                    shipping_cost = float(str(shipping.price))
-                    total_amount += shipping_cost
-                except Shipping.DoesNotExist:
-                    pass
-
-            return Response(
-                {
-                    "original_price": f"{original_price:.2f}",
-                    "total_amount": f"{total_amount:.2f}",
-                    "total_compare_amount": f"{total_compare_amount:.2f}",
-                    "estimated_tax": f"{estimated_tax:.2f}",
-                    "shipping_cost": f"{shipping_cost:.2f}",
+            data = {
+                "price_data": {
+                    "currency": "usd",
+                    "unit_amount_decimal": product.price,
+                    "product_data": {
+                        "name": product.name,
+                        "description": product.desc,
+                        "images": [f"{settings.BACKEND_DOMAIN}{product.image.url}"],
+                    },
                 },
-                status=status.HTTP_200_OK,
-            )
+                "quantity": quantity,
+            }
 
-        except Cart.DoesNotExist:
-            return Response(
-                {"error": "Cart not found"}, status=status.HTTP_404_NOT_FOUND
-            )
-        except Exception as e:
-            return Response(
-                {"error": f"Error processing payment total: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+            order_items.append(data)
+
+        checkout_session = stripe.checkout.Session.create(
+            payment_method_types=["card"],
+            line_items=order_items,
+            metadata={"order_id": order.id},
+            mode="payment",
+            success_url=settings.PAYMENT_SUCCESS_URL,
+            cancel_url=settings.PAYMENT_CANCEL_URL,
+        )
+
+        return Response(
+            {"sessionId": checkout_session["id"]}, status=status.HTTP_201_CREATED
+        )
 
 
-class ProcessPaymentView(APIView):
+class StripeWebhookAPIView(APIView):
+    """
+    Stripe webhook API view to handle checkout session completed and other events.
+    """
+
     def post(self, request, format=None):
-        user = self.request.user
-        data = self.request.data
-        # print("data =", data) # card data
-
-        tax = 19 / 100
-
-        nonce = data["nonce"]
-        shipping_id = str(data["shipping_id"])
-        coupon_name = str(data["coupon_name"])
-
-        full_name = data["full_name"]
-        address_line_1 = data["address_line_1"]
-        address_line_2 = data["address_line_2"]
-        city = data["city"]
-        state_province_region = data["state_province_region"]
-        postal_zip_code = data["postal_zip_code"]
-        country_region = data["country_region"]
-        telephone_number = data["telephone_number"]
-
-        # revisar si datos de shipping son validos
-        if not Shipping.objects.filter(id__iexact=shipping_id).exists():
-            return Response(
-                {"error": "Invalid shipping option"}, status=status.HTTP_404_NOT_FOUND
-            )
-
-        cart = Cart.objects.get(user=user)
-
-        # revisar si usuario tiene items en carrito
-        if not CartItem.objects.filter(cart=cart).exists():
-            return Response(
-                {"error": "Need to have items in cart"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-        cart_items = CartItem.objects.filter(cart=cart)
-
-        # revisar si hay stock
-        for cart_item in cart_items:
-            if not Inventory.objects.filter(id=cart_item.inventory.id).exists():
-                return Response(
-                    {"error": "Transaction failed, a proudct ID does not exist"},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
-            if int(cart_item.quantity) > int(
-                cart_item.inventory.inventory_stock.units
-                - cart_item.inventory.inventory_stock.units_sold
-            ):
-                return Response(
-                    {"error": "Not enough items in stock"}, status=status.HTTP_200_OK
-                )
-
-        total_amount = 0.0
-
-        for cart_item in cart_items:
-            total_amount += float(cart_item.inventory.retail_price) * float(
-                cart_item.quantity
-            )
-
-        # Cupones
-        if coupon_name != "":
-            if FixedPriceCoupon.objects.filter(name__iexact=coupon_name).exists():
-                fixed_price_coupon = FixedPriceCoupon.objects.get(name=coupon_name)
-                discount_amount = float(fixed_price_coupon.discount_price)
-
-                if discount_amount < total_amount:
-                    total_amount -= discount_amount
-
-            elif PercentageCoupon.objects.filter(name__iexact=coupon_name).exists():
-                percentage_coupon = PercentageCoupon.objects.get(name=coupon_name)
-                discount_percentage = float(percentage_coupon.discount_percentage)
-
-                if discount_percentage > 1 and discount_percentage < 100:
-                    total_amount -= total_amount * (discount_percentage / 100)
-
-        total_amount += total_amount * tax
-
-        shipping = Shipping.objects.get(id=str(shipping_id))
-
-        shipping_name = shipping.name
-        shipping_time = shipping.time_to_delivery
-        shipping_price = shipping.price
-
-        total_amount += float(shipping_price)
-        total_amount = round(total_amount, 2)
+        payload = request.body
+        endpoint_secret = settings.STRIPE_WEBHOOK_SECRET
+        sig_header = request.META["HTTP_STRIPE_SIGNATURE"]
+        event = None
 
         try:
-            # Crear transaccion con braintree
-            newTransaction = gateway.transaction.sale(
-                {
-                    "amount": str(total_amount),
-                    "payment_method_nonce": str(nonce["nonce"]),
-                    "options": {"submit_for_settlement": True},
-                }
-            )
-        except:
-            return Response(
-                {"error": "Error processing the transaction"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+            event = stripe.Webhook.construct_event(payload, sig_header, endpoint_secret)
+        except ValueError:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+        except stripe.error.SignatureVerificationError:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
 
-        if newTransaction.is_success or newTransaction.transaction:
-            for cart_item in cart_items:
-                update_product = Inventory.objects.get(id=cart_item.inventory.id)
+        if event["type"] == "checkout.session.completed":
+            session = event["data"]["object"]
+            customer_email = session["customer_details"]["email"]
+            order_id = session["metadata"]["order_id"]
 
-                # encontrar cantidad despues de compra
-                quantity = int(update_product.inventory_stock.units) - int(
-                    cart_item.quantity
-                )
+            print("Payment successfull")
 
-                # obtener cantidad de producto por vender
-                sold = int(update_product.inventory_stock.units_sold) + int(
-                    cart_item.quantity
-                )
+            payment = get_object_or_404(Payment, order=order_id)
+            payment.status = "C"
+            payment.save()
 
-                # actualizar el stock
-                """ Inventory.objects.filter(id=cart_item.inventory.id).update(
-                    units=update_product.inventory_stock.units,
-                    unitsSold=update_product.inventory_stock.units_sold,
-                    units=quantity,
-                    unitsSold=sold,
-                ) """
-                inventario = Inventory.objects.filter(id=cart_item.inventory.id)
-                inventario.inventory_stock.update(units=quantity, units_sold=sold)
+            order = get_object_or_404(Order, id=order_id)
+            order.status = "C"
+            order.save()
 
-            # crear orden
-            try:
-                order = Order.objects.create(
-                    user=user,
-                    transaction_id=newTransaction.transaction.id,
-                    amount=total_amount,
-                    full_name=full_name,
-                    address_line_1=address_line_1,
-                    address_line_2=address_line_2,
-                    city=city,
-                    state_province_region=state_province_region,
-                    postal_zip_code=postal_zip_code,
-                    country_region=country_region,
-                    telephone_number=telephone_number,
-                    shipping_name=shipping_name,
-                    shipping_time=shipping_time,
-                    shipping_price=float(shipping_price),
-                )
-            except:
-                return Response(
-                    {"error": "Transaction succeeded but failed to create the order"},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                )
+            # TODO - Decrease product quantity
 
-            for cart_item in cart_items:
-                try:
-                    # agarrar el producto
-                    inventory = Inventory.objects.get(id=cart_item.inventory.id)
+            send_payment_success_email_task.delay(customer_email)
 
-                    OrderItem.objects.create(
-                        inventory=inventory,
-                        order=order,
-                        name=inventory.product.name,
-                        price=cart_item.inventory.retail_price,
-                        count=cart_item.quantity,
-                    )
-                except:
-                    return Response(
-                        {
-                            "error": "Transaction succeeded and order created, but failed to create an order item"
-                        },
-                        status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    )
+        # Can handle other events here.
 
-            try:
-                send_mail(
-                    "Your Order Details",
-                    "Hey "
-                    + full_name
-                    + ","
-                    + "\n\nWe recieved your order!"
-                    + "\n\nGive us some time to process your order and ship it out to you."
-                    + "\n\nYou can go on your user dashboard to check the status of your order."
-                    + "\n\nSincerely,"
-                    + "\nShop Time",
-                    "mail@virtualeline.com",
-                    [user.email],
-                    fail_silently=False,
-                )
-            except:
-                return Response(
-                    {
-                        "error": "Transaction succeeded and order created, but failed to send email"
-                    },
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                )
-
-            try:
-                # Vaciar carrito de compras
-                CartItem.objects.filter(cart=cart).delete()
-
-                # Actualizar carrito
-                Cart.objects.filter(user=user).update(total_items=0)
-            except:
-                return Response(
-                    {
-                        "error": "Transaction succeeded and order successful, but failed to clear cart"
-                    },
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                )
-
-            return Response(
-                {"success": "Transaction successful and order was created"},
-                status=status.HTTP_200_OK,
-            )
-        else:
-            return Response(
-                {"error": "Transaction failed"}, status=status.HTTP_400_BAD_REQUEST
-            )
+        return Response(status=status.HTTP_200_OK)

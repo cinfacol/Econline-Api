@@ -1,8 +1,7 @@
-""" from django.db import models
+from django.db import models
 from django.utils.translation import gettext_lazy as _
-
-from orders.models import Order
 from common.models import TimeStampedUUIDModel
+from orders.models import Order
 
 
 class Payment(TimeStampedUUIDModel):
@@ -19,18 +18,11 @@ class Payment(TimeStampedUUIDModel):
     # Payment options
     PAYPAL = "P"
     STRIPE = "S"
-    MERCADOPAGO = "M"
 
-    PAYMENT_CHOICES = (
-        (PAYPAL, _("paypal")),
-        (STRIPE, _("stripe")),
-        (MERCADOPAGO, _("mercadopago")),
-    )
+    PAYMENT_CHOICES = ((PAYPAL, _("paypal")), (STRIPE, _("stripe")))
 
     status = models.CharField(max_length=1, choices=STATUS_CHOICES, default=PENDING)
-    payment_option = models.CharField(
-        max_length=1, choices=PAYMENT_CHOICES, default=STRIPE
-    )
+    payment_option = models.CharField(max_length=1, choices=PAYMENT_CHOICES)
     order = models.OneToOneField(
         Order, related_name="payment", on_delete=models.CASCADE
     )
@@ -39,4 +31,4 @@ class Payment(TimeStampedUUIDModel):
         ordering = ("-created_at",)
 
     def __str__(self):
-        return self.order.user.username """
+        return self.order.user.get_full_name()

@@ -7,8 +7,8 @@ from .contries import Countries
 
 from inventory.models import Inventory
 from common.models import TimeStampedUUIDModel
-
-User = settings.AUTH_USER_MODEL
+from users.models import User, Address
+from shipping.models import Shipping
 
 
 class Order(TimeStampedUUIDModel):
@@ -27,21 +27,14 @@ class Order(TimeStampedUUIDModel):
         default=OrderStatus.PENDING,
     )
     user = models.ForeignKey(User, related_name="orders", on_delete=models.CASCADE)
+    address = models.ForeignKey(
+        Address, on_delete=models.SET_NULL, null=True, blank=True
+    )
     transaction_id = models.CharField(max_length=255, unique=True)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
-    full_name = models.CharField(max_length=255)
-    address_line_1 = models.CharField(max_length=255)
-    address_line_2 = models.CharField(max_length=255, blank=True)
-    city = models.CharField(max_length=255)
-    state_province_region = models.CharField(max_length=255)
-    postal_zip_code = models.CharField(max_length=20)
-    country_region = models.CharField(
-        max_length=255, choices=Countries.choices, default=Countries.Colombia
+    shipping = models.ForeignKey(
+        Shipping, on_delete=models.SET_NULL, null=True, blank=True
     )
-    telephone_number = models.CharField(max_length=255)
-    shipping_name = models.CharField(max_length=255)
-    shipping_time = models.CharField(max_length=255)
-    shipping_price = models.DecimalField(max_digits=5, decimal_places=2)
 
     class Meta:
         ordering = ("-created_at",)
