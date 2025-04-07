@@ -1,31 +1,33 @@
-from django.urls import include, path
+from django.urls import path
 from rest_framework.routers import DefaultRouter
-
-from .views import (
-    CheckoutAPIView,
-    PaymentViewSet,
-    StripeCheckoutSessionCreateAPIView,
-    StripeWebhookAPIView,
-)
-
-app_name = "payment"
+from .views import PaymentViewSet
 
 router = DefaultRouter()
-router.register(r"", PaymentViewSet)
+router.register(r'', PaymentViewSet, basename='payments')
 
 urlpatterns = [
-    path("", include(router.urls)),
-    path(
-        "stripe/create-checkout-session/<int:order_id>/",
-        StripeCheckoutSessionCreateAPIView.as_view(),
-        name="checkout_session",
-    ),
-    path("stripe/webhook/", StripeWebhookAPIView.as_view(), name="stripe_webhook"),
-    path("checkout/<int:pk>/", CheckoutAPIView.as_view(), name="checkout"),
-]
+    # Rutas específicas primero
+    path('calculate-total/',
+         PaymentViewSet.as_view({'get': 'calculate_total'}),
+         name='calculate-total'),
 
-""" urlpatterns = [
-    path("get-payment-total/", GetPaymentTotalView.as_view()),
-    path("get-token/", GenerateTokenView.as_view()),
-    path("make-payment/", ProcessPaymentView.as_view()),
-] """
+    path('create-checkout-session/',
+         PaymentViewSet.as_view({'post': 'create_checkout_session'}),
+         name='create-checkout-session'),
+
+    path('<uuid:pk>/process/',
+         PaymentViewSet.as_view({'post': 'process'}),
+         name='process-payment'),
+
+    path('<uuid:pk>/verify/',
+         PaymentViewSet.as_view({'get': 'verify'}),
+         name='verify-payment'),
+
+    # Webhook para Stripe
+    path('webhook/stripe/',
+         PaymentViewSet.as_view({'post': 'stripe_webhook'}),
+         name='stripe-webhook'),
+    path('client-token/',
+         PaymentViewSet.as_view({'get': 'client_token'}),
+         name='client-token'),
+] + router.urls

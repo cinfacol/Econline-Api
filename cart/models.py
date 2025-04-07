@@ -1,27 +1,54 @@
 from django.db import models
-from django.conf import settings
+from django.contrib.auth import get_user_model
 
 from common.models import TimeStampedUUIDModel
 from inventory.models import Inventory
 from coupons.models import Coupon
 
 
-User = settings.AUTH_USER_MODEL
+User = get_user_model()
 
 
 class Cart(TimeStampedUUIDModel):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
+    coupon = models.ForeignKey(
+        Coupon,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='carts'
+    )
     total_items = models.IntegerField(default=0)
+
+    def get_subtotal(self):
+        return sum(item.get_total() for item in self.items.all())
+
+    def get_total_items(self):
+        return self.items.count()
+
+    def get_discount(self):
+        if not self.coupon:
+            return 0
+        return (self.get_subtotal() * self.coupon.discount) / 100
+
+    def get_total(self):
+        return self.get_subtotal() - self.get_discount()
 
     def __str__(self):
         return f"Cart for {self.user.username}"
 
 
 class CartItem(TimeStampedUUIDModel):
-    cart = models.ForeignKey(Cart, on_delete=models.CASCADE)
+    cart = models.ForeignKey('Cart', related_name='items', on_delete=models.CASCADE)
     coupon = models.ForeignKey(Coupon, on_delete=models.CASCADE, blank=True, null=True)
     inventory = models.ForeignKey(Inventory, on_delete=models.CASCADE)
     quantity = models.IntegerField()
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def get_total(self):
+        return self.quantity * self.inventory.store_price
 
     def __str__(self):
         return f"{self.quantity} x {self.inventory.product.name}"

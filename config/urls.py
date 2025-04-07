@@ -20,7 +20,7 @@ urlpatterns = [
     path("api/cart/", include("cart.urls")),
     path("api/coupons/", include("coupons.urls")),
     path("api/shipping/", include("shipping.urls")),
-    # path("api/payments/", include("payments.urls")),
+    path("api/payments/", include("payments.urls")),
     path("i18n", include("django.conf.urls.i18n")),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("api/schema/docs/", SpectacularSwaggerView.as_view(url_name="schema")),

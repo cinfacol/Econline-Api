@@ -26,6 +26,17 @@ class Payment(TimeStampedUUIDModel):
     order = models.OneToOneField(
         Order, related_name="payment", on_delete=models.CASCADE
     )
+    stripe_session_id = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True
+    )
+    amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True
+    )
 
     class Meta:
         ordering = ("-created_at",)
