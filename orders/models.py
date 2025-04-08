@@ -30,7 +30,9 @@ class Order(TimeStampedUUIDModel):
     address = models.ForeignKey(
         Address, on_delete=models.SET_NULL, null=True, blank=True
     )
-    transaction_id = models.CharField(max_length=255, unique=True)
+    transaction_id = models.CharField(
+        max_length=100, unique=True, help_text="Identificador único de la transacción"
+    )
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     shipping = models.ForeignKey(
         Shipping, on_delete=models.SET_NULL, null=True, blank=True
