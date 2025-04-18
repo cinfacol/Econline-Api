@@ -197,6 +197,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 logger.info(
                     f"Retrieved Stripe session {session.id} with status {session.payment_status}"
                 )
+                print("session_paymen_status", session.payment_status)
 
                 if session.payment_status == "paid":
                     payment.status = Payment.COMPLETED
@@ -204,6 +205,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
                     order = payment.order
                     order.status = "C"
+                    print("Order_status", order.status)
                     order.save()
 
                     # Limpiar el carrito después del pago exitoso

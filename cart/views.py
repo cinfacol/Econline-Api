@@ -266,7 +266,7 @@ class RemoveItemView(APIView):
 
 class ClearCartView(APIView):
 
-    def get(self, request, format=None):
+    def post(self, request, format=None):
         user = request.user
         cart, _ = Cart.objects.get_or_create(user=user)
         cart_items = CartItem.objects.filter(cart=cart)

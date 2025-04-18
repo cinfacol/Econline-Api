@@ -20,18 +20,19 @@ class Order(TimeStampedUUIDModel):
         DELIVERED = "DELIVERED", _("Delivered")
         CANCELLED = "CANCELLED", _("Cancelled")
 
+    transaction_id = models.CharField(
+        max_length=100, unique=True, help_text="Identificador único de la transacción"
+    )
     status = models.CharField(
         verbose_name=_("Status"),
         max_length=50,
         choices=OrderStatus.choices,
         default=OrderStatus.PENDING,
     )
+    currency = models.CharField(max_length=10, default="USD")
     user = models.ForeignKey(User, related_name="orders", on_delete=models.CASCADE)
     address = models.ForeignKey(
         Address, on_delete=models.SET_NULL, null=True, blank=True
-    )
-    transaction_id = models.CharField(
-        max_length=100, unique=True, help_text="Identificador único de la transacción"
     )
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     shipping = models.ForeignKey(
@@ -42,7 +43,7 @@ class Order(TimeStampedUUIDModel):
         ordering = ("-created_at",)
 
     def __str__(self):
-        return self.transaction_id
+        return f"Order {self.transaction_id} - {self.status}"
 
 
 class OrderItem(TimeStampedUUIDModel):
@@ -53,7 +54,7 @@ class OrderItem(TimeStampedUUIDModel):
     count = models.IntegerField()
 
     def __str__(self):
-        return self.name
+        return f"Order {self.inventory.product.name} - {self.order.transaction_id}"
 
     @cached_property
     def cost(self):
