@@ -1,6 +1,6 @@
 from django.core.exceptions import ObjectDoesNotExist
 
-from django.db.models import Q
+from django.db.models import Q, Avg, Count
 from rest_framework import serializers
 from reviews.models import Review
 from promotion.models import Promotion
@@ -96,7 +96,9 @@ class InventorySerializer(serializers.ModelSerializer):
         source="attribute_values", many=True, read_only=True
     ) """
     promotion_price = serializers.SerializerMethodField()
-    rating = serializers.SerializerMethodField()
+    # rating = serializers.SerializerMethodField() # Reemplazado por average_rating y rating_count
+    average_rating = serializers.SerializerMethodField()
+    rating_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Inventory
@@ -126,7 +128,9 @@ class InventorySerializer(serializers.ModelSerializer):
             # "attributes",
             "updated_at",
             "created_at",
-            "rating",
+            # "rating", # Reemplazado
+            "average_rating",
+            "rating_count",
         ]
         read_only = True
         depth = 3
@@ -137,8 +141,19 @@ class InventorySerializer(serializers.ModelSerializer):
     def get_image(self, obj):
         return MediaSerializer(obj.inventory_media.all(), many=True).data
 
-    def get_rating(self, obj):
-        return ReviewSerializer(obj.Inventory_review.all(), many=True).data
+    # def get_rating(self, obj): # Reemplazado por get_average_rating y get_rating_count
+    #     return ReviewSerializer(obj.Inventory_review.all(), many=True).data
+
+    def get_average_rating(self, obj):
+        # Calcula el promedio usando agregación de BD. Devuelve None si no hay reviews.
+        # El '.get("rating__avg")' maneja el caso None si no hay reviews.
+        # Redondeamos a 1 decimal si no es None.
+        avg = obj.Inventory_review.aggregate(Avg("rating")).get("rating__avg")
+        return round(avg, 1) if avg is not None else 0  # Devolver 0 si no hay reviews
+
+    def get_rating_count(self, obj):
+        # Calcula la cuenta usando agregación de BD.
+        return obj.Inventory_review.aggregate(Count("id")).get("id__count")
 
     def get_promotion_price(self, obj):
 
