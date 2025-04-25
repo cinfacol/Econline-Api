@@ -2,10 +2,12 @@ import uuid
 import stripe
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
+from django.db import transaction
+from django.conf import settings
 from rest_framework import status, viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.conf import settings
+from rest_framework.exceptions import ValidationError
 from orders.models import Order
 from shipping.models import Shipping
 from .models import Payment
@@ -159,7 +161,6 @@ class PaymentViewSet(viewsets.ModelViewSet):
     def calculate_total(self, request):
         """Calcula el total del pago incluyendo envío y descuentos"""
         try:
-            # Obtener shipping_id del query params
             shipping_id = request.query_params.get("shipping_id")
             if not shipping_id:
                 return Response(
@@ -181,16 +182,13 @@ class PaymentViewSet(viewsets.ModelViewSet):
             shipping = get_object_or_404(Shipping, id=shipping_id)
 
             # Calcular totales
-            subtotal = cart.get_subtotal()
-            shipping_cost = shipping.price
-            discount = cart.get_discount()
-            total_amount = subtotal + shipping_cost - discount
+            total = self._calculate_order_total(cart, shipping)
 
             response_data = {
-                "subtotal": subtotal,
-                "shipping_cost": shipping_cost,
-                "discount": discount,
-                "total_amount": total_amount,
+                "subtotal": cart.get_subtotal(),
+                "shipping_cost": shipping.price,
+                "discount": cart.get_discount(),
+                "total_amount": total,
                 "currency": "USD",
                 "shipping_method": shipping.name,
                 "estimated_days": shipping.time_to_delivery,
@@ -202,69 +200,37 @@ class PaymentViewSet(viewsets.ModelViewSet):
             logger.error(f"Error calculating total: {str(e)}")
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+    def _calculate_order_total(self, cart, shipping):
+        """
+        Método auxiliar para calcular el total del pedido
+        """
+        subtotal = cart.get_subtotal()
+        shipping_cost = shipping.price
+        discount = cart.get_discount()
+        return subtotal + shipping_cost - discount
+
+        # def get_order_total(self, cart, shipping):
+        """Calcula el total del pedido"""
+        # return self._calculate_order_total(cart, shipping)
+
     @action(detail=True, methods=["post"])
+    @transaction.atomic
     def create_checkout_session(self, request):
         """Crea una sesión de checkout con Stripe"""
         try:
-            cart = request.user.cart
-            shipping_id = request.data.get("shipping_id")
-
-            if not shipping_id:
-                return Response(
-                    {"error": "Shipping method is required"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            shipping = get_object_or_404(Shipping, id=shipping_id)
-            total = cart.get_total() + shipping.price
-
-            # Generar transaction_id único
-            transaction_id = (
-                f"txn_{str(uuid.uuid4().hex[:12])}_{int(timezone.now().timestamp())}"
+            cart = self.get_user_cart(request.user)
+            shipping = self.validate_checkout_request(
+                cart, request.data.get("shipping_id")
             )
 
-            # Crear la orden primero
-            order = Order.objects.create(
-                user=request.user,
-                amount=total,
-                shipping=shipping,
-                status="P",  # Pending
-                transaction_id=transaction_id,
-            )
+            total = self._calculate_order_total(cart, shipping)
+            transaction_id = self.generate_transaction_id()
 
-            # Crear el pago
-            payment = Payment.objects.create(
-                order=order,
-                payment_option=Payment.STRIPE,
-                amount=total,
-                status=Payment.PENDING,
-            )
+            order = self.create_order(request.user, total, shipping, transaction_id)
+            payment = self.create_payment(order, total)
 
-            # Crear sesión de Stripe con datos adicionales
-            checkout_session = stripe.checkout.Session.create(
-                payment_method_types=["card"],
-                line_items=[
-                    {
-                        "price_data": {
-                            "currency": "usd",
-                            "unit_amount": int(total * 100),
-                            "product_data": {
-                                "name": f"Order #{order.id}",
-                                "description": f"Payment for order {order.id}",
-                            },
-                        },
-                        "quantity": 1,
-                    }
-                ],
-                mode="payment",
-                success_url=f"{settings.FRONTEND_URL}/order/success?session_id={{CHECKOUT_SESSION_ID}}",
-                cancel_url=f"{settings.FRONTEND_URL}/order/cancelled",
-                metadata={
-                    "order_id": str(order.id),
-                    "payment_id": str(payment.id),
-                },
-                expires_at=int(timezone.now().timestamp() + 3600),  # Expira en 1 hora
-                customer_email=request.user.email,  # Pre-llenar el email
+            checkout_session = self.create_stripe_session(
+                order, payment, request.user.email
             )
 
             # Guardar el ID de sesión
@@ -272,18 +238,145 @@ class PaymentViewSet(viewsets.ModelViewSet):
             payment.save()
 
             return Response(
-                {
-                    "sessionId": checkout_session.id,
-                    "payment_id": payment.id,
-                    "checkout_url": checkout_session.url,  # Incluir la URL de checkout
-                    "expires_at": checkout_session.expires_at,
-                },
+                self.format_checkout_response(checkout_session, payment),
                 status=status.HTTP_201_CREATED,
             )
 
         except Exception as e:
-            logger.error(f"Error creating checkout session: {str(e)}")
+            logger.warning(f"Validation error in checkout: {str(e)}")
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except stripe.error.StripeError as e:
+            logger.error(f"Stripe error in checkout: {str(e)}")
+            return Response(
+                {"error": "Error processing payment"},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+        except Exception as e:
+            logger.error(f"Unexpected error in checkout: {str(e)}")
+            return Response(
+                {"error": "An unexpected error occurred"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    def validate_checkout_request(self, cart, shipping_id):
+        """Valida los datos de entrada para el checkout"""
+        if not cart or not cart.items.exists():
+            raise ValidationError("Cart is empty")
+
+        if not shipping_id:
+            raise ValidationError("Shipping method is required")
+
+        return get_object_or_404(Shipping, id=shipping_id)
+
+    def create_order(self, user, total, shipping, transaction_id):
+        """Crea una nueva orden"""
+        return Order.objects.create(
+            user=user,
+            amount=total,
+            shipping=shipping,
+            status="C",
+            transaction_id=transaction_id,
+        )
+
+    def create_payment(self, order, total):
+        """Crea un nuevo pago"""
+        return Payment.objects.create(
+            order=order,
+            payment_option=Payment.STRIPE,
+            amount=total,
+            status=Payment.PENDING,
+        )
+
+    def create_stripe_session(self, order, payment, user_email):
+        """Crea una sesión de Stripe"""
+        return stripe.checkout.Session.create(
+            payment_method_types=["card"],
+            line_items=self._get_line_items(order),
+            mode="payment",
+            success_url=self._get_success_url(),
+            cancel_url=self._get_cancel_url(),
+            metadata=self._get_metadata(order, payment),
+            expires_at=self._get_expiration_time(),
+            customer_email=user_email,
+        )
+
+    def get_user_cart(self, user):
+        """Obtiene el carrito del usuario"""
+        cart = getattr(user, "cart", None)
+        if not cart or not cart.items.exists():
+            raise ValidationError("Cart is empty")
+        return cart
+
+        # def calculate_total(self, cart, shipping):
+        """Calcula el total del pedido"""
+        # return cart.get_total() + shipping.price
+
+    def generate_transaction_id(self):
+        """Genera un ID de transacción único"""
+        timestamp = int(timezone.now().timestamp())
+        unique_id = uuid.uuid4().hex[:12]
+        return f"txn_{unique_id}_{timestamp}"
+
+    def format_checkout_response(self, session, payment):
+        """Formatea la respuesta del checkout"""
+        return {
+            "sessionId": session.id,
+            "payment_id": payment.id,
+            "checkout_url": session.url,
+            "expires_at": session.expires_at,
+            "amount": payment.amount,
+            "currency": "USD",
+        }
+
+    def _get_line_items(self, order):
+        """
+        Obtiene los items para la sesión de Stripe
+        """
+        return [
+            {
+                "price_data": {
+                    "currency": "usd",
+                    "unit_amount": int(
+                        order.amount * 100
+                    ),  # Stripe requiere el monto en centavos
+                    "product_data": {
+                        "name": f"Order #{order.id}",
+                        "description": f"Payment for order {order.id}",
+                    },
+                },
+                "quantity": 1,
+            }
+        ]
+
+    def _get_success_url(self):
+        """
+        Obtiene la URL de éxito para la redirección
+        """
+        return (
+            f"{settings.FRONTEND_URL}/order/success?session_id={{CHECKOUT_SESSION_ID}}"
+        )
+
+    def _get_cancel_url(self):
+        """
+        Obtiene la URL de cancelación para la redirección
+        """
+        return f"{settings.FRONTEND_URL}/order/cancelled"
+
+    def _get_metadata(self, order, payment):
+        """
+        Obtiene los metadatos para la sesión de Stripe
+        """
+        return {
+            "order_id": str(order.id),
+            "payment_id": str(payment.id),
+            "user_id": str(order.user.id),
+        }
+
+    def _get_expiration_time(self):
+        """
+        Obtiene el tiempo de expiración para la sesión
+        """
+        return int(timezone.now().timestamp() + 3600)  # 1 hora desde ahora
 
     @action(detail=True, methods=["post"])
     def process(self, request, id=None):
