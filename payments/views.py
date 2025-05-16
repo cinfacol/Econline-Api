@@ -198,7 +198,10 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
         except Exception as e:
             logger.error(f"Error calculating total: {str(e)}")
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Error al calcular el total."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
     def _calculate_order_total(self, cart, shipping):
         """
@@ -244,17 +247,20 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
         except Exception as e:
             logger.warning(f"Validation error in checkout: {str(e)}")
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Error en la validación del checkout."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except stripe.error.StripeError as e:
             logger.error(f"Stripe error in checkout: {str(e)}")
             return Response(
-                {"error": "Error processing payment"},
+                {"error": "Error al procesar el pago. Por favor, inténtelo de nuevo."},
                 status=status.HTTP_502_BAD_GATEWAY,
             )
         except Exception as e:
             logger.error(f"Unexpected error in checkout: {str(e)}")
             return Response(
-                {"error": "An unexpected error occurred"},
+                {"error": "Ocurrió un error inesperado al procesar el pago."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -266,7 +272,11 @@ class PaymentViewSet(viewsets.ModelViewSet):
         if not shipping_id:
             raise ValidationError("Shipping method is required")
 
-        return get_object_or_404(Shipping, id=shipping_id)
+        try:
+            shipping = Shipping.objects.get(id=shipping_id)
+        except Shipping.DoesNotExist:
+            raise ValidationError("Invalid shipping method")
+        return shipping
 
     def create_order(self, user, total, shipping, transaction_id):
         """Crea una nueva orden"""
@@ -305,6 +315,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         cart = getattr(user, "cart", None)
         if not cart or not cart.items.exists():
             raise ValidationError("Cart is empty")
+        cart = Cart.objects.prefetch_related("items").get(id=cart.id)
         return cart
 
         # def calculate_total(self, cart, shipping):
@@ -382,7 +393,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
     def process(self, request, id=None):
         """Procesa el pago y verifica la sesión de Stripe"""
         try:
-            payment = get_object_or_404(Payment, id=id)
+            payment = get_object_or_404(Payment.objects.select_related("order"), id=id)
             logger.info(f"Processing payment {payment.id} with status {payment.status}")
 
             if payment.order.user != request.user:
@@ -475,12 +486,13 @@ class PaymentViewSet(viewsets.ModelViewSet):
         except stripe.error.StripeError as e:
             logger.error(f"Stripe error: {str(e)}")
             return Response(
-                {"error": f"Stripe error: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST
+                {"error": "Error al procesar el pago. Por favor, inténtelo de nuevo."},
+                status=status.HTTP_400_BAD_REQUEST,
             )
         except Exception as e:
             logger.error(f"Error processing payment: {str(e)}")
             return Response(
-                {"error": "An unexpected error occurred"},
+                {"error": "Ocurrió un error inesperado al procesar el pago."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -510,7 +522,10 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
             return Response({"token": token.client_secret})
         except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Error al calcular el total."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
     @action(detail=True, methods=["post"])
     def retry_payment(self, request, id=None):
@@ -565,4 +580,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
         except Exception as e:
             logger.error(f"Error retrying payment: {str(e)}")
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Error al calcular el total."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
