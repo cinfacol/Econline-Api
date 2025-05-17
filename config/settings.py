@@ -2,6 +2,7 @@ from pathlib import Path
 from celery.schedules import crontab
 from datetime import timedelta
 from django.utils.translation import gettext_lazy as _
+from .logging import LOGGING
 
 import environ
 
