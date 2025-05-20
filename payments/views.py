@@ -25,15 +25,22 @@ from .permissions import (
     IsPaymentForOrderNotCompleted,
     DoesOrderHaveAddress,
 )
+from .tasks import (
+    handle_checkout_session_completed_task,
+    handle_payment_intent_succeeded_task,
+    handle_payment_intent_payment_failed_task,
+)
 import logging
+from config.celery import app as celery_app
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 logger = logging.getLogger(__name__)
 
 
 class PaymentViewSet(viewsets.ModelViewSet):
-    queryset = Payment.objects.select_related("payment").all()
-
+    queryset = Payment.objects.select_related(
+        "order", "order__user", "order__shipping"
+    ).all()
     serializer_class = PaymentSerializer
     permission_classes = [permissions.IsAuthenticated, IsPaymentByUser]
 
@@ -51,111 +58,26 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 payload, sig_header, settings.STRIPE_WEBHOOK_SECRET
             )
         except ValueError as e:
-            # Invalid payload
             return Response(status=status.HTTP_400_BAD_REQUEST)
         except stripe.error.SignatureVerificationError as e:
-            # Invalid signature
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
         logger.info(f"Received Stripe webhook event: {event.type}")
 
-        # Handle the event
         if event.type == "checkout.session.completed":
             session = event.data.object
-            self.handle_checkout_session_completed(session)
-
+            handle_checkout_session_completed_task.delay(session)
         elif event.type == "payment_intent.succeeded":
             payment_intent = event.data.object
-            self.handle_payment_intent_succeeded(payment_intent)
-
+            handle_payment_intent_succeeded_task.delay(payment_intent)
         elif event.type == "payment_intent.payment_failed":
             payment_intent = event.data.object
-            self.handle_payment_intent_payment_failed(payment_intent)
-
-        # ... otros eventos ...
+            handle_payment_intent_payment_failed_task.delay(payment_intent)
+        else:
+            logger.warning(f"Unhandled webhook event type: {event.type}")
+            return Response(status=status.HTTP_200_OK)
 
         return Response(status=status.HTTP_200_OK)
-
-    def get_permissions(self):
-        if self.action in ["update", "partial_update", "destroy"]:
-            self.permission_classes += [IsPaymentPending]
-        return super().get_permissions()
-
-    def handle_checkout_session_completed(self, session):
-        """Maneja el evento checkout.session.completed"""
-        try:
-            payment_id = session.metadata.get("payment_id")
-            payment = Payment.objects.get(id=payment_id)
-            payment.status = payment.COMPLETED
-            payment.save()
-
-            order_id = session.metadata.get("order_id")
-            order = Order.objects.get(id=order_id)
-            order.status = "C"  # Completada
-            order.save()
-
-            # Limpiar el carrito después del pago exitoso
-            cart = Cart.objects.filter(user=payment.order.user).first()
-            if cart:
-                cart.items.all().delete()
-
-            logger.info(f"Checkout session completed for payment {payment_id}")
-
-        except Payment.DoesNotExist:
-            logger.error(f"Payment with id {payment_id} not found")
-        except Order.DoesNotExist:
-            logger.error(f"Order with id {order_id} not found")
-        except Exception as e:
-            logger.error(f"Error handling checkout.session.completed: {str(e)}")
-
-    def handle_payment_intent_succeeded(self, payment_intent):
-        """Maneja el evento payment_intent.succeeded"""
-        try:
-            payment_id = payment_intent.metadata.get("payment_id")
-            payment = Payment.objects.get(id=payment_id)
-            payment.status = Payment.COMPLETED
-            payment.save()
-
-            order_id = payment_intent.metadata.get("order_id")
-            order = Order.objects.get(id=order_id)
-            order.status = "C"  # Completada
-            order.save()
-
-            # Limpiar el carrito después del pago exitoso
-            cart = Cart.objects.filter(user=payment.order.user).first()
-            if cart:
-                cart.items.all().delete()
-
-            logger.info(f"Payment intent succeeded for payment {payment_id}")
-
-        except Payment.DoesNotExist:
-            logger.error(f"Payment with id {payment_id} not found")
-        except Order.DoesNotExist:
-            logger.error(f"Order with id {order_id} not found")
-        except Exception as e:
-            logger.error(f"Error handling payment_intent.succeeded: {str(e)}")
-
-    def handle_payment_intent_payment_failed(self, payment_intent):
-        """Maneja el evento payment_intent.payment_failed"""
-        try:
-            payment_id = payment_intent.metadata.get("payment_id")
-            payment = Payment.objects.get(id=payment_id)
-            payment.status = Payment.FAILED
-            payment.save()
-
-            order_id = payment_intent.metadata.get("order_id")
-            order = Order.objects.get(id=order_id)
-            order.status = "F"  # Fallida
-            order.save()
-
-            logger.warning(f"Payment intent failed for payment {payment_id}")
-
-        except Payment.DoesNotExist:
-            logger.error(f"Payment with id {payment_id} not found")
-        except Order.DoesNotExist:
-            logger.error(f"Order with id {order_id} not found")
-        except Exception as e:
-            logger.error(f"Error handling payment_intent.payment_failed: {str(e)}")
 
     @action(detail=False, methods=["GET"])
     def calculate_total(self, request):

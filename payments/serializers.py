@@ -16,42 +16,48 @@ class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment
         fields = [
-            'id',
-            'status',
-            'payment_option',
-            'order',
-            'amount',
-            'created_at',
-            'updated_at'
+            "id",
+            "buyer",
+            "status",
+            "payment_option",
+            "order",
+            "amount",
+            "created_at",
+            "updated_at",
         ]
-        read_only_fields = ['status', 'stripe_session_id']
+        read_only_fields = ["status", "stripe_session_id"]
+
 
 class PaymentTotalSerializer(serializers.Serializer):
     """Serializador para el cálculo de totales"""
+
     shipping_id = serializers.UUIDField(required=True)
     subtotal = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
-    shipping_cost = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    shipping_cost = serializers.DecimalField(
+        max_digits=10, decimal_places=2, read_only=True
+    )
     discount = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
-    total_amount = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    total_amount = serializers.DecimalField(
+        max_digits=10, decimal_places=2, read_only=True
+    )
     currency = serializers.CharField(read_only=True)
+
 
 class CheckoutSessionSerializer(serializers.Serializer):
     """Serializador para crear sesión de checkout"""
+
     shipping_id = serializers.UUIDField(required=True)
     payment_option = serializers.ChoiceField(
-        choices=Payment.PAYMENT_CHOICES,
-        required=True
+        choices=Payment.PAYMENT_CHOICES, required=True
     )
+
 
 class PaymentVerificationSerializer(serializers.Serializer):
     """Serializador para verificación de pagos"""
-    status = serializers.ChoiceField(
-        choices=Payment.STATUS_CHOICES,
-        read_only=True
-    )
+
+    status = serializers.ChoiceField(choices=Payment.STATUS_CHOICES, read_only=True)
     payment_option = serializers.ChoiceField(
-        choices=Payment.PAYMENT_CHOICES,
-        read_only=True
+        choices=Payment.PAYMENT_CHOICES, read_only=True
     )
 
 

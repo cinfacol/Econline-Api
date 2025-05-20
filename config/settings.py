@@ -489,7 +489,6 @@ CELERY_BROKER_URL = env(
 CELERY_RESULT_BACKEND = env(
     "CELERY_BACKEND", default=f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB_CELERY}"
 )
-CELERY_TIMEZONE = "America/Bogota"
 
 CELERY_BEAT_SCHEDULE = {
     "sample_task": {
