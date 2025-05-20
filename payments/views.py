@@ -10,10 +10,11 @@ from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 from orders.models import Order
 from shipping.models import Shipping
-from .models import Payment
+from .models import Payment, Subscription
 from cart.models import Cart
 from .serializers import (
     PaymentSerializer,
+    SubscriptionSerializer,
     CheckoutSerializer,
     PaymentTotalSerializer,
     CheckoutSessionSerializer,
@@ -29,6 +30,10 @@ from .tasks import (
     handle_checkout_session_completed_task,
     handle_payment_intent_succeeded_task,
     handle_payment_intent_payment_failed_task,
+    handle_refund_succeeded_task,
+    handle_subscription_created_task,
+    handle_subscription_updated_task,
+    handle_subscription_deleted_task,
 )
 import logging
 from config.celery import app as celery_app
@@ -44,40 +49,88 @@ class PaymentViewSet(viewsets.ModelViewSet):
     serializer_class = PaymentSerializer
     permission_classes = [permissions.IsAuthenticated, IsPaymentByUser]
 
-    @action(detail=False, methods=["POST"], permission_classes=[permissions.AllowAny])
+    @action(detail=False, methods=["POST"])
     def stripe_webhook(self, request):
-        """
-        Endpoint para recibir los webhooks de Stripe.
-        """
-        payload = request.body
-        sig_header = request.META.get("HTTP_STRIPE_SIGNATURE")
-        event = None
+        """Manejador de webhooks mejorado"""
+        WEBHOOK_HANDLERS = {
+            "checkout.session.completed": handle_checkout_session_completed_task,
+            "payment_intent.succeeded": handle_payment_intent_succeeded_task,
+            "payment_intent.payment_failed": handle_payment_intent_payment_failed_task,
+            "charge.refunded": handle_refund_succeeded_task,
+            "customer.subscription.created": handle_subscription_created_task,
+            "customer.subscription.updated": handle_subscription_updated_task,
+            "customer.subscription.deleted": handle_subscription_deleted_task,
+        }
 
         try:
             event = stripe.Webhook.construct_event(
-                payload, sig_header, settings.STRIPE_WEBHOOK_SECRET
+                request.body,
+                request.META.get("HTTP_STRIPE_SIGNATURE"),
+                settings.STRIPE_WEBHOOK_SECRET,
             )
-        except ValueError as e:
-            return Response(status=status.HTTP_400_BAD_REQUEST)
-        except stripe.error.SignatureVerificationError as e:
-            return Response(status=status.HTTP_400_BAD_REQUEST)
 
-        logger.info(f"Received Stripe webhook event: {event.type}")
+            handler = WEBHOOK_HANDLERS.get(event.type)
+            if handler:
+                handler.delay(event.data.object)
 
-        if event.type == "checkout.session.completed":
-            session = event.data.object
-            handle_checkout_session_completed_task.delay(session)
-        elif event.type == "payment_intent.succeeded":
-            payment_intent = event.data.object
-            handle_payment_intent_succeeded_task.delay(payment_intent)
-        elif event.type == "payment_intent.payment_failed":
-            payment_intent = event.data.object
-            handle_payment_intent_payment_failed_task.delay(payment_intent)
-        else:
-            logger.warning(f"Unhandled webhook event type: {event.type}")
             return Response(status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error(f"Webhook error: {str(e)}")
+            return Response(
+                {"error": "Error procesando webhook"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        return Response(status=status.HTTP_200_OK)
+    @action(detail=False, methods=["GET"])
+    def payment_methods(self, request):
+        """Obtiene los métodos de pago guardados del cliente"""
+        try:
+            customer = stripe.Customer.retrieve(request.user.stripe_customer_id)
+            payment_methods = stripe.PaymentMethod.list(
+                customer=customer.id, type="card"
+            )
+            return Response(payment_methods.data)
+        except Exception as e:
+            logger.error(f"Error retrieving payment methods: {str(e)}")
+            return Response(
+                {"error": "Error al obtener métodos de pago"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    @action(detail=False, methods=["POST"])
+    def attach_payment_method(self, request):
+        """Añade un nuevo método de pago al cliente"""
+        try:
+            payment_method = stripe.PaymentMethod.attach(
+                request.data["payment_method_id"],
+                customer=request.user.stripe_customer_id,
+            )
+            return Response(payment_method)
+        except Exception as e:
+            logger.error(f"Error attaching payment method: {str(e)}")
+            return Response(
+                {"error": "Error al añadir método de pago"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    @action(detail=True, methods=["POST"])
+    def refund(self, request, id=None):
+        """Procesa el reembolso de un pago"""
+        try:
+            payment = self.get_object()
+            refund = stripe.Refund.create(
+                payment_intent=payment.stripe_payment_intent,
+                reason=request.data.get("reason", "requested_by_customer"),
+            )
+            payment.status = Payment.PaymentStatus.REFUNDED
+            payment.save()
+            return Response(refund)
+        except Exception as e:
+            logger.error(f"Error processing refund: {str(e)}")
+            return Response(
+                {"error": "Error al procesar reembolso"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
     @action(detail=False, methods=["GET"])
     def calculate_total(self, request):
@@ -430,9 +483,9 @@ class PaymentViewSet(viewsets.ModelViewSet):
             {"status": payment.status, "payment_option": payment.payment_option}
         )
 
-    @action(detail=False, methods=["get"])
+    """ @action(detail=False, methods=["get"])
     def client_token(self, request):
-        """Genera un token para el cliente de Stripe"""
+        # Genera un token para el cliente de Stripe
         try:
             # Aquí implementa la lógica para generar el token del cliente
             # usando tu proveedor de pagos (Stripe, PayPal, etc.)
@@ -447,7 +500,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
             return Response(
                 {"error": "Error al calcular el total."},
                 status=status.HTTP_400_BAD_REQUEST,
-            )
+            ) """
 
     @action(detail=True, methods=["post"])
     def retry_payment(self, request, id=None):
@@ -506,3 +559,89 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 {"error": "Error al calcular el total."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+    @action(detail=False, methods=["POST"])
+    def create_subscription(self, request):
+        """Crea una nueva suscripción"""
+        try:
+            # Verificar si ya existe una suscripción activa
+            active_subscription = Subscription.objects.filter(
+                user=request.user, status=Subscription.SubscriptionStatus.ACTIVE
+            ).first()
+
+            if active_subscription:
+                return Response(
+                    {"error": "Ya tienes una suscripción activa"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Crear o recuperar el cliente de Stripe
+            if not request.user.stripe_customer_id:
+                customer = stripe.Customer.create(
+                    email=request.user.email, source=request.data.get("token")
+                )
+                request.user.stripe_customer_id = customer.id
+                request.user.save()
+
+            # Crear la suscripción en Stripe
+            stripe_subscription = stripe.Subscription.create(
+                customer=request.user.stripe_customer_id,
+                items=[{"price": request.data.get("price_id")}],
+                expand=["latest_invoice.payment_intent"],
+            )
+
+            # Crear la suscripción en nuestra base de datos
+            subscription = Subscription.objects.create(
+                user=request.user,
+                stripe_subscription_id=stripe_subscription.id,
+                stripe_customer_id=request.user.stripe_customer_id,
+                stripe_price_id=request.data.get("price_id"),
+                status=stripe_subscription.status.upper(),
+                current_period_start=timezone.datetime.fromtimestamp(
+                    stripe_subscription.current_period_start
+                ),
+                current_period_end=timezone.datetime.fromtimestamp(
+                    stripe_subscription.current_period_end
+                ),
+            )
+
+            return Response(SubscriptionSerializer(subscription).data)
+
+        except stripe.error.StripeError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=["GET"])
+    def current_subscription(self, request):
+        """Obtiene la suscripción actual del usuario"""
+        subscription = Subscription.objects.filter(
+            user=request.user, status=Subscription.SubscriptionStatus.ACTIVE
+        ).first()
+
+        if not subscription:
+            return Response(
+                {"error": "No tienes una suscripción activa"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        return Response(SubscriptionSerializer(subscription).data)
+
+    @action(detail=True, methods=["POST"])
+    def cancel_subscription(self, request, id=None):
+        """Cancela una suscripción"""
+        try:
+            subscription = get_object_or_404(Subscription, id=id, user=request.user)
+
+            # Cancelar en Stripe
+            stripe_subscription = stripe.Subscription.modify(
+                subscription.stripe_subscription_id, cancel_at_period_end=True
+            )
+
+            # Actualizar en nuestra base de datos
+            subscription.cancel_at_period_end = True
+            subscription.canceled_at = timezone.now()
+            subscription.save()
+
+            return Response(SubscriptionSerializer(subscription).data)
+
+        except stripe.error.StripeError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)

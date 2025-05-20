@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from orders.models import Order
-from payments.models import Payment
+from .models import Payment, Subscription
 from users.models import Address
 from users.serializers import AddressSerializer
 
@@ -137,3 +137,19 @@ class CheckoutSerializer(serializers.ModelSerializer):
         instance.save()
 
         return instance
+
+
+class SubscriptionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Subscription
+        fields = [
+            "id",
+            "status",
+            "current_period_start",
+            "current_period_end",
+            "cancel_at_period_end",
+            "trial_end",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = fields

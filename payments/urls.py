@@ -34,8 +34,33 @@ urlpatterns = [
         name="stripe-webhook",
     ),
     path(
-        "client-token/",
-        PaymentViewSet.as_view({"get": "client_token"}),
-        name="client-token",
+        "payment-methods/",
+        PaymentViewSet.as_view({"get": "payment_methods"}),
+        name="payment-methods",
+    ),
+    path(
+        "payment-methods/attach/",
+        PaymentViewSet.as_view({"post": "attach_payment_method"}),
+        name="attach-payment-method",
+    ),
+    path(
+        "<uuid:id>/refund/",
+        PaymentViewSet.as_view({"post": "refund"}),
+        name="refund-payment",
+    ),
+    path(
+        "subscriptions/create/",
+        PaymentViewSet.as_view({"post": "create_subscription"}),
+        name="create-subscription",
+    ),
+    path(
+        "subscriptions/current/",
+        PaymentViewSet.as_view({"get": "current_subscription"}),
+        name="current-subscription",
+    ),
+    path(
+        "subscriptions/<uuid:id>/cancel/",
+        PaymentViewSet.as_view({"post": "cancel_subscription"}),
+        name="cancel-subscription",
     ),
 ] + router.urls
