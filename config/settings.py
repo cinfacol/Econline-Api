@@ -121,6 +121,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "social_django.middleware.SocialAuthExceptionMiddleware",
+    "users.middleware.SecurityHeadersMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -569,9 +570,3 @@ LOGIN_ATTEMPT_TIMEOUT = env.int(
 # Configuración adicional de seguridad recomendada
 ACCOUNT_LOGIN_ATTEMPTS_LIMIT = MAX_LOGIN_ATTEMPTS
 ACCOUNT_LOGIN_ATTEMPTS_TIMEOUT = LOGIN_ATTEMPT_TIMEOUT
-
-
-# Agregar middleware de seguridad
-MIDDLEWARE += [
-    "users.middleware.SecurityHeadersMiddleware",
-]
