@@ -31,12 +31,21 @@ def send_payment_success_email_task(email_address):
         )
 
 
-@shared_task
+@shared_task(
+    name="payments.tasks.handle_checkout_session_completed_task",
+    autoretry_for=(Exception,),
+    max_retries=3,
+    default_retry_delay=60,
+)
 def handle_checkout_session_completed_task(session_data):
     """Maneja el evento checkout.session.completed de forma asíncrona"""
     try:
         payment_id = session_data.get("metadata", {}).get("payment_id")
-        payment = Payment.objects.get(id=payment_id)
+        if not payment_id:
+            logger.error("No payment_id found in session metadata")
+            return
+
+        payment = Payment.objects.select_related("order").get(id=payment_id)
         payment.status = Payment.PaymentStatus.COMPLETED
         payment.save()
 
@@ -44,6 +53,15 @@ def handle_checkout_session_completed_task(session_data):
         order = Order.objects.get(id=order_id)
         order.status = Order.OrderStatus.COMPLETED
         order.save()
+
+        logger.info(
+            f"Checkout session completed for payment {payment_id}",
+            extra={
+                "payment_id": payment_id,
+                "order_id": order.id,
+                "session_id": session_data.get("id"),
+            },
+        )
 
         # Limpiar el carrito después del pago exitoso
         cart = Cart.objects.filter(user=payment.order.user).first()
@@ -57,7 +75,10 @@ def handle_checkout_session_completed_task(session_data):
     except Order.DoesNotExist:
         logger.error(f"Order with id {order_id} not found")
     except Exception as e:
-        logger.error(f"Error handling checkout.session.completed: {str(e)}")
+        logger.error(
+            f"Error handling checkout.session.completed: {str(e)}", exc_info=True
+        )
+    raise
 
 
 @shared_task

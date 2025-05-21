@@ -63,22 +63,68 @@ class PaymentViewSet(viewsets.ModelViewSet):
         }
 
         try:
-            event = stripe.Webhook.construct_event(
-                request.body,
-                request.META.get("HTTP_STRIPE_SIGNATURE"),
-                settings.STRIPE_WEBHOOK_SECRET,
+            sig_header = request.META.get("HTTP_STRIPE_SIGNATURE")
+            if not sig_header:
+                logger.error("No se encontró la firma de Stripe en los headers")
+                return Response(
+                    {"error": "No Stripe signature found in headers"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            logger.debug("Headers recibidos:")
+            for key, value in request.META.items():
+                if key.startswith("HTTP_"):
+                    logger.debug(f"{key}: {value}")
+
+            logger.debug(f"Payload recibido: {request.body.decode('utf-8')}")
+            logger.debug(f"Stripe-Signature: {sig_header}")
+            logger.debug(
+                f"Webhook Secret configurado: {settings.STRIPE_WEBHOOK_SECRET[:5]}..."
             )
+
+            try:
+                event = stripe.Webhook.construct_event(
+                    payload=request.body,
+                    sig_header=sig_header,
+                    secret=settings.STRIPE_WEBHOOK_SECRET,
+                )
+            except ValueError as e:
+                logger.error(f"Error al parsear el payload: {str(e)}")
+                return Response(
+                    {"error": "Invalid payload format"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            except stripe.error.SignatureVerificationError as e:
+                logger.error(
+                    "Error de verificación de firma. Detalles:\n"
+                    f"Signature Header: {sig_header}\n"
+                    f"Error: {str(e)}"
+                )
+                return Response(
+                    {"error": "Invalid signature"}, status=status.HTTP_400_BAD_REQUEST
+                )
 
             handler = WEBHOOK_HANDLERS.get(event.type)
             if handler:
                 handler.delay(event.data.object)
+                logger.info(f"Webhook procesado exitosamente: {event.type}")
+                return Response({"status": "success"}, status=status.HTTP_200_OK)
+            else:
+                logger.warning(f"Evento no manejado: {event.type}")
+                return Response({"status": "ignored"}, status=status.HTTP_200_OK)
 
-            return Response(status=status.HTTP_200_OK)
         except Exception as e:
-            logger.error(f"Webhook error: {str(e)}")
+            logger.error(
+                "Error inesperado en webhook:",
+                exc_info=True,
+                extra={
+                    "headers": request.META,
+                    "body_preview": request.body[:100] if request.body else None,
+                },
+            )
             return Response(
-                {"error": "Error procesando webhook"},
-                status=status.HTTP_400_BAD_REQUEST,
+                {"error": "Error interno procesando webhook"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     @action(detail=False, methods=["GET"])
