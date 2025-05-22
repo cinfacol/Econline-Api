@@ -5,11 +5,17 @@ services:
             dockerfile: ./docker/local/django/Dockerfile
         container_name: django_api
         command: /start
+        environment:
+            - REDIS_HOST=redis
+            - REDIS_PORT=6379
+            - TZ=America/Bogota
         volumes:
             - .:/app
             - static_volume:/app/staticfiles
             - media_volume:/app/mediafiles
             - redis_volume:/data
+            - /etc/timezone:/etc/timezone:ro
+            - /etc/localtime:/etc/localtime:ro
         expose:
             - "8000"
         env_file:
@@ -19,9 +25,6 @@ services:
                 condition: service_healthy
             redis:
                 condition: service_healthy
-        environment:
-            - REDIS_HOST=redis
-            - REDIS_PORT=6379
         networks:
             - frontend
         healthcheck:
@@ -42,12 +45,15 @@ services:
         container_name: postgres_db
         ports:
             - "5432:5432"
-        volumes:
-            - postgres_data:/var/lib/postgresql/data/
         environment:
             - POSTGRES_USER=${POSTGRES_USER}
             - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
             - POSTGRES_DB=${POSTGRES_DB}
+            - TZ=America/Bogota
+        volumes:
+            - postgres_data:/var/lib/postgresql/data/
+            - /etc/timezone:/etc/timezone:ro
+            - /etc/localtime:/etc/localtime:ro
         networks:
             - frontend
         healthcheck:
@@ -67,8 +73,12 @@ services:
         container_name: redis
         ports:
             - "6379:6379"
+        environment:
+            - TZ=America/Bogota
         volumes:
             - redis_volume:/data
+            - /etc/timezone:/etc/timezone:ro
+            - /etc/localtime:/etc/localtime:ro
         command: redis-server --appendonly yes  # Para persistencia
         healthcheck:
             test: ["CMD", "redis-cli", "ping"]
@@ -84,8 +94,12 @@ services:
             dockerfile: ./docker/local/django/Dockerfile
         container_name: celery_worker
         command: /start-celery_worker
+        environment:
+            - TZ=America/Bogota
         volumes:
             - .:/app
+            - /etc/timezone:/etc/timezone:ro
+            - /etc/localtime:/etc/localtime:ro
         env_file:
             - .env
         depends_on:
@@ -111,8 +125,23 @@ services:
             dockerfile: ./docker/local/django/Dockerfile
         container_name: flower
         command: /start-flower
+        environment:
+            - TZ=America/Bogota
         volumes:
             - .:/app
+            - /etc/timezone:/etc/timezone:ro
+            - /etc/localtime:/etc/localtime:ro
+        healthcheck:
+            test: ["CMD-SHELL", "curl -f http://localhost:5555 || exit 1"]
+            interval: 10s
+            timeout: 5s
+            retries: 3
+        restart: unless-stopped
+        logging:
+            driver: "json-file"
+            options:
+                max-size: "10m"
+                max-file: "3"
         env_file:
             - .env
         ports:
@@ -127,9 +156,13 @@ services:
         depends_on:
             - api
         container_name: nginx
+        environment:
+            - TZ=America/Bogota
         volumes:
             - static_volume:/app/staticfiles
             - media_volume:/app/mediafiles
+            - /etc/timezone:/etc/timezone:ro
+            - /etc/localtime:/etc/localtime:ro
         build:
             context: ./docker/local/nginx
             dockerfile: Dockerfile
