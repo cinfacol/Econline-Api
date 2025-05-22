@@ -34,6 +34,9 @@ makemigrations:
 superuser:
 	docker compose exec api python3 manage.py createsuperuser
 
+sync-stripe-customers:
+	docker compose exec api python3 manage.py sync_stripe_customers
+
 collectstatic:
 	docker compose exec api python3 manage.py collectstatic --no-input --clear
 

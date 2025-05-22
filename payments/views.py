@@ -131,11 +131,36 @@ class PaymentViewSet(viewsets.ModelViewSet):
     def payment_methods(self, request):
         """Obtiene los métodos de pago guardados del cliente"""
         try:
-            customer = stripe.Customer.retrieve(request.user.stripe_customer_id)
+            customer_id = request.user.get_or_create_stripe_customer()
             payment_methods = stripe.PaymentMethod.list(
-                customer=customer.id, type="card"
+                customer=customer_id, type="card"
             )
-            return Response(payment_methods.data)
+
+            formatted_methods = [
+                {
+                    "id": pm.id,
+                    "brand": pm.card.brand,
+                    "last4": pm.card.last4,
+                    "exp_month": pm.card.exp_month,
+                    "exp_year": pm.card.exp_year,
+                    "is_default": pm.metadata.get("is_default", False),
+                }
+                for pm in payment_methods.data
+            ]
+
+            return Response(
+                {
+                    "payment_methods": formatted_methods,
+                    "has_payment_methods": bool(formatted_methods),
+                }
+            )
+
+        except stripe.error.StripeError as e:
+            logger.error(f"Stripe error retrieving payment methods: {str(e)}")
+            return Response(
+                {"error": "Error al comunicarse con Stripe"},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
         except Exception as e:
             logger.error(f"Error retrieving payment methods: {str(e)}")
             return Response(

@@ -9,7 +9,7 @@ from common.models import TimeStampedUUIDModel
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-from .managers import CustomUserManager
+from .management.managers import CustomUserManager
 
 
 class User(AbstractBaseUser, PermissionsMixin):
@@ -22,6 +22,13 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_staff = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     date_joined = models.DateTimeField(default=timezone.now)
+    stripe_customer_id = models.CharField(
+        verbose_name=_("Stripe Customer ID"),
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text=_("Customer ID from Stripe payment system"),
+    )
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["username", "first_name", "last_name"]
@@ -41,6 +48,35 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def get_short_name(self):
         return self.username
+
+    def get_or_create_stripe_customer(self):
+        """
+        Obtiene o crea un customer_id de Stripe para el usuario.
+        Returns:
+            str: El ID del cliente en Stripe
+        """
+        if not self.stripe_customer_id:
+            try:
+                import stripe
+                from django.conf import settings
+
+                stripe.api_key = settings.STRIPE_SECRET_KEY
+                customer = stripe.Customer.create(
+                    email=self.email,
+                    name=self.get_full_name,
+                    metadata={"user_id": str(self.id), "username": self.username},
+                )
+                self.stripe_customer_id = customer.id
+                self.save(update_fields=["stripe_customer_id"])
+
+            except Exception as e:
+                from django.core.exceptions import ValidationError
+
+                raise ValidationError(
+                    _("Could not create Stripe customer: %(error)s") % {"error": str(e)}
+                )
+
+        return self.stripe_customer_id
 
 
 class Address(TimeStampedUUIDModel):
