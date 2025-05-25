@@ -7,25 +7,43 @@ from users.serializers import AddressSerializer
 
 
 class PaymentSerializer(serializers.ModelSerializer):
-    """
-    Serializer to CRUD payments for an order.
-    """
-
-    buyer = serializers.CharField(source="order.user.get_full_name", read_only=True)
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+    payment_option_display = serializers.CharField(
+        source="get_payment_option_display", read_only=True
+    )
+    user = serializers.HiddenField(default=serializers.CurrentUserDefault())
 
     class Meta:
         model = Payment
         fields = [
             "id",
-            "buyer",
-            "status",
-            "payment_option",
             "order",
+            "user",
+            "status",
+            "status_display",
+            "payment_option",
+            "payment_option_display",
             "amount",
+            "currency",
+            "paid_at",
+            "stripe_session_id",
+            "stripe_payment_intent_id",
+            "paypal_transaction_id",
+            "external_reference",
+            "tax_amount",
+            "discount_amount",
+            "error_message",
+            "metadata",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["status", "stripe_session_id"]
+        read_only_fields = [
+            "id",
+            "created_at",
+            "updated_at",
+            "status_display",
+            "payment_option_display",
+        ]
 
 
 class PaymentTotalSerializer(serializers.Serializer):
@@ -48,16 +66,23 @@ class CheckoutSessionSerializer(serializers.Serializer):
 
     shipping_id = serializers.UUIDField(required=True)
     payment_option = serializers.ChoiceField(
-        choices=Payment.PAYMENT_CHOICES, required=True
+        choices=Payment.PaymentMethod.choices,
+        required=True,
+        error_messages={
+            "required": "Por favor selecciona un método de pago.",
+            "invalid_choice": "Método de pago no válido.",
+        },
     )
 
 
 class PaymentVerificationSerializer(serializers.Serializer):
     """Serializador para verificación de pagos"""
 
-    status = serializers.ChoiceField(choices=Payment.STATUS_CHOICES, read_only=True)
+    status = serializers.ChoiceField(
+        choices=Payment.PaymentStatus.choices, read_only=True
+    )
     payment_option = serializers.ChoiceField(
-        choices=Payment.PAYMENT_CHOICES, read_only=True
+        choices=Payment.PaymentMethod.choices, read_only=True
     )
 
 
@@ -100,41 +125,35 @@ class CheckoutSerializer(serializers.ModelSerializer):
         )
 
     def update(self, instance, validated_data):
-        order_address = None
-        order_billing_address = None
-        order_payment = None
+        address_data = validated_data.pop("address", None)
+        payment_data = validated_data.pop("payment", None)
 
-        address = validated_data["address"]
+        # Update order fields
+        instance = super().update(instance, validated_data)
 
-        # Shipping address for an order is not set
-        if not instance.address:
-            order_address = Address(**address)
-            order_address.save()
-        else:
-            # Shipping address for an order is already set so update its value
-            address = Address.objects.filter(shipping_orders=instance.id)
-            address.update(**address)
+        # Update or create address
+        if address_data:
+            address, created = Address.objects.get_or_create(
+                shipping_orders=instance, defaults=address_data
+            )
+            if not created:
+                for key, value in address_data.items():
+                    setattr(address, key, value)
+                address.save()
+            instance.address = address
+            instance.save()
 
-            order_address = address.first()
-
-        payment = validated_data["payment"]
-
-        # Payment option is not set for an order
-        if not instance.payment:
-            order_payment = Payment(**payment, order=instance)
-            order_payment.save()
-
-        else:
-            # Payment option is set so update its value
-            p = Payment.objects.filter(order=instance)
-            p.update(**payment)
-
-            order_payment = p.first()
-
-        # Update order
-        instance.address = order_address
-        instance.payment = order_payment
-        instance.save()
+        # Update or create payment
+        if payment_data:
+            payment, created = Payment.objects.get_or_create(
+                order=instance, defaults=payment_data
+            )
+            if not created:
+                for key, value in payment_data.items():
+                    setattr(payment, key, value)
+                payment.save()
+            instance.payment = payment
+            instance.save()
 
         return instance
 

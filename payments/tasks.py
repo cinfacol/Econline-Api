@@ -14,21 +14,32 @@ logger = logging.getLogger(__name__)
 
 
 @shared_task()
-def send_payment_success_email_task(email_address):
-    """
-    Celery task to send an email when payment is successfull
-    """
+def send_payment_success_email_task(email_address, subject=None, message=None):
+    if not email_address:
+        logger.error("No email address provided for payment success email.")
+        return False
+
+    subject = subject or _("Payment Successful")
+    message = message or _("Thank you for purchasing our product!")
+
     try:
         send_mail(
-            subject=_("Payment Successful"),
-            message=_("Thank you for purchasing our product!"),
+            subject=subject,
+            message=message,
             recipient_list=[email_address],
-            from_email=settings.EMAIL_HOST_USER,
+            from_email=settings.DEFAULT_FROM_EMAIL,
         )
+        logger.info(
+            f"Payment success email sent to {email_address}",
+            extra={"email": email_address},
+        )
+        return True
     except Exception as e:
         logger.error(
-            f"Error sending payment success email to {email_address}: {str(e)}"
+            f"Error sending payment success email to {email_address}: {str(e)}",
+            extra={"email": email_address, "error": str(e)},
         )
+        return False
 
 
 @shared_task(
@@ -38,19 +49,34 @@ def send_payment_success_email_task(email_address):
     default_retry_delay=60,
 )
 def handle_checkout_session_completed_task(session_data):
-    """Maneja el evento checkout.session.completed de forma asíncrona"""
-    try:
-        payment_id = session_data.get("metadata", {}).get("payment_id")
-        if not payment_id:
-            logger.error("No payment_id found in session metadata")
-            return
+    payment_id = session_data.get("metadata", {}).get("payment_id")
+    order_id = session_data.get("metadata", {}).get("order_id")
+    session_id = session_data.get("id")
 
+    if not payment_id:
+        logger.error("No payment_id found in session metadata")
+        return
+
+    if not order_id:
+        logger.error("No order_id found in session metadata")
+        return
+
+    try:
         payment = Payment.objects.select_related("order").get(id=payment_id)
+    except Payment.DoesNotExist:
+        logger.error(f"Payment with id {payment_id} not found")
+        return
+
+    try:
+        order = Order.objects.get(id=order_id)
+    except Order.DoesNotExist:
+        logger.error(f"Order with id {order_id} not found")
+        return
+
+    try:
         payment.status = Payment.PaymentStatus.COMPLETED
         payment.save()
 
-        order_id = session_data.get("metadata", {}).get("order_id")
-        order = Order.objects.get(id=order_id)
         order.status = Order.OrderStatus.COMPLETED
         order.save()
 
@@ -59,7 +85,7 @@ def handle_checkout_session_completed_task(session_data):
             extra={
                 "payment_id": payment_id,
                 "order_id": order.id,
-                "session_id": session_data.get("id"),
+                "session_id": session_id,
             },
         )
 
@@ -68,30 +94,54 @@ def handle_checkout_session_completed_task(session_data):
         if cart:
             cart.items.all().delete()
 
+        # Enviar email de éxito de pago
+        if payment.order.user and payment.order.user.email:
+            send_payment_success_email_task.delay(payment.order.user.email)
+
         logger.info(f"Checkout session completed for payment {payment_id}")
 
-    except Payment.DoesNotExist:
-        logger.error(f"Payment with id {payment_id} not found")
-    except Order.DoesNotExist:
-        logger.error(f"Order with id {order_id} not found")
     except Exception as e:
         logger.error(
-            f"Error handling checkout.session.completed: {str(e)}", exc_info=True
+            f"Error handling checkout.session.completed: {str(e)}",
+            exc_info=True,
+            extra={
+                "payment_id": payment_id,
+                "order_id": order_id,
+                "session_id": session_id,
+            },
         )
-    raise
+        raise
 
 
 @shared_task
 def handle_payment_intent_succeeded_task(payment_intent_data):
-    """Maneja el evento payment_intent.succeeded de forma asíncrona"""
+    payment_id = payment_intent_data.get("metadata", {}).get("payment_id")
+    order_id = payment_intent_data.get("metadata", {}).get("order_id")
+
+    if not payment_id:
+        logger.error("No payment_id found in payment_intent metadata")
+        return
+
+    if not order_id:
+        logger.error("No order_id found in payment_intent metadata")
+        return
+
     try:
-        payment_id = payment_intent_data.get("metadata", {}).get("payment_id")
         payment = Payment.objects.get(id=payment_id)
+    except Payment.DoesNotExist:
+        logger.error(f"Payment with id {payment_id} not found")
+        return
+
+    try:
+        order = Order.objects.get(id=order_id)
+    except Order.DoesNotExist:
+        logger.error(f"Order with id {order_id} not found")
+        return
+
+    try:
         payment.status = Payment.PaymentStatus.COMPLETED
         payment.save()
 
-        order_id = payment_intent_data.get("metadata", {}).get("order_id")
-        order = Order.objects.get(id=order_id)
         order.status = Order.OrderStatus.COMPLETED
         order.save()
 
@@ -100,45 +150,84 @@ def handle_payment_intent_succeeded_task(payment_intent_data):
         if cart:
             cart.items.all().delete()
 
-        logger.info(f"Payment intent succeeded for payment {payment_id}")
+        # Enviar email de éxito de pago
+        if payment.order.user and payment.order.user.email:
+            send_payment_success_email_task.delay(payment.order.user.email)
 
-    except Payment.DoesNotExist:
-        logger.error(f"Payment with id {payment_id} not found")
-    except Order.DoesNotExist:
-        logger.error(f"Order with id {order_id} not found")
+        logger.info(
+            f"Payment intent succeeded for payment {payment_id}",
+            extra={
+                "payment_id": payment_id,
+                "order_id": order_id,
+            },
+        )
+
     except Exception as e:
-        logger.error(f"Error handling payment_intent.succeeded: {str(e)}")
+        logger.error(
+            f"Error handling payment_intent.succeeded: {str(e)}",
+            exc_info=True,
+            extra={
+                "payment_id": payment_id,
+                "order_id": order_id,
+            },
+        )
+        raise
 
 
 @shared_task
 def handle_payment_intent_payment_failed_task(payment_intent_data):
-    """Maneja el evento payment_intent.payment_failed de forma asíncrona"""
+    payment_id = payment_intent_data.get("metadata", {}).get("payment_id")
+    order_id = payment_intent_data.get("metadata", {}).get("order_id")
+
+    if not payment_id:
+        logger.error("No payment_id found in payment_intent metadata")
+        return
+
+    if not order_id:
+        logger.error("No order_id found in payment_intent metadata")
+        return
+
     try:
-        payment_id = payment_intent_data.get("metadata", {}).get("payment_id")
         payment = Payment.objects.get(id=payment_id)
+    except Payment.DoesNotExist:
+        logger.error(f"Payment with id {payment_id} not found")
+        return
+
+    try:
+        order = Order.objects.get(id=order_id)
+    except Order.DoesNotExist:
+        logger.error(f"Order with id {order_id} not found")
+        return
+
+    try:
         payment.status = Payment.PaymentStatus.FAILED
         payment.save()
 
-        order_id = payment_intent_data.get("metadata", {}).get("order_id")
-        order = Order.objects.get(id=order_id)
         order.status = Order.OrderStatus.CANCELLED
         order.save()
 
-        logger.warning(f"Payment intent failed for payment {payment_id}")
+        logger.warning(
+            f"Payment intent failed for payment {payment_id}",
+            extra={
+                "payment_id": payment_id,
+                "order_id": order_id,
+            },
+        )
 
-    except Payment.DoesNotExist:
-        logger.error(f"Payment with id {payment_id} not found")
-    except Order.DoesNotExist:
-        logger.error(f"Order with id {order_id} not found")
     except Exception as e:
-        logger.error(f"Error handling payment_intent.payment_failed: {str(e)}")
+        logger.error(
+            f"Error handling payment_intent.payment_failed: {str(e)}",
+            exc_info=True,
+            extra={
+                "payment_id": payment_id,
+                "order_id": order_id,
+            },
+        )
+        raise
 
 
 @shared_task
 def handle_refund_succeeded_task(charge_data):
-    """
-    Maneja el evento de reembolso exitoso
-    """
     try:
         with transaction.atomic():
             # Obtener el ID del pago del metadata del cargo
@@ -152,7 +241,11 @@ def handle_refund_succeeded_task(charge_data):
                 logger.error("No payment_id found in refund metadata")
                 return
 
-            payment = Payment.objects.select_related("order").get(id=payment_id)
+            try:
+                payment = Payment.objects.select_related("order").get(id=payment_id)
+            except Payment.DoesNotExist:
+                logger.error(f"Payment not found for refund: {payment_id}")
+                return
 
             # Crear registro de reembolso
             refund_amount = (
@@ -172,52 +265,83 @@ def handle_refund_succeeded_task(charge_data):
             payment.save()
 
             # Actualizar estado de la orden
-            payment.order.status = Order.OrderStatus.CANCELLED
-            payment.order.save()
+            if payment.order:
+                payment.order.status = Order.OrderStatus.CANCELLED
+                payment.order.save()
 
             logger.info(f"Refund processed successfully for payment {payment_id}")
 
-    except Payment.DoesNotExist:
-        logger.error(f"Payment not found for refund: {payment_id}")
     except Exception as e:
-        logger.error(f"Error processing refund: {str(e)}")
+        logger.error(
+            f"Error processing refund: {str(e)}",
+            exc_info=True,
+            extra={"charge_data": charge_data, "error": str(e)},
+        )
+        raise
 
 
 @shared_task
-def send_subscription_welcome_email(email):
-    """Envía email de bienvenida para nuevas suscripciones"""
+def send_subscription_welcome_email(email, subject=None, message=None):
+    if not email:
+        logger.error("No email address provided for subscription welcome email.")
+        return False
+
+    subject = subject or _("¡Bienvenido a tu nueva suscripción!")
+    message = message or _("Gracias por suscribirte. Tu suscripción está activa.")
+
     try:
         send_mail(
-            subject=_("¡Bienvenido a tu nueva suscripción!"),
-            message=_("Gracias por suscribirte. Tu suscripción está activa."),
+            subject=subject,
+            message=message,
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[email],
         )
+        logger.info(
+            f"Subscription welcome email sent to {email}",
+            extra={"email": email},
+        )
+        return True
     except Exception as e:
-        logger.error(f"Error sending welcome email: {str(e)}")
+        logger.error(
+            f"Error sending welcome email to {email}: {str(e)}",
+            extra={"email": email, "error": str(e)},
+        )
+        return False
 
 
 @shared_task
 def send_subscription_canceled_email(email, end_date):
-    """Envía email de confirmación de cancelación"""
+    if not email:
+        logger.error("No email address provided for subscription cancellation email.")
+        return False
+
+    subject = _("Confirmación de cancelación de suscripción")
+    message = _(
+        "Tu suscripción ha sido cancelada. Tendrás acceso hasta {end_date}"
+    ).format(end_date=end_date)
+
     try:
         send_mail(
-            subject=_("Confirmación de cancelación de suscripción"),
-            message=_(
-                f"Tu suscripción ha sido cancelada. Tendrás acceso hasta {end_date}"
-            ),
+            subject=subject,
+            message=message,
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[email],
         )
+        logger.info(
+            f"Subscription cancellation email sent to {email}",
+            extra={"email": email, "end_date": end_date},
+        )
+        return True
     except Exception as e:
-        logger.error(f"Error sending cancellation email: {str(e)}")
+        logger.error(
+            f"Error sending cancellation email to {email}: {str(e)}",
+            extra={"email": email, "error": str(e)},
+        )
+        return False
 
 
 @shared_task
 def handle_subscription_created_task(subscription_data):
-    """
-    Maneja el evento de creación de suscripción
-    """
     try:
         with transaction.atomic():
             customer_id = subscription_data.get("customer")
@@ -248,8 +372,13 @@ def handle_subscription_created_task(subscription_data):
                 ),
             )
 
-            # Enviar email de bienvenida
-            send_subscription_welcome_email.delay(subscription.user.email)
+            # Enviar email de bienvenida solo si el usuario existe y tiene email
+            if (
+                hasattr(subscription, "user")
+                and subscription.user
+                and subscription.user.email
+            ):
+                send_subscription_welcome_email.delay(subscription.user.email)
 
             logger.info(
                 f"Subscription created: {subscription_id} for customer {customer_id}"
@@ -266,7 +395,6 @@ def handle_subscription_created_task(subscription_data):
 
 @shared_task
 def handle_subscription_updated_task(subscription_data):
-    """Maneja actualizaciones de suscripción"""
     try:
         subscription = Subscription.objects.get(
             stripe_subscription_id=subscription_data.get("id")
@@ -281,19 +409,26 @@ def handle_subscription_updated_task(subscription_data):
         )
         subscription.save()
 
-        logger.info(f"Subscription {subscription.id} updated successfully")
+        logger.info(
+            f"Subscription {subscription.id} updated successfully",
+            extra={"subscription_id": subscription.id},
+        )
 
     except Subscription.DoesNotExist:
-        logger.error(f"Subscription not found: {subscription_data.get('id')}")
+        logger.error(
+            f"Subscription not found: {subscription_data.get('id')}",
+            extra={"subscription_data": subscription_data},
+        )
     except Exception as e:
-        logger.error(f"Error updating subscription: {str(e)}")
+        logger.error(
+            f"Error updating subscription: {str(e)}",
+            extra={"subscription_data": subscription_data, "error": str(e)},
+            exc_info=True,
+        )
 
 
 @shared_task
 def handle_subscription_deleted_task(subscription_data):
-    """
-    Maneja el evento de eliminación/cancelación de suscripción.
-    """
     try:
         with transaction.atomic():
             subscription = Subscription.objects.get(
@@ -315,16 +450,21 @@ def handle_subscription_deleted_task(subscription_data):
                 },
             )
 
-            # Enviar email de confirmación de cancelación
-            send_subscription_canceled_email.delay(
-                subscription.user.email, end_date=subscription.current_period_end
-            )
+            # Enviar email de confirmación de cancelación solo si el usuario existe y tiene email
+            if (
+                hasattr(subscription, "user")
+                and subscription.user
+                and subscription.user.email
+            ):
+                send_subscription_canceled_email.delay(
+                    subscription.user.email, end_date=subscription.current_period_end
+                )
 
             logger.info(
                 f"Subscription cancelled successfully: {subscription.stripe_subscription_id}",
                 extra={
                     "subscription_id": subscription.id,
-                    "user_id": subscription.user.id,
+                    "user_id": getattr(subscription.user, "id", None),
                     "end_date": subscription.current_period_end,
                 },
             )

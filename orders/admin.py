@@ -8,12 +8,14 @@ class OrderAdmin(admin.ModelAdmin):
         return True
 
     list_display = (
+        "pk",
         "id",
         "transaction_id",
         "amount",
         "status",
     )
     list_display_links = (
+        "pk",
         "id",
         "transaction_id",
     )

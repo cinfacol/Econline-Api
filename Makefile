@@ -49,6 +49,9 @@ eline-db:
 test:
 	docker compose exec api pytest -p no:warnings --cov=.
 
+test-payments:
+	docker compose exec api python3 manage.py test payments
+
 test-html:
 	docker compose exec api pytest -p no:warnings --cov=. --cov-report html
 
