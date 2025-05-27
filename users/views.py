@@ -82,7 +82,6 @@ class CustomTokenRefreshView(TokenRefreshView):
             request.data["refresh"] = refresh_token
 
         response = super().post(request, *args, **kwargs)
-        print("response-verify", response)
 
         if response.status_code == 200:
             access_token = response.data.get("access")
@@ -178,6 +177,8 @@ class AddressDeleteView(APIView):
 class SetDefaultAddressView(APIView):
 
     def post(self, request, id, format=None):
-        Address.objects.filter(user=request.user, is_default=True).update(is_default=False)
+        Address.objects.filter(user=request.user, is_default=True).update(
+            is_default=False
+        )
         Address.objects.filter(id=id, user=request.user).update(is_default=True)
         return Response(status=status.HTTP_200_OK)

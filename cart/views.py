@@ -398,7 +398,6 @@ class SynchCartItemsView(APIView):
 
                 # Manejo seguro del cupón
                 coupon_data = item_data.get("coupon")
-                # print("coupon_data:", coupon_data)
                 coupon = None
                 if isinstance(coupon_data, dict):
                     coupon_id = coupon_data.get("id")

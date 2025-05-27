@@ -37,7 +37,6 @@ class PaymentViewSetTests(TestCase):
             secret=settings.STRIPE_WEBHOOK_SECRET,
         )
         # signature = event.signature
-        # print(f"Firma generada: {signature}")
 
         url = reverse("payments-stripe-webhook")
         response = self.client.post(

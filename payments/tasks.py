@@ -49,7 +49,10 @@ def send_payment_success_email_task(email_address, subject=None, message=None):
     default_retry_delay=60,
 )
 def handle_checkout_session_completed_task(session_data):
+    logger.info("Procesando evento checkout.session.completed")
+    logger.info(f"Datos de la sesión: {session_data}")
     payment_id = session_data.get("metadata", {}).get("payment_id")
+    logger.info(f"payment_id recibido: {payment_id}")
     order_id = session_data.get("metadata", {}).get("order_id")
     session_id = session_data.get("id")
 
@@ -74,9 +77,11 @@ def handle_checkout_session_completed_task(session_data):
         return
 
     try:
+        logger.info(f"Actualizando estado del pago {payment_id} a COMPLETED")
         payment.status = Payment.PaymentStatus.COMPLETED
         payment.save()
 
+        logger.info(f"Actualizando estado de la orden {order_id} a COMPLETED")
         order.status = Order.OrderStatus.COMPLETED
         order.save()
 

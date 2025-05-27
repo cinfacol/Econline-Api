@@ -268,7 +268,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         discount_amount=0,
         **kwargs,
     ):
-        return Payment.objects.create(
+        payment = Payment.objects.create(
             order=order,
             user=user,
             amount=total,
@@ -279,8 +279,12 @@ class PaymentViewSet(viewsets.ModelViewSet):
             discount_amount=discount_amount,
             **kwargs,
         )
+        print(f"Payment creado: {payment}, status: {payment.status}")
+        return payment
 
     def create_stripe_session(self, order, payment, user_email):
+        logger.info("Creando sesión de Stripe con los siguientes metadatos:")
+        logger.info(self._get_metadata(order, payment))
         return stripe.checkout.Session.create(
             payment_method_types=["card"],
             line_items=self._get_line_items(order),
