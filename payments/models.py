@@ -1,3 +1,4 @@
+import helpers
 from django.utils import timezone
 from django.db import models
 from django.utils.translation import gettext_lazy as _
@@ -7,6 +8,27 @@ from orders.models import Order
 from users.models import User
 
 
+class PaymentMethod(models.Model):
+    key = models.CharField(
+        max_length=10,
+        unique=True,
+        help_text="SC para Stripe Card, PP para PayPal, TR para transferencia PSE, CA para Cash",
+    )
+    label = models.CharField(
+        max_length=50,
+        help_text="Stripe Card para key SC, PayPal para key PP, Transferencia PSE para key TR, Cash para key CA",
+    )
+    icon_image = models.ImageField(
+        verbose_name=_("Icon payment image"),
+        blank=True,
+        null=True,
+    )
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self):
+        return self.label
+
+
 class Payment(TimeStampedUUIDModel):
     class PaymentStatus(models.TextChoices):
         PENDING = "P", _("Pendiente")
@@ -14,13 +36,6 @@ class Payment(TimeStampedUUIDModel):
         FAILED = "F", _("Fallido")
         REFUNDED = "R", _("Reembolsado")
         CANCELLED = "X", _("Cancelado")
-
-    class PaymentMethod(models.TextChoices):
-        STRIPE_CARD = "SC", _("Tarjeta Stripe")
-        PAYPAL = "PP", _("PayPal")
-        PSE = "TR", _("Transferencia PSE")
-        CASH = "CA", _("Efectivo")
-        OTHER = "OT", _("Otro")
 
     order = models.ForeignKey(
         Order,
@@ -41,10 +56,10 @@ class Payment(TimeStampedUUIDModel):
         db_index=True,
         help_text="Estado del pago.",
     )
-    payment_option = models.CharField(
-        max_length=2,
-        choices=PaymentMethod.choices,
-        default=PaymentMethod.STRIPE_CARD,
+    payment_method = models.ForeignKey(
+        PaymentMethod,
+        on_delete=models.PROTECT,
+        related_name="payments",
         help_text="Método de pago utilizado.",
     )
     amount = models.DecimalField(
@@ -114,7 +129,7 @@ class Payment(TimeStampedUUIDModel):
         ordering = ("-created_at",)
         indexes = [
             models.Index(fields=["status"]),
-            models.Index(fields=["payment_option"]),
+            models.Index(fields=["payment_method"]),
             models.Index(fields=["stripe_payment_intent_id"]),
             models.Index(fields=["paypal_transaction_id"]),
         ]
@@ -128,44 +143,7 @@ class Payment(TimeStampedUUIDModel):
             raise ValidationError("El monto del pago debe ser mayor a cero.")
 
 
-class PaymentMethod(TimeStampedUUIDModel):
-    """
-    Métodos de pago guardados por el usuario (tarjetas, cuentas, etc.).
-    """
-
-    class MethodType(models.TextChoices):
-        CARD = "card", _("Tarjeta")
-        PAYPAL = "paypal", _("PayPal")
-        PSE = "pse", _("PSE")
-        OTHER = "other", _("Otro")
-
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    method_type = (
-        models.CharField(
-            max_length=20,
-            choices=MethodType.choices,
-            default=MethodType.CARD,
-        ),
-    )
-    gateway_payment_method_id = models.CharField(
-        max_length=100, help_text="ID en el gateway.", default=""
-    )
-    card_last4 = models.CharField(max_length=4, null=True, blank=True)
-    card_brand = models.CharField(max_length=20, null=True, blank=True)
-    expires_at = models.DateField(null=True, blank=True)
-    holder_name = models.CharField(max_length=100, null=True, blank=True)
-    is_default = models.BooleanField(default=False)
-    status = models.CharField(max_length=20, default="active")
-
-    def __str__(self):
-        return f"{self.user.email} - {self.method_type} - {self.card_last4 or ''}"
-
-
 class Refund(TimeStampedUUIDModel):
-    """
-    Reembolsos asociados a pagos.
-    """
-
     payment = models.ForeignKey(
         Payment, on_delete=models.CASCADE, related_name="refunds"
     )

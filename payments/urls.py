@@ -39,11 +39,6 @@ urlpatterns = [
         name="payment-methods",
     ),
     path(
-        "payment-methods/attach/",
-        PaymentViewSet.as_view({"post": "attach_payment_method"}),
-        name="attach-payment-method",
-    ),
-    path(
         "<uuid:id>/refund/",
         PaymentViewSet.as_view({"post": "refund"}),
         name="refund-payment",

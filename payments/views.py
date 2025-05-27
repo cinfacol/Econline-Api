@@ -11,10 +11,11 @@ from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 from orders.models import Order
 from shipping.models import Shipping
-from .models import Payment, Subscription, Refund, PaymentMethod
+from .models import Payment, PaymentMethod, Subscription, Refund
 from cart.models import Cart
 from .serializers import (
     PaymentSerializer,
+    PaymentMethodSerializer,
     SubscriptionSerializer,
     CheckoutSerializer,
     PaymentTotalSerializer,
@@ -56,7 +57,9 @@ WEBHOOK_HANDLERS = {
 
 
 class PaymentViewSet(viewsets.ModelViewSet):
-    queryset = Payment.objects.select_related("order", "user", "order__shipping").all()
+    queryset = Payment.objects.select_related(
+        "order", "user", "payment_method", "order__shipping"
+    ).all()
     serializer_class = PaymentSerializer
     permission_classes = [permissions.IsAuthenticated, IsPaymentByUser]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
@@ -67,7 +70,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         "paypal_transaction_id",
         "external_reference",
     ]
-    ordering_fields = ["created_at", "amount", "status", "payment_option"]
+    ordering_fields = ["created_at", "amount", "status", "payment_method"]
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -76,9 +79,9 @@ class PaymentViewSet(viewsets.ModelViewSet):
         status_param = self.request.query_params.get("status")
         if status_param:
             qs = qs.filter(status=status_param)
-        payment_option = self.request.query_params.get("payment_option")
-        if payment_option:
-            qs = qs.filter(payment_option=payment_option)
+        payment_method_id = self.request.query_params.get("payment_method_id")
+        if payment_method_id:
+            qs = qs.filter(payment_method_id=payment_method_id)
         return qs
 
     def perform_create(self, serializer):
@@ -116,58 +119,15 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["GET"])
     def payment_methods(self, request):
-        try:
-            customer_id = request.user.get_or_create_stripe_customer()
-            payment_options = stripe.PaymentMethod.list(
-                customer=customer_id, type="card"
-            )
-            formatted_methods = [
-                {
-                    "id": pm.id,
-                    "brand": pm.card.brand,
-                    "last4": pm.card.last4,
-                    "exp_month": pm.card.exp_month,
-                    "exp_year": pm.card.exp_year,
-                    "is_default": pm.metadata.get("is_default", False),
-                }
-                for pm in payment_options.data
-            ]
-            return Response(
-                {
-                    "payment_methods": formatted_methods,
-                    "has_payment_methods": bool(formatted_methods),
-                }
-            )
-        except stripe.error.StripeError as e:
-            logger.error(f"Stripe error retrieving payment methods: {str(e)}")
-            return Response(
-                {"error": "Error al comunicarse con Stripe"},
-                status=status.HTTP_502_BAD_GATEWAY,
-            )
-        except Exception as e:
-            logger.error(f"Error retrieving payment methods: {str(e)}")
-            return Response(
-                {"error": "Error al obtener métodos de pago"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        methods = PaymentMethod.objects.filter(is_active=True)
+        serializer = PaymentMethodSerializer(
+            methods, many=True, context={"request": request}
+        )
 
-    @action(detail=False, methods=["POST"])
-    def attach_payment_method(self, request):
-        try:
-            payment_option = stripe.PaymentMethod.attach(
-                request.data["payment_method_id"],
-                customer=request.user.stripe_customer_id,
-            )
-            return Response(payment_option)
-        except Exception as e:
-            logger.error(f"Error attaching payment method: {str(e)}")
-            return Response(
-                {"error": "Error al añadir método de pago"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        return Response({"payment_methods": serializer.data})
 
     @action(detail=True, methods=["POST"])
-    def refund(self, request, pk=None):
+    def refund(self, request, id=None):
         payment = self.get_object()
         if payment.status != Payment.PaymentStatus.COMPLETED:
             return Response(
@@ -241,7 +201,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     @transaction.atomic
-    def create_checkout_session(self, request, pk=None):
+    def create_checkout_session(self, request, id=None):
         try:
             serializer = CheckoutSessionSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
@@ -255,7 +215,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
             payment = self.create_payment(
                 order,
                 total,
-                serializer.validated_data["payment_option"],
+                serializer.validated_data["payment_method_id"],
                 user=request.user,
             )
             checkout_session = self.create_stripe_session(
@@ -301,7 +261,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         self,
         order,
         total,
-        payment_option,
+        payment_method,
         user,
         currency="USD",
         tax_amount=0,
@@ -313,7 +273,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
             user=user,
             amount=total,
             status=Payment.PaymentStatus.PENDING,
-            payment_option=payment_option,
+            payment_method=payment_method,
             currency=currency,
             tax_amount=tax_amount,
             discount_amount=discount_amount,
@@ -388,8 +348,8 @@ class PaymentViewSet(viewsets.ModelViewSet):
         return int(timezone.now().timestamp() + 3600)  # 1 hora desde ahora
 
     @action(detail=True, methods=["post"])
-    def process(self, request, pk=None):
-        payment = get_object_or_404(Payment.objects.select_related("order"), id=pk)
+    def process(self, request, id=None):
+        payment = get_object_or_404(Payment.objects.select_related("order"), id=id)
         if payment.order.user != request.user:
             return Response(
                 {"error": "Payment not found"}, status=status.HTTP_404_NOT_FOUND
@@ -464,19 +424,22 @@ class PaymentViewSet(viewsets.ModelViewSet):
             )
 
     @action(detail=True, methods=["get"])
-    def verify(self, request, pk=None):
-        payment = get_object_or_404(Payment, id=pk)
+    def verify(self, request, id=None):
+        payment = get_object_or_404(Payment, id=id)
         if payment.order.user != request.user:
             return Response(
                 {"error": "Payment not found"}, status=status.HTTP_404_NOT_FOUND
             )
         return Response(
-            {"status": payment.status, "payment_option": payment.payment_option}
+            {
+                "status": payment.status,
+                "payment_method": PaymentMethodSerializer(payment.payment_method).data,
+            }
         )
 
     @action(detail=True, methods=["post"])
-    def retry_payment(self, request, pk=None):
-        payment = get_object_or_404(Payment, id=pk)
+    def retry_payment(self, request, id=None):
+        payment = get_object_or_404(Payment, id=id)
         if payment.order.user != request.user:
             return Response(
                 {"error": "Payment not found"}, status=status.HTTP_404_NOT_FOUND
@@ -570,9 +533,9 @@ class PaymentViewSet(viewsets.ModelViewSet):
         return Response(SubscriptionSerializer(subscription).data)
 
     @action(detail=True, methods=["POST"])
-    def cancel_subscription(self, request, pk=None):
+    def cancel_subscription(self, request, id=None):
         try:
-            subscription = get_object_or_404(Subscription, id=pk, user=request.user)
+            subscription = get_object_or_404(Subscription, id=id, user=request.user)
             stripe.Subscription.modify(
                 subscription.stripe_subscription_id, cancel_at_period_end=True
             )

@@ -1,12 +1,25 @@
 from rest_framework import serializers
 
 from orders.models import Order
-from .models import Payment, Subscription
+from .models import Payment, PaymentMethod, Subscription
 from users.models import Address
 from users.serializers import AddressSerializer
 
 
+class PaymentMethodSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PaymentMethod
+        fields = ["id", "key", "label", "icon_image", "is_active"]
+
+
 class PaymentSerializer(serializers.ModelSerializer):
+    payment_method = PaymentMethodSerializer(read_only=True)
+    payment_method_id = serializers.PrimaryKeyRelatedField(
+        queryset=PaymentMethod.objects.filter(is_active=True),
+        source="payment_method",
+        write_only=True,
+        required=True,
+    )
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     payment_option_display = serializers.CharField(
         source="get_payment_option_display", read_only=True
@@ -20,9 +33,9 @@ class PaymentSerializer(serializers.ModelSerializer):
             "order",
             "user",
             "status",
-            "status_display",
-            "payment_option",
-            "payment_option_display",
+            # "status_display",
+            "payment_method",
+            "payment_method_id",
             "amount",
             "currency",
             "paid_at",
@@ -41,8 +54,7 @@ class PaymentSerializer(serializers.ModelSerializer):
             "id",
             "created_at",
             "updated_at",
-            "status_display",
-            "payment_option_display",
+            "user",
         ]
 
 
@@ -65,12 +77,13 @@ class CheckoutSessionSerializer(serializers.Serializer):
     """Serializador para crear sesión de checkout"""
 
     shipping_id = serializers.UUIDField(required=True)
-    payment_option = serializers.ChoiceField(
-        choices=Payment.PaymentMethod.choices,
+    payment_method_id = serializers.PrimaryKeyRelatedField(
+        queryset=PaymentMethod.objects.filter(is_active=True),
         required=True,
         error_messages={
             "required": "Por favor selecciona un método de pago.",
-            "invalid_choice": "Método de pago no válido.",
+            "does_not_exist": "Método de pago no válido.",
+            "incorrect_type": "ID de método de pago inválido.",
         },
     )
 
@@ -81,17 +94,12 @@ class PaymentVerificationSerializer(serializers.Serializer):
     status = serializers.ChoiceField(
         choices=Payment.PaymentStatus.choices, read_only=True
     )
-    payment_option = serializers.ChoiceField(
-        choices=Payment.PaymentMethod.choices, read_only=True
-    )
+    payment_method = PaymentMethodSerializer(read_only=True)
 
 
 class PaymentOptionSerializer(serializers.ModelSerializer):
-    """
-    Payment serializer for checkout. Order will be automatically set during checkout.
-    """
-
     buyer = serializers.CharField(source="order.user.get_full_name", read_only=True)
+    payment_method = PaymentMethodSerializer(read_only=True)
 
     class Meta:
         model = Payment
@@ -99,7 +107,7 @@ class PaymentOptionSerializer(serializers.ModelSerializer):
             "id",
             "buyer",
             "status",
-            "payment_option",
+            "payment_method",
             "order",
             "created_at",
             "updated_at",
@@ -108,10 +116,6 @@ class PaymentOptionSerializer(serializers.ModelSerializer):
 
 
 class CheckoutSerializer(serializers.ModelSerializer):
-    """
-    Serializer class to set or update shipping address, billing address and payment of an order.
-    """
-
     address = AddressSerializer()
     payment = PaymentOptionSerializer()
 

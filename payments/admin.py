@@ -11,7 +11,7 @@ class PaymentAdmin(admin.ModelAdmin):
         "order",
         "user",
         "status",
-        "payment_option",
+        "payment_method",
         "amount",
         "currency",
         "paid_at",
@@ -19,7 +19,7 @@ class PaymentAdmin(admin.ModelAdmin):
         "paypal_transaction_id",
         "external_reference",
     )
-    list_filter = ("status", "payment_option", "currency")
+    list_filter = ("status", "payment_method", "currency")
     search_fields = (
         "id",
         "order__id",
@@ -38,7 +38,7 @@ class PaymentAdmin(admin.ModelAdmin):
                     "order",
                     "user",
                     "status",
-                    "payment_option",
+                    "payment_method",
                     "amount",
                     "currency",
                     "paid_at",
@@ -59,17 +59,9 @@ class PaymentAdmin(admin.ModelAdmin):
 
 @admin.register(PaymentMethod)
 class PaymentMethodAdmin(admin.ModelAdmin):
-    list_display = (
-        "id",
-        "user",
-        "method_type",
-        "card_last4",
-        "card_brand",
-        "expires_at",
-        "is_default",
-        "status",
-    )
-    search_fields = ("user__email", "card_last4", "gateway_payment_method_id")
+    list_display = ("id", "label", "key", "is_active")
+    list_filter = ("is_active",)
+    search_fields = ("label", "key")
 
 
 @admin.register(Refund)
