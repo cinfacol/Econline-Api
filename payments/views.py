@@ -56,6 +56,25 @@ WEBHOOK_HANDLERS = {
 }
 
 
+class StripeClient:
+    def __init__(self, api_key):
+        self.client = stripe
+        self.client.api_key = api_key
+
+    @classmethod
+    def get_client(cls):
+        return cls(settings.STRIPE_SECRET_KEY)
+
+
+class PaymentService:
+    def process_checkout(self, user, cart, shipping):
+        with transaction.atomic():
+            order = self.create_order(...)
+            payment = self.create_payment(...)
+            session = self.create_stripe_session(...)
+            return session
+
+
 class PaymentViewSet(viewsets.ModelViewSet):
     queryset = Payment.objects.select_related(
         "order", "user", "payment_method", "order__shipping"
@@ -298,17 +317,63 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
     def create_stripe_session(self, order, payment, user_email):
         logger.info("Creando sesión de Stripe con los siguientes metadatos:")
-        logger.info(self._get_metadata(order, payment))
-        return stripe.checkout.Session.create(
-            payment_method_types=["card"],
-            line_items=self._get_line_items(order),
-            mode="payment",
-            success_url=self._get_success_url(),
-            cancel_url=self._get_cancel_url(),
-            metadata=self._get_metadata(order, payment),
-            expires_at=self._get_expiration_time(),
-            customer_email=user_email,
-        )
+        metadata = self._get_metadata(order, payment)
+        logger.info(metadata)
+
+        # Obtener la dirección por defecto del usuario
+        default_address = order.user.address_set.filter(is_default=True).first()
+
+        # Construir metadata enriquecida
+        enhanced_metadata = {
+            **metadata,
+            "order_id": str(order.id),
+            "transaction_id": order.transaction_id,
+            "order_total": str(order.amount),
+            "customer_name": f"{order.user.first_name} {order.user.last_name}",
+            "customer_email": user_email,
+        }
+
+        # Configuración base de la sesión
+        session_data = {
+            "payment_method_types": ["card"],
+            "line_items": self._get_line_items(order),
+            "mode": "payment",
+            "success_url": self._get_success_url(),
+            "cancel_url": self._get_cancel_url(),
+            "metadata": enhanced_metadata,
+            "expires_at": self._get_expiration_time(),
+            "customer_email": user_email,
+            "customer_creation": "always",
+            "locale": "es",
+            "billing_address_collection": "auto",
+        }
+
+        # Agregar información de envío si existe dirección por defecto
+        if default_address:
+            session_data["payment_intent_data"] = {
+                "description": f"Orden #{order.id} - {order.transaction_id}",
+                "statement_descriptor": "ECONLINE",
+                "statement_descriptor_suffix": str(order.id)[:4],
+                "receipt_email": user_email,
+                "metadata": {
+                    "order_id": str(order.id),
+                    "transaction_id": order.transaction_id,
+                    "customer_id": str(order.user.id),
+                },
+                "shipping": {
+                    "name": f"{order.user.first_name} {order.user.last_name}",
+                    "address": {
+                        "line1": default_address.address_line_1,
+                        "line2": default_address.address_line_2 or "",
+                        "city": default_address.city,
+                        "state": default_address.state_province_region,
+                        "postal_code": default_address.postal_zip_code,
+                        "country": default_address.country_region,
+                    },
+                },
+            }
+
+        return stripe.checkout.Session.create(**session_data)
 
     def get_user_cart(self, user):
         cart = getattr(user, "cart", None)
@@ -335,17 +400,34 @@ class PaymentViewSet(viewsets.ModelViewSet):
     def _get_line_items(self, order):
         line_items = []
         for item in order.orderitem_set.all():
+            product_data = {
+                "name": item.name,
+                "description": f"Producto de {order.user.username}",
+                "metadata": {
+                    "product_id": str(item.inventory.id) if item.inventory else "N/A",
+                    "order_id": str(order.id),
+                    "transaction_id": order.transaction_id,
+                },
+            }
+
+            # Añadir imágenes si están disponibles
+            if item.inventory and hasattr(item.inventory, "media"):
+                images = [
+                    img.image.url for img in item.inventory.media.all()[:8]
+                ]  # Stripe permite hasta 8 imágenes
+                if images:
+                    product_data["images"] = images
+
             line_items.append(
                 {
                     "price_data": {
                         "currency": order.currency.lower(),
-                        "unit_amount": int(item.price * 100),
-                        "product_data": {
-                            "name": item.name,
-                            "description": f"Product from order {order.transaction_id}",
-                        },
+                        "unit_amount": int(item.price * 100),  # Convertir a centavos
+                        "product_data": product_data,
                     },
                     "quantity": item.count,
+                    "adjustable_quantity": {"enabled": False},
+                    "tax_rates": [],  # Añadir IDs de tasas de impuestos si se usan
                 }
             )
         return line_items
@@ -360,9 +442,42 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
     def _get_metadata(self, order, payment):
         return {
+            # Información básica de la orden
             "order_id": str(order.id),
             "payment_id": str(payment.id),
+            "transaction_id": order.transaction_id,
+            "order_status": order.status,
+            # Información del cliente
             "user_id": str(order.user.id),
+            "user_email": order.user.email,
+            "username": order.user.username,
+            # Información de envío
+            "shipping_method": order.shipping.name if order.shipping else "No shipping",
+            "shipping_address": str(order.address) if order.address else "No address",
+            "delivery_time": (
+                order.shipping.time_to_delivery if order.shipping else "N/A"
+            ),
+            # Información del pago
+            "payment_method": payment.payment_method,
+            "currency": order.currency,
+            "subtotal": str(order.amount),
+            "shipping_cost": str(order.shipping.price if order.shipping else 0),
+            "tax_amount": str(payment.tax_amount),
+            "discount_amount": str(payment.discount_amount),
+            "total_amount": str(payment.amount),
+            # Información del pedido
+            "items_count": str(order.orderitem_set.count()),
+            "items_total": str(sum(item.count for item in order.orderitem_set.all())),
+            # Metadata del sistema
+            "environment": (
+                settings.ENVIRONMENT
+                if hasattr(settings, "ENVIRONMENT")
+                else "development"
+            ),
+            "api_version": (
+                settings.API_VERSION if hasattr(settings, "API_VERSION") else "1.0"
+            ),
+            "created_at": order.created_at.isoformat(),
         }
 
     def _get_expiration_time(self):

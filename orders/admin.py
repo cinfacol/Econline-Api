@@ -5,7 +5,7 @@ from .models import Order, OrderItem
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
-        return True
+        return False
 
     list_display = (
         "pk",
