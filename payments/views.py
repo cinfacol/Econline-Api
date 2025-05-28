@@ -9,7 +9,7 @@ from rest_framework import status, viewsets, permissions, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
-from orders.models import Order
+from orders.models import Order, OrderItem
 from shipping.models import Shipping
 from .models import Payment, PaymentMethod, Subscription, Refund
 from cart.models import Cart
@@ -249,13 +249,27 @@ class PaymentViewSet(viewsets.ModelViewSet):
         return shipping
 
     def create_order(self, user, total, shipping, transaction_id):
-        return Order.objects.create(
+        cart = self.get_user_cart(user)
+        order = Order.objects.create(
             user=user,
             amount=total,
             shipping=shipping,
-            status="C",
+            status=Order.OrderStatus.PENDING,
             transaction_id=transaction_id,
+            currency="USD",
         )
+
+        # Crear OrderItems para cada CartItem
+        for cart_item in cart.items.all():
+            OrderItem.objects.create(
+                order=order,
+                inventory=cart_item.inventory,
+                name=cart_item.inventory.product.name,
+                price=cart_item.inventory.store_price,
+                count=cart_item.quantity,
+            )
+
+        return order
 
     def create_payment(
         self,
@@ -319,19 +333,22 @@ class PaymentViewSet(viewsets.ModelViewSet):
         }
 
     def _get_line_items(self, order):
-        return [
-            {
-                "price_data": {
-                    "currency": "usd",
-                    "unit_amount": int(order.amount * 100),
-                    "product_data": {
-                        "name": f"Order #{order.id}",
-                        "description": f"Payment for order {order.id}",
+        line_items = []
+        for item in order.orderitem_set.all():
+            line_items.append(
+                {
+                    "price_data": {
+                        "currency": order.currency.lower(),
+                        "unit_amount": int(item.price * 100),
+                        "product_data": {
+                            "name": item.name,
+                            "description": f"Product from order {order.transaction_id}",
+                        },
                     },
-                },
-                "quantity": 1,
-            }
-        ]
+                    "quantity": item.count,
+                }
+            )
+        return line_items
 
     def _get_success_url(self):
         return (
