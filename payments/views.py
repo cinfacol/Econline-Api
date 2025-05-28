@@ -352,80 +352,130 @@ class PaymentViewSet(viewsets.ModelViewSet):
         return int(timezone.now().timestamp() + 3600)  # 1 hora desde ahora
 
     @action(detail=True, methods=["post"])
+    @transaction.atomic
     def process(self, request, id=None):
-        payment = get_object_or_404(Payment.objects.select_related("order"), id=id)
-        if payment.order.user != request.user:
+        payment = self._get_payment_or_404(id)
+        self._validate_user_authorization(payment, request.user)
+        self._validate_stripe_session(payment)
+
+        try:
+            session = self._retrieve_stripe_session(payment.stripe_session_id)
+            return self._handle_payment_status(session, payment)
+        except stripe.error.StripeError as e:
+            return self._handle_stripe_error(payment, e)
+
+    def _get_payment_or_404(self, payment_id):
+        return get_object_or_404(Payment.objects.select_related("order"), id=payment_id)
+
+    def _validate_user_authorization(self, payment, user):
+        if payment.order.user != user:
             return Response(
-                {"error": "Payment not found"}, status=status.HTTP_404_NOT_FOUND
+                {"error": "No autorizado para procesar este pago"},
+                status=status.HTTP_403_FORBIDDEN,
             )
+
+    def _validate_stripe_session(self, payment):
         if not payment.stripe_session_id:
             return Response(
-                {"error": "No Stripe session found for this payment"},
+                {"error": "Sesión de Stripe no encontrada"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+    def _retrieve_stripe_session(self, session_id):
         try:
-            session = stripe.checkout.Session.retrieve(payment.stripe_session_id)
-            if session.payment_status == "paid":
-                payment.status = Payment.PaymentStatus.COMPLETED
-                payment.save()
-                order = payment.order
-                order.status = "C"
-                order.save()
-                cart = Cart.objects.filter(user=request.user).first()
-                if cart:
-                    cart.items.all().delete()
-                # Enviar email de éxito de pago
-                if payment.order.user and payment.order.user.email:
-                    send_payment_success_email_task.delay(payment.order.user.email)
-                return Response(
-                    {
-                        "status": "success",
-                        "message": "Payment processed successfully",
-                        "payment_id": str(payment.id),
-                        "order_id": str(order.id),
-                    }
-                )
-            elif session.payment_status == "unpaid":
-                payment.status = Payment.PaymentStatus.PENDING
-                payment.save()
-                return Response(
-                    {
-                        "error": "Payment is still pending",
-                        "payment_status": session.payment_status,
-                        "checkout_url": session.url,
-                    },
-                    status=status.HTTP_402_PAYMENT_REQUIRED,
-                )
-            elif session.payment_status == "open":
-                return Response(
-                    {
-                        "error": "Payment is still open",
-                        "payment_status": session.payment_status,
-                        "checkout_url": session.url,
-                    },
-                    status=status.HTTP_402_PAYMENT_REQUIRED,
-                )
-            else:
-                payment.status = Payment.PaymentStatus.FAILED
-                payment.save()
-                return Response(
-                    {
-                        "error": "Payment failed",
-                        "payment_status": session.payment_status,
-                        "retry_url": f"/api/payments/{payment.id}/retry_payment/",
-                    },
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+            return stripe.checkout.Session.retrieve(session_id)
         except stripe.error.InvalidRequestError as e:
-            payment.status = Payment.PaymentStatus.FAILED
-            payment.save()
-            return Response(
-                {
-                    "error": "Stripe session has expired. Please create a new checkout session.",
-                    "retry_url": f"/api/payments/{payment.id}/retry_payment/",
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            logger.error(f"Error retrieving Stripe session: {str(e)}")
+            raise
+
+    def _handle_payment_status(self, session, payment):
+        handlers = {
+            "paid": self._handle_successful_payment,
+            "unpaid": self._handle_pending_payment,
+            "open": self._handle_open_payment,
+        }
+        handler = handlers.get(session.payment_status, self._handle_failed_payment)
+        return handler(session, payment)
+
+    @transaction.atomic
+    def _handle_successful_payment(self, session, payment):
+        payment.status = Payment.PaymentStatus.COMPLETED
+        payment.paid_at = timezone.now()
+        payment.save()
+
+        self._update_order(payment.order)
+        self._clear_cart(payment.order.user)
+        self._send_success_email(payment.order.user)
+
+        return Response(
+            {
+                "status": Payment.PaymentStatus.COMPLETED,
+                "status_display": payment.get_status_display(),
+                "message": "Payment processed successfully",
+                "payment_id": str(payment.id),
+                "order_id": str(payment.order.id),
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def _handle_pending_payment(self, session, payment):
+        payment.status = Payment.PaymentStatus.PENDING
+        payment.save()
+        return Response(
+            {
+                "error": "Payment is still pending",
+                "payment_status": session.payment_status,
+                "checkout_url": session.url,
+            },
+            status=status.HTTP_402_PAYMENT_REQUIRED,
+        )
+
+    def _handle_open_payment(self, session, payment):
+        return Response(
+            {
+                "error": "Payment is still open",
+                "payment_status": session.payment_status,
+                "checkout_url": session.url,
+            },
+            status=status.HTTP_402_PAYMENT_REQUIRED,
+        )
+
+    def _handle_failed_payment(self, session, payment):
+        payment.status = Payment.PaymentStatus.FAILED
+        payment.save()
+        return Response(
+            {
+                "error": "Payment failed",
+                "payment_status": session.payment_status,
+                "retry_url": f"/api/payments/{payment.id}/retry_payment/",
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    def _handle_stripe_error(self, payment, error):
+        logger.error(f"Stripe error processing payment {payment.id}: {str(error)}")
+        payment.status = Payment.PaymentStatus.FAILED
+        payment.error_message = str(error)
+        payment.save()
+
+        return Response(
+            {
+                "error": "Error procesando el pago",
+                "retry_url": f"/api/payments/{payment.id}/retry_payment/",
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    def _update_order(self, order):
+        order.status = order.OrderStatus.COMPLETED
+        order.save()
+
+    def _clear_cart(self, user):
+        Cart.objects.filter(user=user).update(items=None)
+
+    def _send_success_email(self, user):
+        if user and user.email:
+            send_payment_success_email_task.delay(user.email)
 
     @action(detail=True, methods=["get"])
     def verify(self, request, id=None):
@@ -442,46 +492,41 @@ class PaymentViewSet(viewsets.ModelViewSet):
         )
 
     @action(detail=True, methods=["post"])
+    @transaction.atomic
     def retry_payment(self, request, id=None):
-        payment = get_object_or_404(Payment, id=id)
-        if payment.order.user != request.user:
-            return Response(
-                {"error": "Payment not found"}, status=status.HTTP_404_NOT_FOUND
+        try:
+            payment = get_object_or_404(Payment, id=id)
+            if payment.order.user != request.user:
+                return Response(
+                    {"error": "Payment not found"}, status=status.HTTP_404_NOT_FOUND
+                )
+            if payment.status != Payment.PaymentStatus.FAILED:
+                return Response(
+                    {"error": "Only failed payments can be retried"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            checkout_session = self.create_stripe_session(
+                payment.order, payment, request.user.email
             )
-        if payment.status != Payment.PaymentStatus.FAILED:
+
+            payment.stripe_session_id = checkout_session.id
+            payment.status = Payment.PaymentStatus.PENDING
+            payment.save()
+
             return Response(
-                {"error": "Only failed payments can be retried"},
-                status=status.HTTP_400_BAD_REQUEST,
+                self.format_checkout_response(checkout_session, payment),
+                status=status.HTTP_200_OK,
             )
-        checkout_session = stripe.checkout.Session.create(
-            payment_method_types=["card"],
-            line_items=[
-                {
-                    "price_data": {
-                        "currency": "usd",
-                        "unit_amount": int(payment.amount * 100),
-                        "product_data": {
-                            "name": f"Order #{payment.order.id}",
-                        },
-                    },
-                    "quantity": 1,
-                }
-            ],
-            mode="payment",
-            success_url=f"{settings.FRONTEND_URL}/order/success?session_id={{CHECKOUT_SESSION_ID}}",
-            cancel_url=f"{settings.FRONTEND_URL}/order/cancelled",
-            metadata={
-                "order_id": str(payment.order.id),
-                "payment_id": str(payment.id),
-            },
-        )
-        payment.stripe_session_id = checkout_session.id
-        payment.status = Payment.PaymentStatus.PENDING
-        payment.save()
-        return Response(
-            {"sessionId": checkout_session.id, "payment_id": payment.id},
-            status=status.HTTP_200_OK,
-        )
+        except Exception as e:
+            logger.error(f"Error en retry payment: {str(e)}")
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except stripe.error.StripeError as e:
+            logger.error(f"Stripe error in retry payment: {str(e)}")
+            return Response(
+                {"error": "Error al procesar el pago. Por favor, inténtelo de nuevo."},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
 
     # Suscripciones
     @action(detail=False, methods=["POST"])

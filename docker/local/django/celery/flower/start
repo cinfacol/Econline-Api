@@ -6,7 +6,7 @@ set -o nounset
 
 
 worker_ready(){
-    celery flower -A config inspect ping
+    celery -A config inspect ping
 }
 
 until worker_ready; do
@@ -16,6 +16,4 @@ until worker_ready; do
 done
 >&2 echo 'Celery workers are available and ready!...:-)'
 
-flower \
-    --app=config \
-    --broker="${CELERY_BROKER}"
+celery -A config --broker="${CELERY_BROKER}" flower
