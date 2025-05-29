@@ -5,10 +5,15 @@ from django.utils import timezone
 from django.shortcuts import get_object_or_404
 from django.db import transaction
 from django.conf import settings
+from django.core.cache import cache
+from django.utils.decorators import method_decorator
+from django.utils.translation import gettext_lazy as _
+from django.views.decorators.csrf import csrf_protect, csrf_exempt
 from rest_framework import status, viewsets, permissions, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
+from rest_framework.throttling import UserRateThrottle
 from orders.models import Order, OrderItem
 from shipping.models import Shipping
 from .models import Payment, PaymentMethod, Subscription, Refund
@@ -45,6 +50,13 @@ from config.celery import app as celery_app
 stripe.api_key = settings.STRIPE_SECRET_KEY
 logger = logging.getLogger(__name__)
 
+STRIPE_CONFIG = {
+    'api_key': settings.STRIPE_SECRET_KEY,
+    'webhook_secret': settings.STRIPE_WEBHOOK_SECRET,
+    'success_url': settings.PAYMENT_SUCCESS_URL,
+    'cancel_url': settings.PAYMENT_CANCEL_URL,
+}
+
 WEBHOOK_HANDLERS = {
     "checkout.session.completed": handle_checkout_session_completed_task,
     "payment_intent.succeeded": handle_payment_intent_succeeded_task,
@@ -75,6 +87,10 @@ class PaymentService:
             return session
 
 
+class PaymentRateThrottle(UserRateThrottle):
+    rate = '5/minute'  # Limitar a 5 intentos por minuto
+
+
 class PaymentViewSet(viewsets.ModelViewSet):
     queryset = Payment.objects.select_related(
         "order", "user", "payment_method", "order__shipping"
@@ -90,6 +106,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         "external_reference",
     ]
     ordering_fields = ["created_at", "amount", "status", "payment_method"]
+
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -113,7 +130,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
             if not sig_header:
                 logger.error("No se encontró la firma de Stripe en los headers")
                 return Response(
-                    {"error": "No Stripe signature found in headers"},
+                    {"error": _("No Stripe signature found in headers")},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             event = stripe.Webhook.construct_event(
@@ -138,11 +155,12 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["GET"])
     def payment_methods(self, request):
-        methods = PaymentMethod.objects.filter(is_active=True)
-        serializer = PaymentMethodSerializer(
-            methods, many=True, context={"request": request}
-        )
-
+        cache_key = 'active_payment_methods'
+        methods = cache.get(cache_key)
+        if not methods:
+            methods = PaymentMethod.objects.filter(is_active=True)
+            cache.set(cache_key, methods, timeout=3600)  # Cache por 1 hora
+        serializer = PaymentMethodSerializer(methods, many=True, context={"request": request})
         return Response({"payment_methods": serializer.data})
 
     @action(detail=True, methods=["POST"])
@@ -150,7 +168,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         payment = self.get_object()
         if payment.status != Payment.PaymentStatus.COMPLETED:
             return Response(
-                {"error": "Solo se pueden reembolsar pagos completados."},
+                {"error": _("Solo se pueden reembolsar pagos completados.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         try:
@@ -173,7 +191,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"Error processing refund: {str(e)}")
             return Response(
-                {"error": "Error al procesar reembolso"},
+                {"error": _("Error al procesar reembolso")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -183,7 +201,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
             shipping_id = request.query_params.get("shipping_id")
             if not shipping_id:
                 return Response(
-                    {"error": "shipping_id is required"},
+                    {"error": _("shipping_id is required")},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             cart, _ = Cart.objects.prefetch_related("items").get_or_create(
@@ -191,7 +209,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
             )
             if not cart.items.exists():
                 return Response(
-                    {"error": "Cart is empty"}, status=status.HTTP_400_BAD_REQUEST
+                    {"error": _("Cart is empty")}, status=status.HTTP_400_BAD_REQUEST
                 )
             shipping = get_object_or_404(Shipping, id=shipping_id)
             total = self._calculate_order_total(cart, shipping)
@@ -208,7 +226,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"Error calculating total: {str(e)}")
             return Response(
-                {"error": "Error al calcular el total."},
+                {"error": _("Error al calcular el total.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -218,7 +236,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         discount = cart.get_discount()
         return subtotal + shipping_cost - discount
 
-    @action(detail=True, methods=["post"])
+    @action(detail=True, methods=["POST"])
     @transaction.atomic
     def create_checkout_session(self, request, id=None):
         try:
@@ -252,19 +270,19 @@ class PaymentViewSet(viewsets.ModelViewSet):
         except stripe.error.StripeError as e:
             logger.error(f"Stripe error in checkout: {str(e)}")
             return Response(
-                {"error": "Error al procesar el pago. Por favor, inténtelo de nuevo."},
+                {"error": _("Error al procesar el pago. Por favor, inténtelo de nuevo.")},
                 status=status.HTTP_502_BAD_GATEWAY,
             )
 
     def validate_checkout_request(self, cart, shipping_id):
         if not cart or not cart.items.exists():
-            raise ValidationError("Cart is empty")
+            raise ValidationError(_("Cart is empty"))
         if not shipping_id:
-            raise ValidationError("Shipping method is required")
+            raise ValidationError(_("Shipping method is required"))
         try:
             shipping = Shipping.objects.get(id=shipping_id)
         except Shipping.DoesNotExist:
-            raise ValidationError("Invalid shipping method")
+            raise ValidationError(_("Invalid shipping method"))
         return shipping
 
     def create_order(self, user, total, shipping, transaction_id):
@@ -296,18 +314,24 @@ class PaymentViewSet(viewsets.ModelViewSet):
         total,
         payment_method,
         user,
-        currency="USD",
+        currency=None,
         tax_amount=0,
         discount_amount=0,
         **kwargs,
     ):
+        # Validar monto mínimo y máximo
+        if total < settings.PAYMENT_MIN_AMOUNT:
+            raise ValidationError(f"El monto mínimo de pago es {settings.PAYMENT_MIN_AMOUNT}")
+        if total > settings.PAYMENT_MAX_AMOUNT:
+            raise ValidationError(f"El monto máximo de pago es {settings.PAYMENT_MAX_AMOUNT}")
+
         payment = Payment.objects.create(
             order=order,
             user=user,
             amount=total,
             status=Payment.PaymentStatus.PENDING,
             payment_method=payment_method,
-            currency=currency,
+            currency=currency or settings.PAYMENT_CURRENCY,
             tax_amount=tax_amount,
             discount_amount=discount_amount,
             **kwargs,
@@ -481,7 +505,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         }
 
     def _get_expiration_time(self):
-        return int(timezone.now().timestamp() + 3600)  # 1 hora desde ahora
+        return int(timezone.now().timestamp() + settings.PAYMENT_SESSION_TIMEOUT)
 
     @action(detail=True, methods=["post"])
     @transaction.atomic
@@ -502,14 +526,14 @@ class PaymentViewSet(viewsets.ModelViewSet):
     def _validate_user_authorization(self, payment, user):
         if payment.order.user != user:
             return Response(
-                {"error": "No autorizado para procesar este pago"},
+                {"error": _("No autorizado para procesar este pago")},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
     def _validate_stripe_session(self, payment):
         if not payment.stripe_session_id:
             return Response(
-                {"error": "Sesión de Stripe no encontrada"},
+                {"error": _("Sesión de Stripe no encontrada")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -543,7 +567,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
             {
                 "status": Payment.PaymentStatus.COMPLETED,
                 "status_display": payment.get_status_display(),
-                "message": "Payment processed successfully",
+                "message": _("Payment processed successfully"),
                 "payment_id": str(payment.id),
                 "order_id": str(payment.order.id),
             },
@@ -555,7 +579,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         payment.save()
         return Response(
             {
-                "error": "Payment is still pending",
+                "error": _("Payment is still pending"),
                 "payment_status": session.payment_status,
                 "checkout_url": session.url,
             },
@@ -565,7 +589,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
     def _handle_open_payment(self, session, payment):
         return Response(
             {
-                "error": "Payment is still open",
+                "error": _("Payment is still open"),
                 "payment_status": session.payment_status,
                 "checkout_url": session.url,
             },
@@ -577,7 +601,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         payment.save()
         return Response(
             {
-                "error": "Payment failed",
+                "error": _("Payment failed"),
                 "payment_status": session.payment_status,
                 "retry_url": f"/api/payments/{payment.id}/retry_payment/",
             },
@@ -592,7 +616,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
         return Response(
             {
-                "error": "Error procesando el pago",
+                "error": _("Error procesando el pago"),
                 "retry_url": f"/api/payments/{payment.id}/retry_payment/",
             },
             status=status.HTTP_400_BAD_REQUEST,
@@ -607,14 +631,18 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
     def _send_success_email(self, user):
         if user and user.email:
-            send_payment_success_email_task.delay(user.email)
+            send_payment_success_email_task.delay(
+                user.email,
+                from_email=settings.PAYMENT_EMAIL_FROM,
+                subject=settings.PAYMENT_EMAIL_SUBJECT
+            )
 
     @action(detail=True, methods=["get"])
     def verify(self, request, id=None):
         payment = get_object_or_404(Payment, id=id)
         if payment.order.user != request.user:
             return Response(
-                {"error": "Payment not found"}, status=status.HTTP_404_NOT_FOUND
+                {"error": _("Payment not found")}, status=status.HTTP_404_NOT_FOUND
             )
         return Response(
             {
@@ -630,11 +658,11 @@ class PaymentViewSet(viewsets.ModelViewSet):
             payment = get_object_or_404(Payment, id=id)
             if payment.order.user != request.user:
                 return Response(
-                    {"error": "Payment not found"}, status=status.HTTP_404_NOT_FOUND
+                    {"error": _("Payment not found")}, status=status.HTTP_404_NOT_FOUND
                 )
             if payment.status != Payment.PaymentStatus.FAILED:
                 return Response(
-                    {"error": "Only failed payments can be retried"},
+                    {"error": _("Only failed payments can be retried")},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
@@ -656,7 +684,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         except stripe.error.StripeError as e:
             logger.error(f"Stripe error in retry payment: {str(e)}")
             return Response(
-                {"error": "Error al procesar el pago. Por favor, inténtelo de nuevo."},
+                {"error": _("Error al procesar el pago. Por favor, inténtelo de nuevo.")},
                 status=status.HTTP_502_BAD_GATEWAY,
             )
 
@@ -669,7 +697,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
             ).first()
             if active_subscription:
                 return Response(
-                    {"error": "Ya tienes una suscripción activa"},
+                    {"error": _("Ya tienes una suscripción activa")},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             if not request.user.stripe_customer_id:

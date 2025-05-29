@@ -290,11 +290,9 @@ REST_FRAMEWORK = {
         "rest_framework.parsers.MultiPartParser",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
-        # "rest_framework.permissions.IsAuthenticatedOrReadOnly",
         "rest_framework.permissions.IsAuthenticated",
     ],
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        # "rest_framework_simplejwt.authentication.JWTAuthentication",
         "users.authentication.CustomJWTAuthentication",
     ),
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.LimitOffsetPagination",
@@ -569,3 +567,16 @@ LOGIN_ATTEMPT_TIMEOUT = env.int(
 # Configuración adicional de seguridad recomendada
 ACCOUNT_LOGIN_ATTEMPTS_LIMIT = MAX_LOGIN_ATTEMPTS
 ACCOUNT_LOGIN_ATTEMPTS_TIMEOUT = LOGIN_ATTEMPT_TIMEOUT
+
+# Payment Settings
+PAYMENT_CURRENCY = env("PAYMENT_CURRENCY",  default="USD")
+PAYMENT_MIN_AMOUNT = env.float("PAYMENT_MIN_AMOUNT",  default=0.50)
+PAYMENT_MAX_AMOUNT = env.float("PAYMENT_MAX_AMOUNT", default=10000.00)
+
+# Payment Timeouts
+PAYMENT_SESSION_TIMEOUT = env.int("PAYMENT_SESSION_TIMEOUT",  default=3600) # 1 hora en segundos
+PAYMENT_RETRY_LIMIT = env.int("PAYMENT_RETRY_LIMIT",  default=3)
+
+# Payment Email Settings
+PAYMENT_EMAIL_FROM = env("PAYMENT_EMAIL_FROM", default="noreply@econline.com")
+PAYMENT_EMAIL_SUBJECT = env("PAYMENT_EMAIL_SUBJECT", default="Confirmación de Pago")
