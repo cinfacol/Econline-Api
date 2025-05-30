@@ -14,8 +14,11 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 from rest_framework.throttling import UserRateThrottle
+from decimal import Decimal
+
 from orders.models import Order, OrderItem
 from shipping.models import Shipping
+from shipping.services import ServientregaService
 from .models import Payment, PaymentMethod, Subscription, Refund
 from cart.models import Cart
 from .serializers import (
@@ -199,42 +202,78 @@ class PaymentViewSet(viewsets.ModelViewSet):
     def calculate_total(self, request):
         try:
             shipping_id = request.query_params.get("shipping_id")
-            if not shipping_id:
-                return Response(
-                    {"error": _("shipping_id is required")},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
             cart, _ = Cart.objects.prefetch_related("items").get_or_create(
                 user=request.user
             )
             if not cart.items.exists():
                 return Response(
-                    {"error": _("Cart is empty")}, status=status.HTTP_400_BAD_REQUEST
+                    {"error": _("El carrito está vacío")}, 
+                    status=status.HTTP_400_BAD_REQUEST
                 )
+
+            # Si no hay shipping_id, obtener el método de envío por defecto
+            if not shipping_id:
+                default_shipping = Shipping.objects.filter(is_active=True).order_by('price').first()
+                if default_shipping:
+                    shipping_id = default_shipping.id
+                else:
+                    return Response(
+                        {"error": _("No hay métodos de envío disponibles")},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
             shipping = get_object_or_404(Shipping, id=shipping_id)
-            total = self._calculate_order_total(cart, shipping)
+            subtotal = cart.get_subtotal()
+            
+            # Calcular el costo de envío basado en el subtotal
+            shipping_cost = shipping.calculate_shipping_cost(subtotal)
+            
+            # Calcular el total final
+            total = subtotal + shipping_cost - cart.get_discount()
+
+            # Obtener la dirección del usuario para la cotización de Servientrega
+            user_address = request.user.address_set.filter(is_default=True).first()
+            
+            # Preparar datos para la cotización de Servientrega
+            servientrega_data = None
+            if user_address:
+                try:
+                    servientrega_service = ServientregaService()
+                    servientrega_data = servientrega_service.cotizar_envio(
+                        origen_codigo=settings.SERVIENTREGA_ORIGIN_CODE,
+                        destino_codigo=user_address.postal_zip_code,
+                        peso=Decimal('1.0'),  # Peso por defecto, ajustar según necesidad
+                        valor_declarado=float(subtotal),
+                        tipo_servicio=shipping.service_type
+                    )
+                except Exception as e:
+                    logger.error(f"Error al cotizar con Servientrega: {str(e)}")
+                    # Continuamos sin los datos de Servientrega
+
             response_data = {
-                "subtotal": cart.get_subtotal(),
-                "shipping_cost": shipping.price,
+                "subtotal": subtotal,
+                "shipping_cost": shipping_cost,
                 "discount": cart.get_discount(),
                 "total_amount": total,
-                "currency": "USD",
-                "shipping_method": shipping.name,
-                "estimated_days": shipping.time_to_delivery,
+                "currency": settings.PAYMENT_CURRENCY,
+                "shipping_method": {
+                    "id": shipping.id,
+                    "name": shipping.name,
+                    "service_type": shipping.service_type,
+                    "transport_type": shipping.transport_type,
+                    "estimated_days": shipping.get_estimated_delivery_days(),
+                    "is_free": shipping_cost == 0,
+                    "free_shipping_threshold": shipping.free_shipping_threshold
+                },
+                "servientrega_quote": servientrega_data
             }
             return Response(response_data)
         except Exception as e:
             logger.error(f"Error calculating total: {str(e)}")
             return Response(
                 {"error": _("Error al calcular el total.")},
-                status=status.HTTP_400_BAD_REQUEST,
+                status=status.HTTP_400_BAD_REQUEST
             )
-
-    def _calculate_order_total(self, cart, shipping):
-        subtotal = cart.get_subtotal()
-        shipping_cost = shipping.price
-        discount = cart.get_discount()
-        return subtotal + shipping_cost - discount
 
     @action(detail=True, methods=["POST"])
     @transaction.atomic

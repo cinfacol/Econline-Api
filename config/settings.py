@@ -5,6 +5,7 @@ from django.utils.translation import gettext_lazy as _
 from .logging import LOGGING
 
 import environ
+import os
 
 env = environ.Env(DEBUG=(bool, False))
 
@@ -396,10 +397,7 @@ AUTH_COOKIE_SAMESITE = "None"
 AUTH_COOKIE = "access"
 
 SIMPLE_JWT = {
-    "AUTH_HEADER_TYPES": (
-        "Bearer",
-        "JWT",
-    ),
+    "AUTH_HEADER_TYPES": ("Bearer", "JWT"),
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
     "SIGNING_KEY": env("SIGNING_KEY"),
@@ -408,40 +406,23 @@ SIMPLE_JWT = {
     "UPDATE_LAST_LOGIN": False,
     "ALGORITHM": "HS256",
     "VERIFYING_KEY": SECRET_KEY,
-    "AUDIENCE": None,
-    "ISSUER": None,
-    "JWK_URL": None,
-    "LEEWAY": 0,
     "AUTH_HEADER_NAME": "HTTP_AUTHORIZATION",
     "USER_ID_FIELD": "id",
     "USER_ID_CLAIM": "user_id",
-    "USER_AUTHENTICATION_RULE": "rest_framework_simplejwt.authentication.default_user_authentication_rule",
     "AUTH_TOKEN_CLASSES": ("rest_framework_simplejwt.tokens.AccessToken",),
     "TOKEN_TYPE_CLAIM": "token_type",
-    "TOKEN_USER_CLASS": "rest_framework_simplejwt.models.TokenUser",
     "JTI_CLAIM": "jti",
-    "AUTH_COOKIE": AUTH_COOKIE,
-    # "AUTH_COOKIE_MAX_AGE": 60 * 60 * 24,
-    # "AUTH_COOKIE_SECURE": env("AUTH_COOKIE_SECURE"),
-    # "AUTH_COOKIE_HTTP_ONLY": True,
-    # "AUTH_COOKIE_PATH": "/",
-    # "AUTH_COOKIE_SAMESITE": "Lax" if DEBUG else "Strict",
+    "AUTH_COOKIE": "access",
+    "AUTH_COOKIE_MAX_AGE": 60 * 60 * 24,  # 24 horas
+    "AUTH_COOKIE_SECURE": not DEBUG,
+    "AUTH_COOKIE_HTTP_ONLY": True,
+    "AUTH_COOKIE_PATH": "/",
+    "AUTH_COOKIE_SAMESITE": "Lax",
 }
-
-
-# CELERY_BROKER_URL = env("CELERY_BROKER")
-# CELERY_RESULT_BACKEND = env("CELERY_BACKEND")
-
-STRIPE_SECRET_KEY = env("STRIPE_SECRET_KEY")
-STRIPE_PUBLIC_KEY = env("STRIPE_PUBLIC_KEY")
-PAYMENT_CANCEL_URL = env("PAYMENT_CANCEL_URL")
-PAYMENT_SUCCESS_URL = env("PAYMENT_SUCCESS_URL")
-BACKEND_DOMAIN = env("BACKEND_DOMAIN")
 
 STRIPE_API_KEY = env("STRIPE_API_KEY")
 FRONTEND_URL = env("FRONTEND_URL")
 FRONTEND_STORE_URL = env("FRONTEND_STORE_URL")
-STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET")
 
 BT_ENVIRONMENT = env("BT_ENVIRONMENT")
 BT_MERCHANT_ID = env("BT_MERCHANT_ID")
@@ -494,10 +475,6 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(minute="0", hour="1"),
     },
 }
-
-# Configuración de Celery
-# CELERY_BROKER_URL = f"redis://redis:6379/{REDIS_DB_CELERY}"
-# CELERY_RESULT_BACKEND = f"redis://redis:6379/{REDIS_DB_CELERY}"
 
 CELERY_ACCEPT_CONTENT = ["application/json"]
 CELERY_TASK_SERIALIZER = "json"
@@ -568,15 +545,30 @@ LOGIN_ATTEMPT_TIMEOUT = env.int(
 ACCOUNT_LOGIN_ATTEMPTS_LIMIT = MAX_LOGIN_ATTEMPTS
 ACCOUNT_LOGIN_ATTEMPTS_TIMEOUT = LOGIN_ATTEMPT_TIMEOUT
 
+# Stripe Configuration
+STRIPE_SECRET_KEY = env('STRIPE_SECRET_KEY')
+STRIPE_PUBLIC_KEY = env("STRIPE_PUBLIC_KEY")
+STRIPE_WEBHOOK_SECRET = env('STRIPE_WEBHOOK_SECRET')
+STRIPE_PUBLISHABLE_KEY = env('STRIPE_PUBLISHABLE_KEY')
+
+# Payment URLs
+PAYMENT_SUCCESS_URL = env('PAYMENT_SUCCESS_URL', default='http://localhost:3000/payment/success')
+PAYMENT_CANCEL_URL = env('PAYMENT_CANCEL_URL', default='http://localhost:3000/payment/cancel')
+
 # Payment Settings
-PAYMENT_CURRENCY = env("PAYMENT_CURRENCY",  default="USD")
-PAYMENT_MIN_AMOUNT = env.float("PAYMENT_MIN_AMOUNT",  default=0.50)
-PAYMENT_MAX_AMOUNT = env.float("PAYMENT_MAX_AMOUNT", default=10000.00)
+PAYMENT_CURRENCY = env('PAYMENT_CURRENCY', default='USD')
+PAYMENT_MIN_AMOUNT = env.float('PAYMENT_MIN_AMOUNT', default='0.50')
+PAYMENT_MAX_AMOUNT = env.float('PAYMENT_MAX_AMOUNT', default='10000.00')
 
 # Payment Timeouts
-PAYMENT_SESSION_TIMEOUT = env.int("PAYMENT_SESSION_TIMEOUT",  default=3600) # 1 hora en segundos
-PAYMENT_RETRY_LIMIT = env.int("PAYMENT_RETRY_LIMIT",  default=3)
+PAYMENT_SESSION_TIMEOUT = env.int('PAYMENT_SESSION_TIMEOUT', default='3600')  # 1 hora en segundos
+PAYMENT_RETRY_LIMIT = env.int('PAYMENT_RETRY_LIMIT', default='3')
 
 # Payment Email Settings
-PAYMENT_EMAIL_FROM = env("PAYMENT_EMAIL_FROM", default="noreply@econline.com")
-PAYMENT_EMAIL_SUBJECT = env("PAYMENT_EMAIL_SUBJECT", default="Confirmación de Pago")
+PAYMENT_EMAIL_FROM = env('PAYMENT_EMAIL_FROM', default='noreply@econline.com')
+PAYMENT_EMAIL_SUBJECT = env('PAYMENT_EMAIL_SUBJECT', default='Confirmación de Pago')
+
+SERVIENTREGA_API_KEY = env('SERVIENTREGA_API_KEY',  default='')
+SERVIENTREGA_USERNAME = env('SERVIENTREGA_USERNAME', default='')
+SERVIENTREGA_PASSWORD = env('SERVIENTREGA_PASSWORD', default='')
+SERVIENTREGA_ORIGIN_CODE = env('SERVIENTREGA_ORIGIN_CODE', default='')
