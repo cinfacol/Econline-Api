@@ -5,15 +5,34 @@ from .models import Shipping
 @admin.register(Shipping)
 class ShippingAdmin(admin.ModelAdmin):
     list_display = (
-        "id",
-        "name",
-        "price",
-        "time_to_delivery",
+        'name',
+        'service_type',
+        'transport_type',
+        'standard_shipping_cost',
+        'free_shipping_threshold',
+        'is_active',
+        'time_to_delivery'
     )
-    list_display_links = (
-        "id",
-        "name",
+    list_filter = (
+        'service_type',
+        'transport_type',
+        'is_active'
     )
-    list_editable = ("price",)
-    search_fields = ("name",)
-    list_per_page = 25
+    search_fields = (
+        'name',
+        'service_type',
+        'transport_type'
+    )
+    fieldsets = (
+        ('Información Básica', {
+            'fields': ('name', 'time_to_delivery', 'is_active')
+        }),
+        ('Tipo de Servicio', {
+            'fields': ('service_type', 'transport_type')
+        }),
+        ('Configuración de Costos', {
+            'fields': ('standard_shipping_cost', 'free_shipping_threshold'),
+            'description': 'Configuración de costos de envío y umbral para envío gratuito'
+        })
+    )
+    ordering = ('name',)

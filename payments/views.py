@@ -213,7 +213,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
             # Si no hay shipping_id, obtener el método de envío por defecto
             if not shipping_id:
-                default_shipping = Shipping.objects.filter(is_active=True).order_by('price').first()
+                default_shipping = Shipping.objects.filter(is_active=True).order_by('standard_shipping_cost').first()
                 if default_shipping:
                     shipping_id = default_shipping.id
                 else:
@@ -524,7 +524,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
             "payment_method": payment.payment_method,
             "currency": order.currency,
             "subtotal": str(order.amount),
-            "shipping_cost": str(order.shipping.price if order.shipping else 0),
+            "shipping_cost": str(order.shipping.standard_shipping_cost if order.shipping else 0),
             "tax_amount": str(payment.tax_amount),
             "discount_amount": str(payment.discount_amount),
             "total_amount": str(payment.amount),

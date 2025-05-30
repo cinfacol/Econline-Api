@@ -1,6 +1,10 @@
-from django.urls import path
-from .views import GetShippingView
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import ShippingViewSet
+
+router = DefaultRouter()
+router.register('', ShippingViewSet, basename='shipping')
 
 urlpatterns = [
-    path("get-shipping-options/", GetShippingView.as_view()),
+    path('', include(router.urls)),
 ]
