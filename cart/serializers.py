@@ -1,8 +1,7 @@
-from django.conf import settings
 from rest_framework import serializers
-from .models import Cart, CartItem, DeliveryCost
 from inventory.serializers import InventorySerializer
 from coupons.serializers import CouponSerializer
+from .models import Cart, CartItem, DeliveryCost
 
 
 class CartItemSerializer(serializers.ModelSerializer):

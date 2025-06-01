@@ -1,0 +1,9 @@
+[MESSAGES CONTROL]
+disable=C0111,C0103,C0303,C0415,W0012,W0311,W0603,W0611,W0613,W0621,R0903,R0913,R0914,R0915,E0013,E0015,E1101,E1120,E1136,F0401,I0011,I0012
+
+[FORMAT]
+max-line-length=120
+
+[MASTER]
+load-plugins=pylint_django
+django-settings-module=econline.settings

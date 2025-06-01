@@ -326,7 +326,7 @@ class FilterProductReviewsView(APIView):
 
         product = Product.objects.get(id=product_id)
 
-        review = request.query_params.get("review")
+        rating = request.query_params.get("rating")
 
         try:
             rating = float(rating)

@@ -2,8 +2,6 @@
     "window.newWindowProfile": "jorge-vscode",
     "security.workspace.trust.untrustedFiles": "open",
     "workbench.sideBar.location": "right",
-    "python.linting.enabled": true,
-    "python.linting.pylintEnabled": true,
     "python.formatting.provider": "black",
     "editor.formatOnSave": true,
     "editor.rulers": [
@@ -21,7 +19,6 @@
         "${workspaceFolder}"
     ],
     "[python]": {
-        "editor.defaultFormatter": "ms-python.python",
         "editor.formatOnSave": true,
         "editor.codeActionsOnSave": {
             "source.organizeImports": "explicit"
@@ -36,12 +33,12 @@
     "files.trimTrailingWhitespace": true,
     "files.insertFinalNewline": true,
     "files.trimFinalNewlines": true,
-    "python.analysis.typeCheckingMode": "basic",
     "python.analysis.diagnosticMode": "workspace",
     "python.analysis.autoImportCompletions": true,
     "python.analysis.autoSearchPaths": true,
     "python.analysis.diagnosticSeverityOverrides": {
         "reportGeneralTypeIssues": "none",
         "reportOptionalMemberAccess": "none"
-    }
+    },
+    "flake8.enabled": false
 }

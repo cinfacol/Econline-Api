@@ -1,11 +1,10 @@
-from pathlib import Path
-from celery.schedules import crontab
 from datetime import timedelta
+from pathlib import Path
+
 from django.utils.translation import gettext_lazy as _
-from .logging import LOGGING
+from celery.schedules import crontab
 
 import environ
-import os
 
 env = environ.Env(DEBUG=(bool, False))
 
@@ -293,9 +292,7 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
-    "DEFAULT_AUTHENTICATION_CLASSES": (
-        "users.authentication.CustomJWTAuthentication",
-    ),
+    "DEFAULT_AUTHENTICATION_CLASSES": ("users.authentication.CustomJWTAuthentication",),
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.LimitOffsetPagination",
     "PAGE_SIZE": 12,
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
@@ -546,29 +543,74 @@ ACCOUNT_LOGIN_ATTEMPTS_LIMIT = MAX_LOGIN_ATTEMPTS
 ACCOUNT_LOGIN_ATTEMPTS_TIMEOUT = LOGIN_ATTEMPT_TIMEOUT
 
 # Stripe Configuration
-STRIPE_SECRET_KEY = env('STRIPE_SECRET_KEY')
+STRIPE_SECRET_KEY = env("STRIPE_SECRET_KEY")
 STRIPE_PUBLIC_KEY = env("STRIPE_PUBLIC_KEY")
-STRIPE_WEBHOOK_SECRET = env('STRIPE_WEBHOOK_SECRET')
-STRIPE_PUBLISHABLE_KEY = env('STRIPE_PUBLISHABLE_KEY')
+STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET")
+STRIPE_PUBLISHABLE_KEY = env("STRIPE_PUBLISHABLE_KEY")
 
 # Payment URLs
-PAYMENT_SUCCESS_URL = env('PAYMENT_SUCCESS_URL', default='http://localhost:3000/payment/success')
-PAYMENT_CANCEL_URL = env('PAYMENT_CANCEL_URL', default='http://localhost:3000/payment/cancel')
+PAYMENT_SUCCESS_URL = env(
+    "PAYMENT_SUCCESS_URL", default="http://localhost:3000/payment/success"
+)
+PAYMENT_CANCEL_URL = env(
+    "PAYMENT_CANCEL_URL", default="http://localhost:3000/payment/cancel"
+)
 
 # Payment Settings
-PAYMENT_CURRENCY = env('PAYMENT_CURRENCY', default='USD')
-PAYMENT_MIN_AMOUNT = env.float('PAYMENT_MIN_AMOUNT', default='0.50')
-PAYMENT_MAX_AMOUNT = env.float('PAYMENT_MAX_AMOUNT', default='10000.00')
+PAYMENT_CURRENCY = env("PAYMENT_CURRENCY", default="USD")
+PAYMENT_MIN_AMOUNT = env.float("PAYMENT_MIN_AMOUNT", default="0.50")
+PAYMENT_MAX_AMOUNT = env.float("PAYMENT_MAX_AMOUNT", default="10000.00")
 
 # Payment Timeouts
-PAYMENT_SESSION_TIMEOUT = env.int('PAYMENT_SESSION_TIMEOUT', default='3600')  # 1 hora en segundos
-PAYMENT_RETRY_LIMIT = env.int('PAYMENT_RETRY_LIMIT', default='3')
+PAYMENT_SESSION_TIMEOUT = env.int(
+    "PAYMENT_SESSION_TIMEOUT", default="3600"
+)  # 1 hora en segundos
+PAYMENT_RETRY_LIMIT = env.int("PAYMENT_RETRY_LIMIT", default="3")
 
 # Payment Email Settings
-PAYMENT_EMAIL_FROM = env('PAYMENT_EMAIL_FROM', default='noreply@econline.com')
-PAYMENT_EMAIL_SUBJECT = env('PAYMENT_EMAIL_SUBJECT', default='Confirmación de Pago')
+PAYMENT_EMAIL_FROM = env("PAYMENT_EMAIL_FROM", default="noreply@econline.com")
+PAYMENT_EMAIL_SUBJECT = env("PAYMENT_EMAIL_SUBJECT", default="Confirmación de Pago")
 
-SERVIENTREGA_API_KEY = env('SERVIENTREGA_API_KEY',  default='')
-SERVIENTREGA_USERNAME = env('SERVIENTREGA_USERNAME', default='')
-SERVIENTREGA_PASSWORD = env('SERVIENTREGA_PASSWORD', default='')
-SERVIENTREGA_ORIGIN_CODE = env('SERVIENTREGA_ORIGIN_CODE', default='')
+SERVIENTREGA_API_KEY = env("SERVIENTREGA_API_KEY", default="")
+SERVIENTREGA_USERNAME = env("SERVIENTREGA_USERNAME", default="")
+SERVIENTREGA_PASSWORD = env("SERVIENTREGA_PASSWORD", default="")
+SERVIENTREGA_ORIGIN_CODE = env("SERVIENTREGA_ORIGIN_CODE", default="")
+
+# Logging Configuration
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
+            "style": "{",
+        },
+        "simple": {
+            "format": "{levelname} {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "verbose",
+        },
+        "file": {
+            "class": "logging.FileHandler",
+            "filename": BASE_DIR / "logs/django.log",
+            "formatter": "verbose",
+        },
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console", "file"],
+            "level": "INFO",
+            "propagate": True,
+        },
+        "ecommerce": {
+            "handlers": ["console", "file"],
+            "level": "DEBUG",
+            "propagate": True,
+        },
+    },
+}

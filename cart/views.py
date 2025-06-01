@@ -1,19 +1,19 @@
-from django.db import transaction
-from django.db.models import F
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.permissions import IsAuthenticated, AllowAny
-from rest_framework.parsers import JSONParser
 from decimal import Decimal
 
+from django.db import transaction
+from django.db.models import F
+from django.shortcuts import get_object_or_404
+from rest_framework import status
+from rest_framework.parsers import JSONParser
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from coupons.models import Coupon
+from inventory.models import Inventory
 
 from .models import Cart, CartItem, DeliveryCost
-from coupons.models import Coupon
 from .serializers import CartSerializer, CartItemSerializer, DeliveryCostSerializer
-from inventory.models import Inventory
-from inventory.serializers import InventorySerializer
-from django.shortcuts import get_object_or_404
 
 
 class GetItemsView(APIView):
@@ -63,7 +63,6 @@ class GetTotalView(APIView):
         tax_estimate = Decimal(0)
         final_inventory_retail_price = Decimal(0)
         shipping_estimate = Decimal(0)
-        quantity = Decimal(0)
 
         for item in data.get("items", []):
             if item.get("inventory"):
@@ -106,13 +105,13 @@ class GetTotalView(APIView):
             taxes = inventory.get("taxe")
 
             # Calculate Total Cost Without Discounts and Coupons and Taxes (total_cost)
-            if inventory_discount == False:
+            if not inventory_discount:
                 total_cost += Decimal(inventory_retail_price)
             else:
                 total_cost += Decimal(inventory_compare_price)
 
             # Calculate Total Cost With Discount and Coupons if present (total_compare_cost)
-            if inventory_discount == True:
+            if inventory_discount:
                 if coupon_fixed_discount_price is not None:
                     total_compare_cost += max(
                         Decimal(inventory_compare_price)
@@ -279,7 +278,7 @@ class ClearCartView(APIView):
 
 class DecreaseQuantityView(APIView):
 
-    def put(self, request, format=None):
+    def put(self, request):
         user = request.user
         inventory_id = request.data
         item_id = inventory_id["inventoryId"]
@@ -323,7 +322,7 @@ class DecreaseQuantityView(APIView):
 
 class IncreaseQuantityView(APIView):
 
-    def put(self, request, format=None):
+    def put(self, request):
         user = request.user
         inventory_id = request.data
         item_id = inventory_id["inventoryId"]
@@ -361,11 +360,10 @@ class IncreaseQuantityView(APIView):
 
 class SynchCartItemsView(APIView):
 
-    def put(self, request, format=None):
+    def put(self, request):
         user = request.user
         data = request.data
         items = []
-        inventories = []
 
         # Obtener o crear el carrito del usuario
         cart, _ = Cart.objects.get_or_create(user=user)
@@ -441,7 +439,7 @@ class DeliveryCostListAPIView(APIView):
     API endpoint for listing and creating delivery costs.
     """
 
-    def get(self, request):
+    def get(self):
         delivery_costs = DeliveryCost.objects.all().order_by("id")
         serializer = DeliveryCostSerializer(delivery_costs, many=True)
         return Response(serializer.data)
@@ -465,7 +463,7 @@ class DeliveryCostDetailAPIView(APIView):
         except DeliveryCost.DoesNotExist:
             return None
 
-    def get(self, request, pk):
+    def get(self, pk):
         delivery_cost = self.get_object(pk)
         if not delivery_cost:
             return Response(status=status.HTTP_404_NOT_FOUND)
@@ -482,7 +480,7 @@ class DeliveryCostDetailAPIView(APIView):
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    def delete(self, request, pk):
+    def delete(self, pk):
         delivery_cost = self.get_object(pk)
         if not delivery_cost:
             return Response(status=status.HTTP_404_NOT_FOUND)

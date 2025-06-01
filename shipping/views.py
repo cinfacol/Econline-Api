@@ -16,6 +16,7 @@ from django.db.models import Q
 
 logger = logging.getLogger(__name__)
 
+
 class ShippingViewSet(ModelViewSet):
     permission_classes = (permissions.AllowAny,)
     serializer_class = ShippingSerializer
@@ -32,7 +33,7 @@ class ShippingViewSet(ModelViewSet):
         description="Lista todas las opciones de envío activas",
         examples=[
             OpenApiExample(
-                'Respuesta exitosa',
+                "Respuesta exitosa",
                 value={
                     "shipping_options": [
                         {
@@ -45,13 +46,13 @@ class ShippingViewSet(ModelViewSet):
                             "is_active": True,
                             "time_to_delivery": "3-5 días",
                             "is_free_shipping": False,
-                            "estimated_delivery_days": "3-5 días"
+                            "estimated_delivery_days": "3-5 días",
                         }
                     ],
-                    "message": "Opciones de envío activas obtenidas exitosamente"
-                }
+                    "message": "Opciones de envío activas obtenidas exitosamente",
+                },
             )
-        ]
+        ],
     )
     def list(self, request):
         """
@@ -59,26 +60,24 @@ class ShippingViewSet(ModelViewSet):
         """
         try:
             queryset = self.get_queryset()
-            order_total = Decimal(request.query_params.get('order_total', '0'))
-            
+            order_total = Decimal(request.query_params.get("order_total", "0"))
+
             serializer = self.get_serializer(
-                queryset, 
-                many=True,
-                context={'order_total': order_total}
+                queryset, many=True, context={"order_total": order_total}
             )
-            
+
             return Response(
                 {
                     "shipping_options": serializer.data,
-                    "message": _("Opciones de envío activas obtenidas exitosamente")
-                }, 
-                status=status.HTTP_200_OK
+                    "message": _("Opciones de envío activas obtenidas exitosamente"),
+                },
+                status=status.HTTP_200_OK,
             )
         except Exception as e:
             logger.error(f"Error al obtener opciones de envío: {str(e)}")
             return Response(
                 {"error": _("Error al obtener opciones de envío")},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     @extend_schema(
@@ -86,11 +85,11 @@ class ShippingViewSet(ModelViewSet):
         description="Obtiene los detalles de una opción de envío específica",
         parameters=[
             OpenApiParameter(
-                name='order_total',
+                name="order_total",
                 type=float,
-                description='Total de la orden para calcular si el envío es gratuito'
+                description="Total de la orden para calcular si el envío es gratuito",
             )
-        ]
+        ],
     )
     def retrieve(self, request, pk=None):
         """
@@ -98,23 +97,22 @@ class ShippingViewSet(ModelViewSet):
         """
         try:
             shipping = Shipping.objects.get(id=pk, is_active=True)
-            order_total = Decimal(request.query_params.get('order_total', '0'))
-            
+            order_total = Decimal(request.query_params.get("order_total", "0"))
+
             serializer = ShippingSerializer(
-                shipping,
-                context={'order_total': order_total}
+                shipping, context={"order_total": order_total}
             )
             return Response(serializer.data, status=status.HTTP_200_OK)
         except Shipping.DoesNotExist:
             return Response(
                 {"error": _("Opción de envío no encontrada")},
-                status=status.HTTP_404_NOT_FOUND
+                status=status.HTTP_404_NOT_FOUND,
             )
         except Exception as e:
             logger.error(f"Error al obtener opción de envío: {str(e)}")
             return Response(
                 {"error": _("Error al obtener opción de envío")},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     @extend_schema(
@@ -123,17 +121,17 @@ class ShippingViewSet(ModelViewSet):
         description="Calcula el costo de envío basado en el total de la orden",
         examples=[
             OpenApiExample(
-                'Solicitud',
+                "Solicitud",
                 value={
                     "order_total": "100.00",
                     "shipping_id": "uuid",
                     "weight": "1.0",
-                    "origin_code": "11001"
-                }
+                    "origin_code": "11001",
+                },
             )
-        ]
+        ],
     )
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=["post"])
     def calculate_shipping(self, request):
         """
         Calcula el costo de envío basado en el total de la orden
@@ -148,68 +146,81 @@ class ShippingViewSet(ModelViewSet):
             logger.info(f"Datos validados: {data}")
 
             # Obtener método de envío
-            if data.get('shipping_id'):
+            if data.get("shipping_id"):
                 try:
-                    shipping_id = str(data['shipping_id'])
+                    shipping_id = str(data["shipping_id"])
                     logger.info(f"Buscando envío con ID: {shipping_id}")
-                    
+
                     # Verificar si el envío existe sin el filtro de is_active
                     shipping = Shipping.objects.get(id=shipping_id)
-                    logger.info(f"Envió encontrado (sin filtro): {shipping.name} (ID: {shipping.id}, Activo: {shipping.is_active})")
-                    
+                    logger.info(
+                        f"Envió encontrado (sin filtro): {shipping.name} (ID: {shipping.id}, Activo: {shipping.is_active})"
+                    )
+
                     # Verificar si está activo
                     if not shipping.is_active:
-                        logger.error(f"Envió encontrado pero no está activo: {shipping.name}")
-                        return Response(
-                            {"error": _("La opción de envío seleccionada no está disponible")},
-                            status=status.HTTP_400_BAD_REQUEST
+                        logger.error(
+                            f"Envió encontrado pero no está activo: {shipping.name}"
                         )
-                        
+                        return Response(
+                            {
+                                "error": _(
+                                    "La opción de envío seleccionada no está disponible"
+                                )
+                            },
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
                 except Shipping.DoesNotExist:
                     logger.error(f"Envió no encontrado con ID: {shipping_id}")
                     return Response(
                         {"error": _("Opción de envío no encontrada")},
-                        status=status.HTTP_404_NOT_FOUND
+                        status=status.HTTP_404_NOT_FOUND,
                     )
             else:
-                shipping = Shipping.objects.filter(is_active=True).order_by('standard_shipping_cost').first()
+                shipping = (
+                    Shipping.objects.filter(is_active=True)
+                    .order_by("standard_shipping_cost")
+                    .first()
+                )
                 if not shipping:
                     return Response(
                         {"error": _("No hay opciones de envío disponibles")},
-                        status=status.HTTP_404_NOT_FOUND
+                        status=status.HTTP_404_NOT_FOUND,
                     )
 
             # Calcular costo de envío
-            shipping_cost = shipping.calculate_shipping_cost(data['order_total'])
+            shipping_cost = shipping.calculate_shipping_cost(data["order_total"])
             logger.info(f"Costo de envío calculado: {shipping_cost}")
-            
+
             response_data = {
                 "shipping_method": ShippingSerializer(
-                    shipping,
-                    context={'order_total': data['order_total']}
+                    shipping, context={"order_total": data["order_total"]}
                 ).data,
-                "order_total": data['order_total'],
+                "order_total": data["order_total"],
                 "shipping_cost": shipping_cost,
                 "is_free_shipping": shipping_cost == 0,
-                "total_with_shipping": data['order_total'] + shipping_cost
+                "total_with_shipping": data["order_total"] + shipping_cost,
             }
 
             # Obtener cotización de Servientrega si es posible
             if request.user.is_authenticated:
                 user_address = request.user.address_set.filter(is_default=True).first()
-                if user_address and data.get('origin_code'):
+                if user_address and data.get("origin_code"):
                     try:
                         servientrega_service = ServientregaService()
                         servientrega_quote = servientrega_service.cotizar_envio(
-                            origen_codigo=data['origin_code'],
+                            origen_codigo=data["origin_code"],
                             destino_codigo=user_address.postal_zip_code,
-                            peso=data.get('weight', Decimal('1.0')),
-                            valor_declarado=float(data['order_total']),
-                            tipo_servicio=shipping.service_type
+                            peso=data.get("weight", Decimal("1.0")),
+                            valor_declarado=float(data["order_total"]),
+                            tipo_servicio=shipping.service_type,
                         )
-                        response_data['servientrega_quote'] = servientrega_quote
+                        response_data["servientrega_quote"] = servientrega_quote
                     except Exception as e:
-                        logger.error(f"Error al obtener cotización de Servientrega: {str(e)}")
+                        logger.error(
+                            f"Error al obtener cotización de Servientrega: {str(e)}"
+                        )
                         # Continuamos sin la cotización de Servientrega
 
             return Response(response_data, status=status.HTTP_200_OK)
@@ -217,5 +228,5 @@ class ShippingViewSet(ModelViewSet):
             logger.error(f"Error al calcular envío: {str(e)}")
             return Response(
                 {"error": _("Error al calcular el costo de envío")},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )

@@ -150,7 +150,6 @@ def update_inventory_api_view(request, sku):
 @api_view(["POST"])
 @permission_classes([permissions.IsAuthenticated])
 def create_inventory_api_view(request):
-    user = request.user
     data = request.data
     data["user"] = request.user.pkid
     serializer = InventoryCreateSerializer(data=data)

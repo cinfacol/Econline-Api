@@ -2,12 +2,11 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.exceptions import NotFound
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny
 from rest_framework.pagination import PageNumberPagination
 
-from .models import Coupon, FixedPriceCoupon, PercentageCoupon, Campaign
+from .models import Coupon, Campaign
 from .serializers import CouponSerializer, CampaignSerializer
-from inventory.models import Inventory
 
 
 class CheckCouponView(APIView):
@@ -61,9 +60,15 @@ class CheckCouponView(APIView):
                         status=status.HTTP_404_NOT_FOUND,
                     )
 
-        except NotFound:
             return Response(
-                {"error": "Coupon not found"}, status=status.HTTP_404_NOT_FOUND
+                {"error": "Invalid coupon type"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        except Coupon.DoesNotExist:
+            return Response(
+                {"error": "Coupon not found"},
+                status=status.HTTP_404_NOT_FOUND,
             )
 
 

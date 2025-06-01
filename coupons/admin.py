@@ -27,7 +27,7 @@ class CouponAdmin(admin.ModelAdmin):
 
 
 @admin.register(Campaign)
-class CouponAdmin(admin.ModelAdmin):
+class CampaignAdmin(admin.ModelAdmin):
     list_display = [
         "id",
         "discount_type",

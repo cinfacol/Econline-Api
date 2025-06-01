@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth import get_user_model
+from django.db.models.manager import Manager
 
 from common.models import TimeStampedUUIDModel
 from inventory.models import Inventory
@@ -10,13 +11,10 @@ User = get_user_model()
 
 
 class Cart(TimeStampedUUIDModel):
+    objects: Manager = models.Manager()
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     coupon = models.ForeignKey(
-        Coupon,
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name='carts'
+        Coupon, null=True, blank=True, on_delete=models.SET_NULL, related_name="carts"
     )
     total_items = models.IntegerField(default=0)
 
@@ -39,13 +37,13 @@ class Cart(TimeStampedUUIDModel):
 
 
 class CartItem(TimeStampedUUIDModel):
-    cart = models.ForeignKey('Cart', related_name='items', on_delete=models.CASCADE)
+    cart = models.ForeignKey("Cart", related_name="items", on_delete=models.CASCADE)
     coupon = models.ForeignKey(Coupon, on_delete=models.CASCADE, blank=True, null=True)
     inventory = models.ForeignKey(Inventory, on_delete=models.CASCADE)
     quantity = models.IntegerField()
 
     class Meta:
-        ordering = ['-created_at']
+        ordering = ["-created_at"]
 
     def get_total(self):
         return self.quantity * self.inventory.store_price
@@ -67,10 +65,4 @@ class DeliveryCost(TimeStampedUUIDModel):
     fixed_cost = models.DecimalField(max_digits=10, decimal_places=2, null=False)
 
     def __str__(self):
-        return "{} - {} - {} - {} - {}".format(
-            self.name,
-            self.status,
-            self.cost_per_delivery,
-            self.cost_per_product,
-            self.fixed_cost,
-        )
+        return f"{self.name} - {self.status} - {self.cost_per_delivery} - {self.cost_per_product} - {self.fixed_cost}"

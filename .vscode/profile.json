@@ -67,14 +67,6 @@
         "workbench.tree.autoRevealOnFocusOutMaxDelay": 500,
         "workbench.tree.autoRevealOnFocusInMaxDelay": 500,
         "workbench.tree.autoRevealOnFocusOutMinDelay": 0,
-        "workbench.tree.autoRevealOnFocusInMinDelay": 0,
-        "workbench.tree.autoRevealOnFocusOutMaxDuration": 300,
-        "workbench.tree.autoRevealOnFocusInMaxDuration": 300,
-        "workbench.tree.autoRevealOnFocusOutMinDuration": 100,
-        "workbench.tree.autoRevealOnFocusInMinDuration": 100,
-        "workbench.tree.autoRevealOnFocusOutMaxDelay": 500,
-        "workbench.tree.autoRevealOnFocusInMaxDelay": 500,
-        "workbench.tree.autoRevealOnFocusOutMinDelay": 0,
         "workbench.tree.autoRevealOnFocusInMinDelay": 0
     }
 }

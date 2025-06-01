@@ -54,10 +54,10 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
 logger = logging.getLogger(__name__)
 
 STRIPE_CONFIG = {
-    'api_key': settings.STRIPE_SECRET_KEY,
-    'webhook_secret': settings.STRIPE_WEBHOOK_SECRET,
-    'success_url': settings.PAYMENT_SUCCESS_URL,
-    'cancel_url': settings.PAYMENT_CANCEL_URL,
+    "api_key": settings.STRIPE_SECRET_KEY,
+    "webhook_secret": settings.STRIPE_WEBHOOK_SECRET,
+    "success_url": settings.PAYMENT_SUCCESS_URL,
+    "cancel_url": settings.PAYMENT_CANCEL_URL,
 }
 
 WEBHOOK_HANDLERS = {
@@ -91,7 +91,7 @@ class PaymentService:
 
 
 class PaymentRateThrottle(UserRateThrottle):
-    rate = '5/minute'  # Limitar a 5 intentos por minuto
+    rate = "5/minute"  # Limitar a 5 intentos por minuto
 
 
 class PaymentViewSet(viewsets.ModelViewSet):
@@ -109,7 +109,6 @@ class PaymentViewSet(viewsets.ModelViewSet):
         "external_reference",
     ]
     ordering_fields = ["created_at", "amount", "status", "payment_method"]
-
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -158,12 +157,14 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["GET"])
     def payment_methods(self, request):
-        cache_key = 'active_payment_methods'
+        cache_key = "active_payment_methods"
         methods = cache.get(cache_key)
         if not methods:
             methods = PaymentMethod.objects.filter(is_active=True)
             cache.set(cache_key, methods, timeout=3600)  # Cache por 1 hora
-        serializer = PaymentMethodSerializer(methods, many=True, context={"request": request})
+        serializer = PaymentMethodSerializer(
+            methods, many=True, context={"request": request}
+        )
         return Response({"payment_methods": serializer.data})
 
     @action(detail=True, methods=["POST"])
@@ -207,33 +208,37 @@ class PaymentViewSet(viewsets.ModelViewSet):
             )
             if not cart.items.exists():
                 return Response(
-                    {"error": _("El carrito está vacío")}, 
-                    status=status.HTTP_400_BAD_REQUEST
+                    {"error": _("El carrito está vacío")},
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
             # Si no hay shipping_id, obtener el método de envío por defecto
             if not shipping_id:
-                default_shipping = Shipping.objects.filter(is_active=True).order_by('standard_shipping_cost').first()
+                default_shipping = (
+                    Shipping.objects.filter(is_active=True)
+                    .order_by("standard_shipping_cost")
+                    .first()
+                )
                 if default_shipping:
                     shipping_id = default_shipping.id
                 else:
                     return Response(
                         {"error": _("No hay métodos de envío disponibles")},
-                        status=status.HTTP_400_BAD_REQUEST
+                        status=status.HTTP_400_BAD_REQUEST,
                     )
 
             shipping = get_object_or_404(Shipping, id=shipping_id)
             subtotal = cart.get_subtotal()
-            
+
             # Calcular el costo de envío basado en el subtotal
             shipping_cost = shipping.calculate_shipping_cost(subtotal)
-            
+
             # Calcular el total final
             total = subtotal + shipping_cost - cart.get_discount()
 
             # Obtener la dirección del usuario para la cotización de Servientrega
             user_address = request.user.address_set.filter(is_default=True).first()
-            
+
             # Preparar datos para la cotización de Servientrega
             servientrega_data = None
             if user_address:
@@ -242,9 +247,11 @@ class PaymentViewSet(viewsets.ModelViewSet):
                     servientrega_data = servientrega_service.cotizar_envio(
                         origen_codigo=settings.SERVIENTREGA_ORIGIN_CODE,
                         destino_codigo=user_address.postal_zip_code,
-                        peso=Decimal('1.0'),  # Peso por defecto, ajustar según necesidad
+                        peso=Decimal(
+                            "1.0"
+                        ),  # Peso por defecto, ajustar según necesidad
                         valor_declarado=float(subtotal),
-                        tipo_servicio=shipping.service_type
+                        tipo_servicio=shipping.service_type,
                     )
                 except Exception as e:
                     logger.error(f"Error al cotizar con Servientrega: {str(e)}")
@@ -263,16 +270,16 @@ class PaymentViewSet(viewsets.ModelViewSet):
                     "transport_type": shipping.transport_type,
                     "estimated_days": shipping.get_estimated_delivery_days(),
                     "is_free": shipping_cost == 0,
-                    "free_shipping_threshold": shipping.free_shipping_threshold
+                    "free_shipping_threshold": shipping.free_shipping_threshold,
                 },
-                "servientrega_quote": servientrega_data
+                "servientrega_quote": servientrega_data,
             }
             return Response(response_data)
         except Exception as e:
             logger.error(f"Error calculating total: {str(e)}")
             return Response(
                 {"error": _("Error al calcular el total.")},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
     @action(detail=True, methods=["POST"])
@@ -309,7 +316,11 @@ class PaymentViewSet(viewsets.ModelViewSet):
         except stripe.error.StripeError as e:
             logger.error(f"Stripe error in checkout: {str(e)}")
             return Response(
-                {"error": _("Error al procesar el pago. Por favor, inténtelo de nuevo.")},
+                {
+                    "error": _(
+                        "Error al procesar el pago. Por favor, inténtelo de nuevo."
+                    )
+                },
                 status=status.HTTP_502_BAD_GATEWAY,
             )
 
@@ -360,9 +371,13 @@ class PaymentViewSet(viewsets.ModelViewSet):
     ):
         # Validar monto mínimo y máximo
         if total < settings.PAYMENT_MIN_AMOUNT:
-            raise ValidationError(f"El monto mínimo de pago es {settings.PAYMENT_MIN_AMOUNT}")
+            raise ValidationError(
+                f"El monto mínimo de pago es {settings.PAYMENT_MIN_AMOUNT}"
+            )
         if total > settings.PAYMENT_MAX_AMOUNT:
-            raise ValidationError(f"El monto máximo de pago es {settings.PAYMENT_MAX_AMOUNT}")
+            raise ValidationError(
+                f"El monto máximo de pago es {settings.PAYMENT_MAX_AMOUNT}"
+            )
 
         payment = Payment.objects.create(
             order=order,
@@ -524,7 +539,9 @@ class PaymentViewSet(viewsets.ModelViewSet):
             "payment_method": payment.payment_method,
             "currency": order.currency,
             "subtotal": str(order.amount),
-            "shipping_cost": str(order.shipping.standard_shipping_cost if order.shipping else 0),
+            "shipping_cost": str(
+                order.shipping.standard_shipping_cost if order.shipping else 0
+            ),
             "tax_amount": str(payment.tax_amount),
             "discount_amount": str(payment.discount_amount),
             "total_amount": str(payment.amount),
@@ -673,7 +690,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
             send_payment_success_email_task.delay(
                 user.email,
                 from_email=settings.PAYMENT_EMAIL_FROM,
-                subject=settings.PAYMENT_EMAIL_SUBJECT
+                subject=settings.PAYMENT_EMAIL_SUBJECT,
             )
 
     @action(detail=True, methods=["get"])
@@ -723,7 +740,11 @@ class PaymentViewSet(viewsets.ModelViewSet):
         except stripe.error.StripeError as e:
             logger.error(f"Stripe error in retry payment: {str(e)}")
             return Response(
-                {"error": _("Error al procesar el pago. Por favor, inténtelo de nuevo.")},
+                {
+                    "error": _(
+                        "Error al procesar el pago. Por favor, inténtelo de nuevo."
+                    )
+                },
                 status=status.HTTP_502_BAD_GATEWAY,
             )
 

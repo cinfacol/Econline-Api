@@ -124,8 +124,6 @@ class HealthView(APIView):
     permission_classes = (permissions.AllowAny,)
 
     def get(self, request, *args, **kwargs):
-        response = Response(status=status.HTTP_200_OK)
-
         return Response({"status": "healthy"})
 
 
