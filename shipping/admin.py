@@ -5,6 +5,7 @@ from .models import Shipping
 @admin.register(Shipping)
 class ShippingAdmin(admin.ModelAdmin):
     list_display = (
+        'id',
         'name',
         'service_type',
         'transport_type',

@@ -33,7 +33,7 @@ class PaymentSerializer(serializers.ModelSerializer):
             "order",
             "user",
             "status",
-            # "status_display",
+            "status_display",
             "payment_method",
             "payment_method_id",
             "amount",
@@ -49,6 +49,7 @@ class PaymentSerializer(serializers.ModelSerializer):
             "metadata",
             "created_at",
             "updated_at",
+            "payment_option_display",
         ]
         read_only_fields = [
             "id",
