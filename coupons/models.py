@@ -1,7 +1,10 @@
+import uuid
 from django.db import models
+from django.utils import timezone
 
 from inventory.models import Inventory
 from categories.models import Category
+from orders.models import Order
 from django.conf import settings
 from common.models import TimeStampedUUIDModel
 
@@ -20,19 +23,71 @@ class FixedPriceCoupon(TimeStampedUUIDModel):
 
 class Coupon(TimeStampedUUIDModel):
     name = models.CharField(max_length=255, unique=True)
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    code = models.CharField(max_length=50, unique=True, blank=True, null=True)
+    description = models.TextField(blank=True)
     fixed_price_coupon = models.ForeignKey(
         FixedPriceCoupon, on_delete=models.CASCADE, blank=True, null=True
     )
     percentage_coupon = models.ForeignKey(
         PercentageCoupon, on_delete=models.CASCADE, blank=True, null=True
     )
-    inventory = models.ForeignKey(
-        Inventory, on_delete=models.CASCADE, blank=True, null=True
+    start_date = models.DateTimeField(default=timezone.now)
+    end_date = models.DateTimeField(
+        default=timezone.now() + timezone.timedelta(days=30)
+    )
+    min_purchase_amount = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True
+    )
+    max_discount_amount = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True
+    )
+    max_uses = models.IntegerField(default=1)
+    max_uses_per_user = models.IntegerField(default=1)
+    APPLY_TO_CHOICES = [
+        ("ALL", "All Products"),
+        ("CATEGORY", "Specific Categories"),
+        ("PRODUCT", "Specific Products"),
+    ]
+    apply_to = models.CharField(max_length=10, choices=APPLY_TO_CHOICES, default="ALL")
+
+    # Relaciones para productos y categorías específicas
+    categories = models.ManyToManyField("categories.Category", blank=True)
+    products = models.ManyToManyField("inventory.Inventory", blank=True)
+    is_active = models.BooleanField(default=True)
+    can_combine = models.BooleanField(default=False)
+    first_purchase_only = models.BooleanField(default=False)
+
+    # Seguimiento
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, related_name="created_coupons"
+    )
+    used_by = models.ManyToManyField(
+        User, through="CouponUsage", related_name="used_coupons"
     )
 
+    @classmethod
+    def generate_unique_code(cls, prefix="CUP"):
+        while True:
+            # Genera un código como CUP-XXXX-XXXX
+            code = f"{prefix}-{str(uuid.uuid4())[:4].upper()}-{str(uuid.uuid4())[:4].upper()}"
+            if not cls.objects.filter(code=code).exists():
+                return code
+
+    def save(self, *args, **kwargs):
+        if not self.code:
+            self.code = self.generate_unique_code()
+        super().save(*args, **kwargs)
+
     def __str__(self):
-        return self.name
+        return f"{self.name} ({self.code})"
+
+
+class CouponUsage(TimeStampedUUIDModel):
+    coupon = models.ForeignKey(Coupon, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    order = models.ForeignKey(Order, on_delete=models.CASCADE)
+    used_at = models.DateTimeField(auto_now_add=True)
+    discount_amount = models.DecimalField(max_digits=10, decimal_places=2)
 
 
 class Campaign(TimeStampedUUIDModel):
