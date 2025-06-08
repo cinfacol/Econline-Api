@@ -1,6 +1,9 @@
+# Standard Library
 import uuid
-import stripe
 import logging
+from decimal import Decimal
+
+# Third-party
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
 from django.db import transaction
@@ -14,13 +17,15 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 from rest_framework.throttling import UserRateThrottle
-from decimal import Decimal
+import stripe
 
+# Local/First-party
+from config.celery import app as celery_app
+from cart.models import Cart
 from orders.models import Order, OrderItem
 from shipping.models import Shipping
 from shipping.services import ServientregaService
 from .models import Payment, PaymentMethod, Subscription, Refund
-from cart.models import Cart
 from .serializers import (
     PaymentSerializer,
     PaymentMethodSerializer,
@@ -48,7 +53,6 @@ from .tasks import (
     send_subscription_welcome_email,
     send_subscription_canceled_email,
 )
-from config.celery import app as celery_app
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 logger = logging.getLogger(__name__)
@@ -310,11 +314,8 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 self.format_checkout_response(checkout_session, payment),
                 status=status.HTTP_201_CREATED,
             )
-        except Exception as e:
-            logger.error(f"Error en checkout: {str(e)}")
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except stripe.error.StripeError as e:
-            logger.error(f"Stripe error in checkout: {str(e)}")
+            logger.error("Stripe error in checkout: %s", str(e))
             return Response(
                 {
                     "error": _(
@@ -323,6 +324,9 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 },
                 status=status.HTTP_502_BAD_GATEWAY,
             )
+        except (ValidationError, ValueError, TypeError) as e:
+            logger.error("Error en checkout: %s", str(e))
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     def validate_checkout_request(self, cart, shipping_id):
         if not cart or not cart.items.exists():
@@ -734,11 +738,8 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 self.format_checkout_response(checkout_session, payment),
                 status=status.HTTP_200_OK,
             )
-        except Exception as e:
-            logger.error(f"Error en retry payment: {str(e)}")
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except stripe.error.StripeError as e:
-            logger.error(f"Stripe error in retry payment: {str(e)}")
+            logger.error("Stripe error in retry payment: %s", str(e))
             return Response(
                 {
                     "error": _(
@@ -747,6 +748,9 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 },
                 status=status.HTTP_502_BAD_GATEWAY,
             )
+        except (ValidationError, ValueError, TypeError) as e:
+            logger.error("Error en retry payment: %s", str(e))
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     # Suscripciones
     @action(detail=False, methods=["POST"])
