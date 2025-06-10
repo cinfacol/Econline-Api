@@ -79,6 +79,7 @@ THIRD_PARTY_APPS = [
     "django_filters",
     "django_countries",
     "phonenumber_field",
+    "channels",
     "djoser",
     "social_django",
     "rest_framework_simplejwt",
@@ -144,6 +145,15 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("redis", 6379)],
+        },
+    },
+}
 
 DATABASES = {
     "default": {

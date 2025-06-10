@@ -4,6 +4,8 @@ import logging
 from decimal import Decimal
 
 # Third-party
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
 from django.db import transaction
@@ -53,9 +55,12 @@ from .tasks import (
     send_subscription_welcome_email,
     send_subscription_canceled_email,
 )
+from .webhooks import WebhookHandler
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 logger = logging.getLogger(__name__)
+
+CHANNELS_AVAILABLE = True
 
 STRIPE_CONFIG = {
     "api_key": settings.STRIPE_SECRET_KEY,
@@ -95,13 +100,13 @@ class PaymentService:
 
 
 class PaymentRateThrottle(UserRateThrottle):
-    rate = "5/minute"  # Limitar a 5 intentos por minuto
+    rate = "3/minute"
 
 
 class PaymentViewSet(viewsets.ModelViewSet):
     queryset = Payment.objects.select_related(
-        "order", "user", "payment_method", "order__shipping"
-    ).all()
+        "order", "user", "payment_method", "order__shipping", "order__user"
+    ).prefetch_related("order__orderitem_set", "order__orderitem_set__inventory")
     serializer_class = PaymentSerializer
     permission_classes = [permissions.IsAuthenticated, IsPaymentByUser]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
@@ -131,6 +136,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["POST"])
     def stripe_webhook(self, request):
+        webhook_handler = WebhookHandler()
         try:
             sig_header = request.META.get("HTTP_STRIPE_SIGNATURE")
             if not sig_header:
@@ -139,33 +145,57 @@ class PaymentViewSet(viewsets.ModelViewSet):
                     {"error": _("No Stripe signature found in headers")},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            event = stripe.Webhook.construct_event(
-                payload=request.body,
-                sig_header=sig_header,
-                secret=settings.STRIPE_WEBHOOK_SECRET,
-            )
-            handler = WEBHOOK_HANDLERS.get(event.type)
-            if handler:
-                handler.delay(event.data.object)
-                logger.info(f"Webhook procesado exitosamente: {event.type}")
-                return Response({"status": "success"}, status=status.HTTP_200_OK)
-            else:
-                logger.warning(f"Evento no manejado: {event.type}")
-                return Response({"status": "ignored"}, status=status.HTTP_200_OK)
-        except Exception as e:
-            logger.error("Error inesperado en webhook:", exc_info=True)
+
+            result = webhook_handler.process_webhook(request.body, sig_header)
+
+            # Notificar a través de WebSocket si es necesario
+            if result["status"] == "success":
+                self.notify_payment_update(result["event_type"], request.body)
+
+            return Response(result, status=status.HTTP_200_OK)
+
+        except ValueError as e:
+            logger.error(f"Error de firma en webhook: {str(e)}")
             return Response(
-                {"error": "Error interno procesando webhook"},
+                {"error": "Invalid signature"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as e:
+            logger.error(f"Error inesperado en webhook: {str(e)}")
+            return Response(
+                {"error": "Internal server error"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+    def notify_payment_update(self, event_type: str, event_data: dict):
+        if not CHANNELS_AVAILABLE:
+            logger.warning(
+                "No se pudo notificar la actualización: Channels no está disponible"
+            )
+            return
+
+        try:
+            channel_layer = get_channel_layer()
+            user_id = event_data.get("user_id")
+
+            if user_id:
+                async_to_sync(channel_layer.group_send)(
+                    f"payment_updates_{user_id}",
+                    {
+                        "type": "payment_update",
+                        "data": {"event_type": event_type, "payment_data": event_data},
+                    },
+                )
+        except Exception as e:
+            logger.error(f"Error al enviar notificación WebSocket: {str(e)}")
+
     @action(detail=False, methods=["GET"])
     def payment_methods(self, request):
-        cache_key = "active_payment_methods"
+        cache_key = f"active_payment_methods_{request.user.id}"
         methods = cache.get(cache_key)
         if not methods:
             methods = PaymentMethod.objects.filter(is_active=True)
-            cache.set(cache_key, methods, timeout=3600)  # Cache por 1 hora
+            cache.set(cache_key, methods, timeout=3600)
         serializer = PaymentMethodSerializer(
             methods, many=True, context={"request": request}
         )
