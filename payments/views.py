@@ -127,6 +127,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         if status_param:
             qs = qs.filter(status=status_param)
         payment_method_id = self.request.query_params.get("payment_method_id")
+
         if payment_method_id:
             qs = qs.filter(payment_method_id=payment_method_id)
         return qs
@@ -262,13 +263,10 @@ class PaymentViewSet(viewsets.ModelViewSet):
                     )
 
             shipping = get_object_or_404(Shipping, id=shipping_id)
-            subtotal = cart.get_subtotal()
-
-            # Calcular el costo de envío basado en el subtotal
-            shipping_cost = shipping.calculate_shipping_cost(subtotal)
-
-            # Calcular el total final
-            total = subtotal + shipping_cost - cart.get_discount()
+            subtotal = Decimal(str(cart.get_subtotal()))
+            shipping_cost = Decimal(str(shipping.calculate_shipping_cost(subtotal)))
+            discount = Decimal(str(cart.get_discount()))
+            total = subtotal + shipping_cost - discount
 
             # Obtener la dirección del usuario para la cotización de Servientrega
             user_address = request.user.address_set.filter(is_default=True).first()
@@ -284,7 +282,9 @@ class PaymentViewSet(viewsets.ModelViewSet):
                         peso=Decimal(
                             "1.0"
                         ),  # Peso por defecto, ajustar según necesidad
-                        valor_declarado=float(subtotal),
+                        valor_declarado=float(
+                            str(subtotal)
+                        ),  # Convertir a string primero para evitar problemas de precisión
                         tipo_servicio=shipping.service_type,
                     )
                 except Exception as e:
@@ -292,10 +292,10 @@ class PaymentViewSet(viewsets.ModelViewSet):
                     # Continuamos sin los datos de Servientrega
 
             response_data = {
-                "subtotal": subtotal,
-                "shipping_cost": shipping_cost,
-                "discount": cart.get_discount(),
-                "total_amount": total,
+                "subtotal": str(subtotal),
+                "shipping_cost": str(shipping_cost),
+                "discount": str(discount),
+                "total_amount": str(total),
                 "currency": settings.PAYMENT_CURRENCY,
                 "shipping_method": {
                     "id": shipping.id,
@@ -303,8 +303,8 @@ class PaymentViewSet(viewsets.ModelViewSet):
                     "service_type": shipping.service_type,
                     "transport_type": shipping.transport_type,
                     "estimated_days": shipping.get_estimated_delivery_days(),
-                    "is_free": shipping_cost == 0,
-                    "free_shipping_threshold": shipping.free_shipping_threshold,
+                    "is_free": shipping_cost == Decimal("0"),
+                    "free_shipping_threshold": str(shipping.free_shipping_threshold),
                 },
                 "servientrega_quote": servientrega_data,
             }
@@ -316,17 +316,62 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+    def _calculate_order_total(self, cart, shipping):
+        """
+        Calcula el total de la orden incluyendo subtotal, envío y descuentos.
+        """
+        try:
+            # Obtener el subtotal del carrito y asegurarnos que sea Decimal
+            subtotal = Decimal(str(cart.get_subtotal()))
+            logger.info(f"Subtotal: {subtotal}")
+
+            # Calcular el costo de envío basado en el subtotal y asegurarnos que sea Decimal
+            shipping_cost = Decimal(str(shipping.calculate_shipping_cost(subtotal)))
+            logger.info(f"Shipping cost: {shipping_cost}")
+
+            # Obtener el descuento y asegurarnos que sea Decimal
+            discount = Decimal(str(cart.get_discount()))
+            logger.info(f"Discount: {discount}")
+
+            # Calcular el total final
+            total = subtotal + shipping_cost - discount
+            logger.info(f"Total: {total}")
+
+            # Validar que el total sea positivo
+            if total < Decimal("0.00"):
+                raise ValidationError(_("El total no puede ser negativo."))
+
+            return total
+
+        except (TypeError, ValueError) as e:
+            logger.error(f"Error en conversión de tipos: {str(e)}")
+            raise ValidationError(_("Error en el formato de los valores numéricos."))
+        except Exception as e:
+            logger.error(f"Error calculating order total: {str(e)}")
+            raise ValidationError(_("Error al calcular el total de la orden."))
+
     @action(detail=True, methods=["POST"])
     @transaction.atomic
     def create_checkout_session(self, request, id=None):
         try:
             serializer = CheckoutSessionSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
+
+            # Log de datos recibidos
+            logger.info(f"Checkout data: {serializer.validated_data}")
+
             cart = self.get_user_cart(request.user)
+            logger.info(f"Cart subtotal: {cart.get_subtotal()}")
+
             shipping = self.validate_checkout_request(
                 cart, serializer.validated_data["shipping_id"]
             )
+            logger.info(f"Shipping method: {shipping.name}")
+            logger.info(f"Shipping threshold: {shipping.free_shipping_threshold}")
+
             total = self._calculate_order_total(cart, shipping)
+            logger.info(f"Total calculated: {total}")
+
             transaction_id = self.generate_transaction_id()
             order = self.create_order(request.user, total, shipping, transaction_id)
             payment = self.create_payment(
@@ -404,14 +449,13 @@ class PaymentViewSet(viewsets.ModelViewSet):
         **kwargs,
     ):
         # Validar monto mínimo y máximo
-        if total < settings.PAYMENT_MIN_AMOUNT:
-            raise ValidationError(
-                f"El monto mínimo de pago es {settings.PAYMENT_MIN_AMOUNT}"
-            )
-        if total > settings.PAYMENT_MAX_AMOUNT:
-            raise ValidationError(
-                f"El monto máximo de pago es {settings.PAYMENT_MAX_AMOUNT}"
-            )
+        min_amount = Decimal(str(settings.PAYMENT_MIN_AMOUNT))
+        max_amount = Decimal(str(settings.PAYMENT_MAX_AMOUNT))
+
+        if total < min_amount:
+            raise ValidationError(f"El monto mínimo de pago es {min_amount}")
+        if total > max_amount:
+            raise ValidationError(f"El monto máximo de pago es {max_amount}")
 
         payment = Payment.objects.create(
             order=order,
@@ -424,7 +468,6 @@ class PaymentViewSet(viewsets.ModelViewSet):
             discount_amount=discount_amount,
             **kwargs,
         )
-        print(f"Payment creado: {payment}, status: {payment.status}")
         return payment
 
     def create_stripe_session(self, order, payment, user_email):
@@ -530,11 +573,14 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 if images:
                     product_data["images"] = images
 
+            # Convertir el precio a float antes de multiplicar por 100 para Stripe
+            price_in_cents = int(float(str(item.price)) * 100)
+
             line_items.append(
                 {
                     "price_data": {
                         "currency": order.currency.lower(),
-                        "unit_amount": int(item.price * 100),  # Convertir a centavos
+                        "unit_amount": price_in_cents,  # Ya convertido a centavos
                         "product_data": product_data,
                     },
                     "quantity": item.count,
@@ -595,7 +641,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         }
 
     def _get_expiration_time(self):
-        return int(timezone.now().timestamp() + settings.PAYMENT_SESSION_TIMEOUT)
+        return int(timezone.now().timestamp() + int(settings.PAYMENT_SESSION_TIMEOUT))
 
     @action(detail=True, methods=["post"])
     @transaction.atomic

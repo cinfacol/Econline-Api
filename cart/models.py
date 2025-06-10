@@ -1,3 +1,4 @@
+import logging
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.db.models.manager import Manager
@@ -6,6 +7,9 @@ from common.models import TimeStampedUUIDModel
 from inventory.models import Inventory
 from coupons.models import Coupon
 
+from decimal import Decimal
+
+logger = logging.getLogger(__name__)
 
 User = get_user_model()
 
@@ -19,15 +23,29 @@ class Cart(TimeStampedUUIDModel):
     total_items = models.IntegerField(default=0)
 
     def get_subtotal(self):
-        return sum(item.get_total() for item in self.items.all())
+        try:
+            subtotal = Decimal("0")
+            for item in self.items.all():
+                price = Decimal(str(item.inventory.store_price))
+                quantity = Decimal(str(item.quantity))
+                subtotal += price * quantity
+            return subtotal
+        except (TypeError, ValueError) as e:
+            logger.error(f"Error calculating cart subtotal: {str(e)}")
+            return Decimal("0")
 
     def get_total_items(self):
         return self.items.count()
 
     def get_discount(self):
-        if not self.coupon:
-            return 0
-        return (self.get_subtotal() * self.coupon.discount) / 100
+        try:
+            discount = Decimal("0")
+            if not self.coupon:
+                return Decimal("0")
+            return (self.get_subtotal() * self.coupon.discount) / 100
+        except (TypeError, ValueError) as e:
+            logger.error(f"Error calculating cart discount: {str(e)}")
+            return Decimal("0")
 
     def get_total(self):
         return self.get_subtotal() - self.get_discount()

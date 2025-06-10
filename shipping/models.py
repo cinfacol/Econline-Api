@@ -1,6 +1,10 @@
+import logging
 from django.db import models
 from common.models import TimeStampedUUIDModel
 from decimal import Decimal
+from rest_framework.exceptions import ValidationError
+
+logger = logging.getLogger(__name__)
 
 
 class Shipping(TimeStampedUUIDModel):
@@ -47,13 +51,18 @@ class Shipping(TimeStampedUUIDModel):
     def __str__(self):
         return self.name
 
-    def calculate_shipping_cost(self, order_total: Decimal) -> Decimal:
-        """
-        Calcula el costo de envío basado en el total de la orden
-        """
-        if order_total >= self.free_shipping_threshold:
-            return Decimal("0.00")
-        return self.standard_shipping_cost
+    def calculate_shipping_cost(self, subtotal):
+        try:
+            subtotal = Decimal(str(subtotal))
+            standard_cost = Decimal(str(self.standard_shipping_cost))
+            threshold = Decimal(str(self.free_shipping_threshold))
+
+            if subtotal >= threshold:
+                return Decimal("0")
+            return standard_cost
+        except (TypeError, ValueError) as e:
+            logger.error(f"Error calculating shipping cost: {str(e)}")
+            raise ValidationError(_("Error al calcular el costo de envío."))
 
     def get_estimated_delivery_days(self) -> str:
         """
