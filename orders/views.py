@@ -4,6 +4,9 @@ from rest_framework import status
 from .models import Order, OrderItem
 from django.utils import timezone
 import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Convertir un datetime naive a aware
 naive_datetime = datetime.datetime.now()
@@ -31,7 +34,8 @@ class ListOrdersView(APIView):
                 result.append(item)
 
             return Response({"orders": result}, status=status.HTTP_200_OK)
-        except:
+        except Exception as e:
+            logger.error(f"Error retrieving orders: {str(e)}")
             return Response(
                 {"error": "Something went wrong when retrieving orders"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -41,49 +45,67 @@ class ListOrdersView(APIView):
 class ListOrderDetailView(APIView):
     def get(self, request, transactionId, format=None):
         user = self.request.user
+        logger.info(f"Retrieving order details for transaction_id: {transactionId}")
 
         try:
-            if Order.objects.filter(user=user, transaction_id=transactionId).exists():
-                order = Order.objects.get(user=user, transaction_id=transactionId)
-                result = {}
-                result["status"] = order.status
-                result["transaction_id"] = order.transaction_id
-                result["amount"] = order.amount
-                result["full_name"] = order.full_name
-                result["address_line_1"] = order.address_line_1
-                result["address_line_2"] = order.address_line_2
-                result["city"] = order.city
-                result["state_province_region"] = order.state_province_region
-                result["postal_zip_code"] = order.postal_zip_code
-                result["country_region"] = order.country_region
-                result["telephone_number"] = order.telephone_number
-                result["shipping_name"] = order.shipping_name
-                result["shipping_time"] = order.shipping_time
-                result["shipping_price"] = order.shipping_price
-                result["created_at"] = order.created_at
+            order = Order.objects.select_related("shipping", "address", "user").get(
+                user=user, transaction_id=transactionId
+            )
 
-                order_items = OrderItem.objects.order_by("-created_at").filter(
-                    order=order
+            result = {
+                "status": order.status,
+                "transaction_id": order.transaction_id,
+                "amount": order.amount,
+                "created_at": order.created_at,
+            }
+
+            # Agregar información de envío si existe
+            if order.shipping:
+                result.update(
+                    {
+                        "shipping_name": order.shipping.name,
+                        "shipping_time": order.shipping.time_to_delivery,
+                        "shipping_price": order.shipping.standard_shipping_cost,
+                    }
                 )
-                result["order_items"] = []
 
-                for order_item in order_items:
-                    sub_item = {}
+            # Agregar información de dirección si existe
+            if order.address:
+                address_data = {
+                    "address_line_1": order.address.address_line_1,
+                    "address_line_2": order.address.address_line_2 or "",
+                    "city": order.address.city,
+                    "state_province_region": order.address.state_province_region,
+                    "postal_zip_code": order.address.postal_zip_code,
+                    "country_region": order.address.country_region,
+                }
+                result.update(address_data)
 
-                    # sub_item["id"] = order_item.inventory.id
-                    # sub_item["description"] = order_item.inventory.product.description
-                    sub_item["name"] = order_item.name
-                    sub_item["price"] = order_item.price
-                    sub_item["count"] = order_item.count
+            # Agregar información del usuario
+            if order.user:
+                result["full_name"] = f"{order.user.first_name} {order.user.last_name}"
 
-                    result["order_items"].append(sub_item)
-                return Response({"order": result}, status=status.HTTP_200_OK)
-            else:
-                return Response(
-                    {"error": "Order with this transaction ID does not exist"},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
-        except:
+            # Obtener items de la orden
+            order_items = OrderItem.objects.filter(order=order)
+            result["order_items"] = [
+                {
+                    "name": item.name,
+                    "price": item.price,
+                    "count": item.count,
+                }
+                for item in order_items
+            ]
+
+            return Response({"order": result}, status=status.HTTP_200_OK)
+
+        except Order.DoesNotExist:
+            logger.warning(f"Order not found for transaction_id: {transactionId}")
+            return Response(
+                {"error": "Order with this transaction ID does not exist"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except Exception as e:
+            logger.error(f"Error retrieving order detail: {str(e)}")
             return Response(
                 {"error": "Something went wrong when retrieving order detail"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -2,6 +2,7 @@
 import uuid
 import logging
 from decimal import Decimal
+import json
 
 # Third-party
 from asgiref.sync import async_to_sync
@@ -110,6 +111,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
     serializer_class = PaymentSerializer
     permission_classes = [permissions.IsAuthenticated, IsPaymentByUser]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    lookup_field = "id"
     search_fields = [
         "order__id",
         "user__email",
@@ -118,6 +120,11 @@ class PaymentViewSet(viewsets.ModelViewSet):
         "external_reference",
     ]
     ordering_fields = ["created_at", "amount", "status", "payment_method"]
+
+    def get_permissions(self):
+        if self.action == "stripe_webhook":
+            return [permissions.AllowAny()]
+        return [permission() for permission in self.permission_classes]
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -136,6 +143,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         serializer.save(user=self.request.user)
 
     @action(detail=False, methods=["POST"])
+    @csrf_exempt
     def stripe_webhook(self, request):
         webhook_handler = WebhookHandler()
         try:
@@ -151,7 +159,12 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
             # Notificar a través de WebSocket si es necesario
             if result["status"] == "success":
-                self.notify_payment_update(result["event_type"], request.body)
+                try:
+                    # Decodificar el body y convertirlo a diccionario
+                    event_data = json.loads(request.body.decode("utf-8"))
+                    self.notify_payment_update(result["event_type"], event_data)
+                except Exception as e:
+                    logger.error(f"Error al enviar notificación WebSocket: {str(e)}")
 
             return Response(result, status=status.HTTP_200_OK)
 
@@ -177,7 +190,30 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
         try:
             channel_layer = get_channel_layer()
-            user_id = event_data.get("user_id")
+
+            # Extraer el user_id de los metadatos del evento
+            user_id = None
+            if event_type == "charge.succeeded":
+                user_id = (
+                    event_data.get("data", {})
+                    .get("object", {})
+                    .get("metadata", {})
+                    .get("user_id")
+                )
+            elif event_type == "checkout.session.completed":
+                user_id = (
+                    event_data.get("data", {})
+                    .get("object", {})
+                    .get("metadata", {})
+                    .get("user_id")
+                )
+            elif event_type == "payment_intent.succeeded":
+                user_id = (
+                    event_data.get("data", {})
+                    .get("object", {})
+                    .get("metadata", {})
+                    .get("user_id")
+                )
 
             if user_id:
                 async_to_sync(channel_layer.group_send)(
@@ -187,6 +223,8 @@ class PaymentViewSet(viewsets.ModelViewSet):
                         "data": {"event_type": event_type, "payment_data": event_data},
                     },
                 )
+            else:
+                logger.warning(f"No se encontró user_id en el evento {event_type}")
         except Exception as e:
             logger.error(f"Error al enviar notificación WebSocket: {str(e)}")
 
@@ -501,34 +539,48 @@ class PaymentViewSet(viewsets.ModelViewSet):
             "customer_creation": "always",
             "locale": "es",
             "billing_address_collection": "auto",
+            "payment_intent_data": {
+                "description": f"Order #{order.id} - {order.transaction_id}",
+                "receipt_email": user_email,
+                "metadata": {
+                    "order_id": str(order.id),
+                    "payment_id": str(payment.id),
+                    "transaction_id": order.transaction_id,
+                    "customer_id": str(order.user.id),
+                },
+            },
         }
 
         # Agregar información de envío si existe dirección por defecto
         if default_address:
-            session_data["payment_intent_data"] = {
-                "description": f"Orden #{order.id} - {order.transaction_id}",
-                "statement_descriptor": "ECONLINE",
-                "statement_descriptor_suffix": str(order.id)[:4],
-                "receipt_email": user_email,
-                "metadata": {
-                    "order_id": str(order.id),
-                    "transaction_id": order.transaction_id,
-                    "customer_id": str(order.user.id),
-                },
-                "shipping": {
-                    "name": f"{order.user.first_name} {order.user.last_name}",
-                    "address": {
-                        "line1": default_address.address_line_1,
-                        "line2": default_address.address_line_2 or "",
-                        "city": default_address.city,
-                        "state": default_address.state_province_region,
-                        "postal_code": default_address.postal_zip_code,
-                        "country": default_address.country_region,
-                    },
+            session_data["payment_intent_data"]["shipping"] = {
+                "name": f"{order.user.first_name} {order.user.last_name}",
+                "address": {
+                    "line1": default_address.address_line_1,
+                    "line2": default_address.address_line_2 or "",
+                    "city": default_address.city,
+                    "state": default_address.state_province_region,
+                    "postal_code": default_address.postal_zip_code,
+                    "country": default_address.country_region,
                 },
             }
 
-        return stripe.checkout.Session.create(**session_data)
+        # Crear la sesión de Stripe
+        try:
+            session = stripe.checkout.Session.create(**session_data)
+
+            # Actualizar el descriptor de la declaración después de crear la sesión
+            if session.payment_intent:
+                stripe.PaymentIntent.modify(
+                    session.payment_intent,
+                    statement_descriptor="ECONLINE STORE",
+                    statement_descriptor_suffix=str(order.id)[:4],
+                )
+
+            return session
+        except Exception as e:
+            logger.error(f"Error creating Stripe session: {str(e)}")
+            raise
 
     def get_user_cart(self, user):
         cart = getattr(user, "cart", None)
@@ -554,22 +606,48 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
     def _get_line_items(self, order):
         line_items = []
+
+        # Si no hay items en la orden, crear un item genérico
+        if not order.orderitem_set.exists():
+            line_items.append(
+                {
+                    "price_data": {
+                        "currency": order.currency.lower(),
+                        "unit_amount": int(
+                            float(str(order.amount)) * 100
+                        ),  # Convertir a centavos
+                        "product_data": {
+                            "name": f"Order #{order.id}",
+                            "description": f"Payment for order {order.id}",
+                            "metadata": {
+                                "order_id": str(order.id),
+                                "payment_id": str(order.payments.first().id),
+                                "transaction_id": order.transaction_id,
+                            },
+                        },
+                    },
+                    "quantity": 1,
+                    "adjustable_quantity": {"enabled": False},
+                }
+            )
+            return line_items
+
+        # Si hay items en la orden, procesarlos normalmente
         for item in order.orderitem_set.all():
             product_data = {
                 "name": item.name,
-                "description": f"Producto de {order.user.username}",
+                "description": f"Product from {order.user.username}",
                 "metadata": {
                     "product_id": str(item.inventory.id) if item.inventory else "N/A",
                     "order_id": str(order.id),
+                    "payment_id": str(order.payments.first().id),
                     "transaction_id": order.transaction_id,
                 },
             }
 
             # Añadir imágenes si están disponibles
             if item.inventory and hasattr(item.inventory, "media"):
-                images = [
-                    img.image.url for img in item.inventory.media.all()[:8]
-                ]  # Stripe permite hasta 8 imágenes
+                images = [img.image.url for img in item.inventory.media.all()[:8]]
                 if images:
                     product_data["images"] = images
 
@@ -580,14 +658,15 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 {
                     "price_data": {
                         "currency": order.currency.lower(),
-                        "unit_amount": price_in_cents,  # Ya convertido a centavos
+                        "unit_amount": price_in_cents,
                         "product_data": product_data,
                     },
                     "quantity": item.count,
                     "adjustable_quantity": {"enabled": False},
-                    "tax_rates": [],  # Añadir IDs de tasas de impuestos si se usan
+                    "tax_rates": [],
                 }
             )
+
         return line_items
 
     def _get_success_url(self):
@@ -648,13 +727,128 @@ class PaymentViewSet(viewsets.ModelViewSet):
     def process(self, request, id=None):
         payment = self._get_payment_or_404(id)
         self._validate_user_authorization(payment, request.user)
-        self._validate_stripe_session(payment)
 
+        # Primero verificar el estado en nuestra base de datos
+        if payment.status == Payment.PaymentStatus.COMPLETED:
+            return Response(
+                {
+                    "status": Payment.PaymentStatus.COMPLETED,
+                    "status_display": payment.get_status_display(),
+                    "message": _("Payment already completed"),
+                    "payment_id": str(payment.id),
+                    "order_id": str(payment.order.id),
+                    "paid_at": payment.paid_at,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        # Verificar si hay una sesión existente y si ha expirado
+        if payment.stripe_session_id:
+            try:
+                session = stripe.checkout.Session.retrieve(payment.stripe_session_id)
+                if session.payment_status == "paid":
+                    # Si el pago está pagado en Stripe pero no en nuestra base de datos
+                    payment.status = Payment.PaymentStatus.COMPLETED
+                    payment.paid_at = timezone.now()
+                    payment.save()
+
+                    # Actualizar el estado de la orden
+                    payment.order.status = Order.OrderStatus.COMPLETED
+                    payment.order.save()
+
+                    # Limpiar el carrito
+                    cart = Cart.objects.filter(user=payment.order.user).first()
+                    if cart:
+                        cart.items.all().delete()
+
+                    # Enviar email de éxito
+                    if payment.order.user and payment.order.user.email:
+                        send_payment_success_email_task.delay(payment.order.user.email)
+
+                    return Response(
+                        {
+                            "status": Payment.PaymentStatus.COMPLETED,
+                            "status_display": payment.get_status_display(),
+                            "message": _("Payment completed"),
+                            "payment_id": str(payment.id),
+                            "order_id": str(payment.order.id),
+                            "paid_at": payment.paid_at,
+                        },
+                        status=status.HTTP_200_OK,
+                    )
+                elif session.expires_at and session.expires_at < int(
+                    timezone.now().timestamp()
+                ):
+                    # Si la sesión ha expirado, crear una nueva
+                    logger.info(
+                        f"Session {session.id} has expired, creating new session"
+                    )
+                    payment.stripe_session_id = None
+                    payment.save()
+            except stripe.error.StripeError as e:
+                logger.error(f"Error retrieving session: {str(e)}")
+                payment.stripe_session_id = None
+                payment.save()
+
+        # Si no hay sesión o la anterior expiró, crear una nueva
+        if not payment.stripe_session_id:
+            try:
+                session = self.create_stripe_session(
+                    payment.order, payment, request.user.email
+                )
+                payment.stripe_session_id = session.id
+                payment.save()
+
+                return Response(
+                    {
+                        "status": payment.status,
+                        "status_display": payment.get_status_display(),
+                        "message": _("New checkout session created"),
+                        "payment_status": "unpaid",
+                        "checkout_url": session.url,
+                        "expires_at": session.expires_at,
+                        "session_id": session.id,
+                    },
+                    status=status.HTTP_200_OK,
+                )
+            except Exception as e:
+                logger.error(f"Error creating Stripe session: {str(e)}")
+                return Response(
+                    {
+                        "error": _("Error creating payment session"),
+                        "message": str(e),
+                        "status": payment.status,
+                        "status_display": payment.get_status_display(),
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        # Si hay una sesión válida, devolver su información
         try:
-            session = self._retrieve_stripe_session(payment.stripe_session_id)
-            return self._handle_payment_status(session, payment)
+            session = stripe.checkout.Session.retrieve(payment.stripe_session_id)
+            return Response(
+                {
+                    "status": payment.status,
+                    "status_display": payment.get_status_display(),
+                    "message": _("Payment is still pending"),
+                    "payment_status": session.payment_status,
+                    "checkout_url": session.url,
+                    "expires_at": session.expires_at,
+                    "session_id": session.id,
+                },
+                status=status.HTTP_402_PAYMENT_REQUIRED,
+            )
         except stripe.error.StripeError as e:
-            return self._handle_stripe_error(payment, e)
+            logger.error(f"Stripe error processing payment {payment.id}: {str(e)}")
+            return Response(
+                {
+                    "error": _("Error processing payment"),
+                    "message": str(e),
+                    "status": payment.status,
+                    "status_display": payment.get_status_display(),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
     def _get_payment_or_404(self, payment_id):
         return get_object_or_404(Payment.objects.select_related("order"), id=payment_id)
@@ -780,10 +974,54 @@ class PaymentViewSet(viewsets.ModelViewSet):
             return Response(
                 {"error": _("Payment not found")}, status=status.HTTP_404_NOT_FOUND
             )
+
+        # Si el pago está completado, devolver información básica
+        if payment.status == Payment.PaymentStatus.COMPLETED:
+            return Response(
+                {
+                    "status": payment.status,
+                    "status_display": payment.get_status_display(),
+                    "payment_method": PaymentMethodSerializer(
+                        payment.payment_method
+                    ).data,
+                    "paid_at": payment.paid_at,
+                    "amount": payment.amount,
+                    "currency": payment.currency,
+                    "transaction_id": payment.order.transaction_id,
+                    "order_id": str(payment.order.id),
+                }
+            )
+
+        # Si el pago está pendiente, verificar en Stripe
+        if payment.stripe_session_id:
+            try:
+                session = stripe.checkout.Session.retrieve(payment.stripe_session_id)
+                return Response(
+                    {
+                        "status": payment.status,
+                        "status_display": payment.get_status_display(),
+                        "payment_method": PaymentMethodSerializer(
+                            payment.payment_method
+                        ).data,
+                        "stripe_status": session.payment_status,
+                        "checkout_url": (
+                            session.url if session.payment_status == "unpaid" else None
+                        ),
+                        "transaction_id": payment.order.transaction_id,
+                        "order_id": str(payment.order.id),
+                    }
+                )
+            except stripe.error.StripeError:
+                pass
+
+        # Si no hay información de Stripe o hay error, devolver estado básico
         return Response(
             {
                 "status": payment.status,
+                "status_display": payment.get_status_display(),
                 "payment_method": PaymentMethodSerializer(payment.payment_method).data,
+                "transaction_id": payment.order.transaction_id,
+                "order_id": str(payment.order.id),
             }
         )
 

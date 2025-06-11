@@ -486,3 +486,63 @@ def handle_subscription_deleted_task(subscription_data):
             exc_info=True,
         )
         raise
+
+
+@shared_task
+def handle_charge_succeeded_task(charge_data):
+    logger.info("Procesando evento charge.succeeded")
+    logger.info(f"Datos del cargo: {charge_data}")
+
+    # Obtener payment_id directamente de los metadatos del cargo
+    payment_id = charge_data.get("metadata", {}).get("payment_id")
+    logger.info(f"payment_id recibido: {payment_id}")
+
+    if not payment_id:
+        logger.error("No payment_id found in charge metadata")
+        return
+
+    try:
+        payment = Payment.objects.select_related("order").get(id=payment_id)
+    except Payment.DoesNotExist:
+        logger.error(f"Payment with id {payment_id} not found")
+        return
+
+    try:
+        with transaction.atomic():
+            logger.info(f"Actualizando estado del pago {payment_id} a COMPLETED")
+            payment.status = Payment.PaymentStatus.COMPLETED
+            payment.paid_at = timezone.now()
+            payment.save()
+
+            logger.info(
+                f"Actualizando estado de la orden {payment.order.id} a COMPLETED"
+            )
+            payment.order.status = Order.OrderStatus.COMPLETED
+            payment.order.save()
+
+            # Limpiar el carrito después del pago exitoso
+            cart = Cart.objects.filter(user=payment.order.user).first()
+            if cart:
+                cart.items.all().delete()
+
+            # Enviar email de éxito de pago
+            if payment.order.user and payment.order.user.email:
+                send_payment_success_email_task.delay(payment.order.user.email)
+
+            logger.info(
+                f"Charge succeeded for payment {payment_id}",
+                extra={
+                    "payment_id": payment_id,
+                    "order_id": payment.order.id,
+                },
+            )
+
+    except Exception as e:
+        logger.error(
+            f"Error handling charge.succeeded: {str(e)}",
+            exc_info=True,
+            extra={
+                "payment_id": payment_id,
+            },
+        )
+        raise

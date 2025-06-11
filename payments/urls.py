@@ -5,6 +5,7 @@ from .views import PaymentViewSet
 router = DefaultRouter()
 router.register(r"", PaymentViewSet, basename="payments")
 
+# Asegurarnos de que las rutas específicas vayan antes que las rutas del router
 urlpatterns = [
     # Rutas específicas primero
     path(
@@ -29,7 +30,7 @@ urlpatterns = [
     ),
     # Webhook para Stripe
     path(
-        "webhook/stripe/",
+        "stripe_webhook/",
         PaymentViewSet.as_view({"post": "stripe_webhook"}),
         name="stripe-webhook",
     ),

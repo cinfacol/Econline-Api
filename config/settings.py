@@ -38,6 +38,7 @@ ALLOWED_HOSTS = env.list(
         "[::1]",
         "192.168.1.4",
         "localhost:9090",
+        "api.virtualeline.com",
     ],
 )
 

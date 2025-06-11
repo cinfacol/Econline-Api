@@ -5,7 +5,7 @@ from rest_framework.permissions import BasePermission
 from orders.models import Order
 
 
-class IsPaymentByUser(BaseException):
+class IsPaymentByUser(BasePermission):
     """
     Check if payment belongs to the appropriate buyer or admin
     """
@@ -14,7 +14,7 @@ class IsPaymentByUser(BaseException):
         return request.user.is_authenticated is True
 
     def has_object_permission(self, request, view, obj):
-        return obj.order.buyer == request.user or request.user.is_staff
+        return obj.user == request.user or request.user.is_staff
 
 
 class IsPaymentPending(BasePermission):

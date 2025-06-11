@@ -1,0 +1,6 @@
+tunnel: econline-api
+credentials-file: /home/jorge/.cloudflared/econline-api.json
+ingress:
+  - hostname: api.virtualeline.com
+    service: http://localhost:9090
+  - service: http_status:404
