@@ -8,11 +8,11 @@ from .views import (
 )
 
 urlpatterns = [
-    # Endpoints existentes
+    # Endpoints para cupones
     path("check/", CheckCouponView.as_view(), name="check-coupon"),
+    path("", CouponListView.as_view(), name="coupon-list"),
+    path("<uuid:id>/", CouponDetailView.as_view(), name="coupon-detail"),
+    path("<uuid:id>/usage/", CouponUsageView.as_view(), name="coupon-usage"),
+    # Endpoint para campañas
     path("campaign/", CampaignView.as_view(), name="campaign-list"),
-    # Nuevos endpoints para cupones
-    path("coupons/", CouponListView.as_view(), name="coupon-list"),
-    path("coupons/<uuid:id>/", CouponDetailView.as_view(), name="coupon-detail"),
-    path("coupons/<uuid:id>/usage/", CouponUsageView.as_view(), name="coupon-usage"),
 ]

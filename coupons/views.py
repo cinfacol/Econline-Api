@@ -23,11 +23,28 @@ class CheckCouponView(APIView):
 
     def get(self, request, format=None):
         code = request.query_params.get("code")
+        name = request.query_params.get("name")
         user = request.user if request.user.is_authenticated else None
         cart_total = request.query_params.get("cart_total", 0)
 
+        if not code and not name:
+            return Response(
+                {"error": "Se requiere un código o nombre de cupón"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         try:
-            coupon = Coupon.objects.get(code=code)
+            # Buscar por código o nombre
+            if code:
+                coupon = Coupon.objects.get(code=code)
+            else:
+                # Buscar por nombre de forma flexible
+                coupon = Coupon.objects.filter(name__icontains=name).first()
+                if not coupon:
+                    return Response(
+                        {"error": "Cupón no encontrado"},
+                        status=status.HTTP_404_NOT_FOUND,
+                    )
 
             # Validar el cupón
             validation_result = self.validate_coupon(coupon, user, cart_total)
