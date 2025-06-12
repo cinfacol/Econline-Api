@@ -21,6 +21,10 @@ class FixedPriceCoupon(TimeStampedUUIDModel):
     uses = models.IntegerField()
 
 
+def get_default_end_date():
+    return timezone.now() + timezone.timedelta(days=30)
+
+
 class Coupon(TimeStampedUUIDModel):
     name = models.CharField(max_length=255, unique=True)
     code = models.CharField(max_length=50, unique=True, blank=True, null=True)
@@ -32,9 +36,7 @@ class Coupon(TimeStampedUUIDModel):
         PercentageCoupon, on_delete=models.CASCADE, blank=True, null=True
     )
     start_date = models.DateTimeField(default=timezone.now)
-    end_date = models.DateTimeField(
-        default=timezone.now() + timezone.timedelta(days=30)
-    )
+    end_date = models.DateTimeField(default=get_default_end_date)
     min_purchase_amount = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True
     )

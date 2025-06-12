@@ -48,13 +48,15 @@ class Order(TimeStampedUUIDModel):
 
 class OrderItem(TimeStampedUUIDModel):
     inventory = models.ForeignKey(Inventory, on_delete=models.SET_NULL, null=True)
-    order = models.ForeignKey(Order, on_delete=models.SET_NULL, null=True)
+    order = models.ForeignKey(Order, on_delete=models.CASCADE)
     name = models.CharField(max_length=255)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     count = models.IntegerField()
 
     def __str__(self):
-        return f"Order {self.inventory.product.name} - {self.order.transaction_id}"
+        if self.order:
+            return f"Order {self.inventory.product.name} - {self.order.transaction_id}"
+        return f"Order {self.inventory.product.name} - No Order"
 
     @cached_property
     def cost(self):
