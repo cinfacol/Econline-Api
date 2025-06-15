@@ -12,7 +12,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 env = environ.Env(
     DEBUG=(bool, False),
-    ALLOWED_HOSTS=(list, ["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "192.168.1.4"]),
+    ALLOWED_HOSTS=(
+        list, ["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "192.168.1.4"]
+        ),
     CORS_ALLOWED_ORIGINS=(list, ["http://localhost:3000"]),
     AUTH_COOKIE_SECURE=(bool, False),
     REDIS_HOST=(str, "localhost"),
