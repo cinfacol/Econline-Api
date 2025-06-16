@@ -7,6 +7,7 @@ from categories.models import Category
 from orders.models import Order
 from django.conf import settings
 from common.models import TimeStampedUUIDModel
+from .fields import UpperCaseCharField
 
 User = settings.AUTH_USER_MODEL
 
@@ -26,7 +27,7 @@ def get_default_end_date():
 
 
 class Coupon(TimeStampedUUIDModel):
-    name = models.CharField(max_length=255, unique=True)
+    name = UpperCaseCharField(max_length=255, unique=True)
     code = models.CharField(max_length=50, unique=True, blank=True, null=True)
     description = models.TextField(blank=True)
     fixed_price_coupon = models.ForeignKey(
