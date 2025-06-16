@@ -166,15 +166,15 @@ class CouponDetailView(RetrieveUpdateDestroyAPIView):
     queryset = Coupon.objects.all()
     serializer_class = CouponSerializer
     permission_classes = [IsAdminUser]
-    lookup_field = "pk"
+    lookup_field = "id"
 
 
 class CouponUsageView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request, pk, format=None):
+    def get(self, request, id, format=None):
         try:
-            coupon = Coupon.objects.get(pk=pk)
+            coupon = Coupon.objects.get(id=id)
             usages = CouponUsage.objects.filter(coupon=coupon)
 
             paginator = StandardResultsSetPagination()
@@ -207,9 +207,9 @@ class CampaignView(APIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    def put(self, request, pk, format=None):
+    def put(self, request, id, format=None):
         try:
-            campaign = Campaign.objects.get(pk=pk)
+            campaign = Campaign.objects.get(id=id)
         except Campaign.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
@@ -219,9 +219,9 @@ class CampaignView(APIView):
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    def delete(self, request, pk, format=None):
+    def delete(self, request, id, format=None):
         try:
-            campaign = Campaign.objects.get(pk=pk)
+            campaign = Campaign.objects.get(id=id)
         except Campaign.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
