@@ -47,12 +47,22 @@ LOGGING = {
         },
         "django": {
             "level": "INFO",
-            "handlers": ["console"],
+            "handlers": ["console", "file"],
             "propagate": False,
         },
         "django.template": {
             "level": "DEBUG",
             "handlers": ["file"],
+            "propagate": False,
+        },
+        "payments": {
+            "level": "DEBUG",
+            "handlers": ["console", "file"],
+            "propagate": False,
+        },
+        "celery": {
+            "level": "INFO",
+            "handlers": ["console", "file"],
             "propagate": False,
         },
     },
