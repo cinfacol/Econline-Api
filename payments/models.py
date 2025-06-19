@@ -124,6 +124,10 @@ class Payment(TimeStampedUUIDModel):
         blank=True,
         help_text="Datos adicionales del pago (gateway, cliente, etc.).",
     )
+    email_sent = models.BooleanField(
+        default=False,
+        help_text="Indica si se ha enviado un correo electrónico de confirmación del pago.",
+    )
 
     class Meta:
         ordering = ("-created_at",)

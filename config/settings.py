@@ -169,9 +169,12 @@ DATABASES = {
     }
 }
 
-EMAIL_BACKEND = env(
+""" EMAIL_BACKEND = env(
     "EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend"
-)
+) """
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+CELERY_EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
 EMAIL_HOST = env("EMAIL_HOST", default="smtp.gmail.com")
 EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
 EMAIL_PORT = env.int("EMAIL_PORT", default=587)
@@ -179,6 +182,11 @@ EMAIL_HOST_USER = env("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD")
 
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL")
+
+# Limitar los reintentos de tareas de email de django-celery-email
+EMAIL_TASK_MAX_RETRIES = 3  # Número máximo de reintentos para envío de emails
+EMAIL_TASK_RETRY_DELAY = 60  # Segundos entre reintentos de email
+
 DOMAIN = env("DOMAIN")
 BACKEND_DOMAIN = env("BACKEND_DOMAIN")
 SITE_NAME = env("SITE_NAME")
@@ -506,7 +514,7 @@ CELERY_BROKER_TRANSPORT_OPTIONS = {
 # Configuración de resultados
 CELERY_RESULT_EXPIRES = 60 * 60 * 24  # 24 horas
 CELERY_RESULT_EXTENDED = True
-CELERY_EMAIL_BACKEND = env("CELERY_EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend")
+# CELERY_EMAIL_BACKEND = env("CELERY_EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend")
 
 # Cache Configuration
 CACHES = {

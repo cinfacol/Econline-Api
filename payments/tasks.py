@@ -100,8 +100,10 @@ def handle_checkout_session_completed_task(session_data):
             cart.items.all().delete()
 
         # Enviar email de éxito de pago
-        if payment.order.user and payment.order.user.email:
+        if payment.order.user and payment.order.user.email and not payment.email_sent:
             send_payment_success_email_task.delay(payment.order.user.email)
+            payment.email_sent = True
+            payment.save()
 
         logger.info(f"Checkout session completed for payment {payment_id}")
 
@@ -156,8 +158,10 @@ def handle_payment_intent_succeeded_task(payment_intent_data):
             cart.items.all().delete()
 
         # Enviar email de éxito de pago
-        if payment.order.user and payment.order.user.email:
+        if payment.order.user and payment.order.user.email and not payment.email_sent:
             send_payment_success_email_task.delay(payment.order.user.email)
+            payment.email_sent = True
+            payment.save()
 
         logger.info(
             f"Payment intent succeeded for payment {payment_id}",
@@ -526,8 +530,10 @@ def handle_charge_succeeded_task(charge_data):
                 cart.items.all().delete()
 
             # Enviar email de éxito de pago
-            if payment.order.user and payment.order.user.email:
+            if payment.order.user and payment.order.user.email and not payment.email_sent:
                 send_payment_success_email_task.delay(payment.order.user.email)
+                payment.email_sent = True
+                payment.save()
 
             logger.info(
                 f"Charge succeeded for payment {payment_id}",
