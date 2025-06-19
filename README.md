@@ -20,3 +20,5 @@ celery, activación
 6. https://dev.to/documatic/integrate-stripe-payments-with-django-by-building-a-digital-products-selling-app-le5
 7. https://github.com/dotpep/fullstack-ecommerce/tree/main
 8. https://github.com/earthcomfy/django-ecommerce-api/tree/master
+
+cambio para probar rule master-protect
