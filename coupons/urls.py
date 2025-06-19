@@ -9,7 +9,7 @@ from .views import (
 
 urlpatterns = [
     # Endpoints para cupones
-    path("/", CouponListView.as_view(), name="coupon-list"),
+    path("", CouponListView.as_view(), name="coupon-list"),
     path("check/", CheckCouponView.as_view(), name="check-coupon"),
     path("<uuid:id>/", CouponDetailView.as_view(), name="coupon-detail"),
     path("<uuid:id>/usage/", CouponUsageView.as_view(), name="coupon-usage"),

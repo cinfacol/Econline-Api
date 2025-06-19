@@ -103,10 +103,20 @@ class CustomTokenVerifyView(TokenVerifyView):
     def post(self, request, *args, **kwargs):
         access_token = request.COOKIES.get("access")
 
-        if access_token:
-            request.data["token"] = access_token
-
-        return super().post(request, *args, **kwargs)
+        if not access_token:
+            # No hay token, usuario es guest
+            return Response({"is_guest": True, "detail": "User is guest"},
+                            status=status.HTTP_200_OK)
+        
+        # Si hay token, lo añadimos a la solicitud
+        request.data["token"] = access_token
+        
+        try:
+            return super().post(request, *args, **kwargs)
+        except Exception as e:
+            # Si hay algún error con el token, también tratamos como guest
+            return Response({"is_guest": True, "detail": "Invalid token"},
+                            status=status.HTTP_200_OK)
 
 
 class LogoutView(APIView):

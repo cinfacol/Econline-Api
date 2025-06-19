@@ -27,6 +27,7 @@ class CouponAdmin(admin.ModelAdmin):
     list_display = [
         "name",
         "code",
+        "description",
         "apply_to",
         "start_date",
         "end_date",
