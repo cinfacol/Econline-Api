@@ -42,7 +42,25 @@ class Cart(TimeStampedUUIDModel):
             discount = Decimal("0")
             if not self.coupon:
                 return Decimal("0")
-            return (self.get_subtotal() * self.coupon.discount) / 100
+            
+            subtotal = self.get_subtotal()
+            
+            # Verificar si el cupón es válido para el subtotal actual
+            if self.coupon.min_purchase_amount and subtotal < self.coupon.min_purchase_amount:
+                return Decimal("0")
+            
+            # Calcular descuento basado en el tipo de cupón
+            if self.coupon.percentage_coupon:
+                # Cupón de porcentaje
+                discount = (subtotal * self.coupon.percentage_coupon.discount_percentage) / 100
+                # Aplicar máximo descuento si está configurado
+                if self.coupon.max_discount_amount:
+                    discount = min(discount, self.coupon.max_discount_amount)
+            elif self.coupon.fixed_price_coupon:
+                # Cupón de monto fijo
+                discount = self.coupon.fixed_price_coupon.discount_price
+            
+            return discount
         except (TypeError, ValueError) as e:
             logger.error(f"Error calculating cart discount: {str(e)}")
             return Decimal("0")

@@ -34,6 +34,9 @@ class Shipping(TimeStampedUUIDModel):
     )
     is_active = models.BooleanField(default=True)
 
+    # Nuevo campo para método de envío por defecto
+    is_default = models.BooleanField(default=False, help_text="Marcar como método de envío predeterminado")
+
     # Campos para cálculo de costos
     free_shipping_threshold = models.DecimalField(
         max_digits=10,
@@ -75,3 +78,9 @@ class Shipping(TimeStampedUUIDModel):
         elif self.service_type == "INTERNACIONAL":
             return "5-7 días"
         return "7-10 días"
+
+    def save(self, *args, **kwargs):
+        if self.is_default:
+            # Desmarcar otros métodos como default
+            Shipping.objects.filter(is_default=True).update(is_default=False)
+        super().save(*args, **kwargs)

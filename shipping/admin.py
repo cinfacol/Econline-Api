@@ -12,17 +12,23 @@ class ShippingAdmin(admin.ModelAdmin):
         'standard_shipping_cost',
         'free_shipping_threshold',
         'is_active',
+        'is_default',
         'time_to_delivery'
     )
     list_filter = (
         'service_type',
         'transport_type',
-        'is_active'
+        'is_active',
+        'is_default'
     )
     search_fields = (
         'name',
         'service_type',
         'transport_type'
+    )
+    list_editable = (
+        'is_active',
+        'is_default'
     )
     fieldsets = (
         ('Información Básica', {
@@ -36,4 +42,4 @@ class ShippingAdmin(admin.ModelAdmin):
             'description': 'Configuración de costos de envío y umbral para envío gratuito'
         })
     )
-    ordering = ('name',)
+    ordering = ('-is_default', 'name')

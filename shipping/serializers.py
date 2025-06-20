@@ -17,6 +17,7 @@ class ShippingSerializer(serializers.ModelSerializer):
             'standard_shipping_cost',
             'free_shipping_threshold',
             'is_active',
+            'is_default',
             'time_to_delivery',
             'is_free_shipping',
             'estimated_delivery_days'

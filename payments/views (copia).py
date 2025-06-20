@@ -433,53 +433,89 @@ class PaymentViewSet(viewsets.ModelViewSet):
             # Usar explícitamente el serializer correcto para este endpoint
             from .serializers import CheckoutSessionSerializer
             serializer = CheckoutSessionSerializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
-
-            # Log de datos recibidos
-            logger.info(f"Checkout data: {serializer.validated_data}")
-
-            cart = self.get_user_cart(request.user)
-            logger.info(f"Cart subtotal: {cart.get_subtotal()}")
-
-            shipping = self.validate_checkout_request(
-                cart, serializer.validated_data["shipping_id"]
-            )
-            logger.info(f"Shipping method: {shipping.name}")
-            logger.info(f"Shipping threshold: {shipping.free_shipping_threshold}")
-
-            total = self._calculate_order_total(cart, shipping)
-            logger.info(f"Total calculated: {total}")
-
-            transaction_id = self.generate_transaction_id()
-            order = self.create_order(request.user, total, shipping, transaction_id)
-            payment = self.create_payment(
-                order,
-                total,
-                serializer.validated_data["payment_method_id"],
-                user=request.user,
-            )
-            checkout_session = self.create_stripe_session(
-                order, payment, request.user.email
-            )
-            payment.stripe_session_id = checkout_session.id
-            payment.save()
-            return Response(
-                self.format_checkout_response(checkout_session, payment),
-                status=status.HTTP_201_CREATED,
-            )
-        except stripe.error.StripeError as e:
-            logger.error("Stripe error in checkout: %s", str(e))
-            return Response(
-                {
-                    "error": _(
-                        "Error al procesar el pago. Por favor, inténtelo de nuevo."
-                    )
+            if not serializer.is_valid():
+                logger.error(f"Error de validación: {serializer.errors}")
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+            validated_data = serializer.validated_data
+            logger.info(f"Datos validados: {validated_data}")
+            
+            # Obtener o crear la orden
+            order = self._get_or_create_order(validated_data)
+            logger.info(f"Orden obtenida/creada: {order.id}")
+            
+            # Crear el pago
+            payment = self._create_payment(order, validated_data)
+            logger.info(f"Pago creado: {payment.id}")
+            
+            # Preparar datos para Stripe
+            line_items = self._get_line_items(order)
+            logger.info(f"Line items preparados: {len(line_items)} items")
+            
+            discounts = self._get_discounts(order)
+            logger.info(f"Descuentos preparados: {discounts}")
+            
+            # Configurar la sesión de Stripe
+            session_data = {
+                "payment_method_types": ["card"],
+                "line_items": line_items,
+                "mode": "payment",
+                "success_url": self._get_success_url(),
+                "cancel_url": self._get_cancel_url(),
+                "metadata": {
+                    "order_id": str(order.id),
+                    "payment_id": str(payment.id),
+                    "user_id": str(order.user.id),
                 },
-                status=status.HTTP_502_BAD_GATEWAY,
+                "customer_email": order.user.email,
+                "billing_address_collection": "auto",
+                "payment_intent_data": {
+                    "description": f"Order #{order.id} - {order.transaction_id}",
+                    "receipt_email": order.user.email,
+                    "metadata": {
+                        "order_id": str(order.id),
+                        "payment_id": str(payment.id),
+                        "transaction_id": order.transaction_id,
+                        "customer_id": str(order.user.id),
+                    },
+                },
+            }
+            
+            # Solo agregar discounts si no está vacío
+            if discounts:
+                session_data["discounts"] = discounts
+                logger.info("Descuentos agregados a la sesión")
+            
+            logger.info(f"Datos de sesión preparados: {session_data}")
+            
+            # Crear la sesión en Stripe
+            session = stripe.checkout.Session.create(**session_data)
+            logger.info(f"Sesión de Stripe creada: {session.id}")
+            
+            # Actualizar el pago con el session_id
+            payment.stripe_session_id = session.id
+            payment.save()
+            logger.info(f"Pago actualizado con session_id: {session.id}")
+            
+            return Response({
+                "sessionId": session.id,
+                "payment_id": str(payment.id),
+                "is_stripe": True,
+                "checkout_url": session.url,
+            })
+            
+        except stripe.error.StripeError as e:
+            logger.error(f"Error de Stripe en checkout: {str(e)}")
+            return Response(
+                {"detail": f"Error de Stripe: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST
             )
-        except (ValidationError, ValueError, TypeError) as e:
-            logger.error("Error en checkout: %s", str(e))
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"Error inesperado en checkout: {str(e)}", exc_info=True)
+            return Response(
+                {"detail": "Error interno del servidor"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def validate_checkout_request(self, cart, shipping_id):
         if not cart or not cart.items.exists():
@@ -553,8 +589,8 @@ class PaymentViewSet(viewsets.ModelViewSet):
         metadata = self._get_metadata(order, payment)
         logger.info(metadata)
 
-        # Obtener la dirección por defecto del usuario
-        default_address = order.user.address_set.filter(is_default=True).first()
+        # Obtener la dirección de la orden (no solo la dirección por defecto del usuario)
+        shipping_address = order.address
 
         # Construir metadata enriquecida
         enhanced_metadata = {
@@ -596,18 +632,19 @@ class PaymentViewSet(viewsets.ModelViewSet):
         if discounts:
             session_data["discounts"] = discounts
 
-        # Agregar información de envío si existe dirección por defecto
-        if default_address:
+        # Agregar información de envío si existe dirección en la orden
+        if shipping_address:
             session_data["payment_intent_data"]["shipping"] = {
                 "name": f"{order.user.first_name} {order.user.last_name}",
                 "address": {
-                    "line1": default_address.address_line_1,
-                    "line2": default_address.address_line_2 or "",
-                    "city": default_address.city,
-                    "state": default_address.state_province_region,
-                    "postal_code": default_address.postal_zip_code,
-                    "country": default_address.country_region,
+                    "line1": shipping_address.address_line_1,
+                    "line2": shipping_address.address_line_2 or "",
+                    "city": shipping_address.city,
+                    "state": shipping_address.state_province_region,
+                    "postal_code": shipping_address.postal_zip_code,
+                    "country": shipping_address.country_region,
                 },
+                "phone": str(shipping_address.phone_number) if shipping_address.phone_number else "",
             }
 
         # Crear la sesión de Stripe
@@ -772,9 +809,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         return []
 
     def _get_success_url(self):
-        return (
-            f"{settings.FRONTEND_URL}/order/success?session_id={{CHECKOUT_SESSION_ID}}"
-        )
+        return f"{settings.FRONTEND_URL}/order/success"
 
     def _get_cancel_url(self):
         return f"{settings.FRONTEND_URL}/order/cancelled"

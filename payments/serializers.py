@@ -87,6 +87,48 @@ class CheckoutSessionSerializer(serializers.Serializer):
             "incorrect_type": "ID de método de pago inválido.",
         },
     )
+    coupon_id = serializers.UUIDField(required=False, allow_null=True)
+    total_amount = serializers.DecimalField(
+        max_digits=10, 
+        decimal_places=2, 
+        required=False,
+        help_text="Monto total calculado en el frontend"
+    )
+    subtotal = serializers.DecimalField(
+        max_digits=10, 
+        decimal_places=2, 
+        required=False,
+        help_text="Subtotal calculado en el frontend"
+    )
+    shipping_cost = serializers.DecimalField(
+        max_digits=10, 
+        decimal_places=2, 
+        required=False,
+        help_text="Costo de envío calculado en el frontend"
+    )
+    discount = serializers.DecimalField(
+        max_digits=10, 
+        decimal_places=2, 
+        required=False,
+        help_text="Descuento aplicado calculado en el frontend"
+    )
+
+    def validate(self, data):
+        """
+        Validación personalizada para asegurar que los valores decimales sean válidos
+        """
+        decimal_fields = ['total_amount', 'subtotal', 'shipping_cost', 'discount']
+        
+        for field in decimal_fields:
+            if field in data and data[field] is not None:
+                try:
+                    # Convertir a Decimal para validar
+                    from decimal import Decimal
+                    Decimal(str(data[field]))
+                except (ValueError, TypeError):
+                    raise serializers.ValidationError(f"El campo {field} debe ser un número válido")
+        
+        return data
 
 
 class PaymentVerificationSerializer(serializers.Serializer):
