@@ -692,6 +692,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
             
             # Agregar cada producto con precio ajustado
             for item in order.orderitem_set.all():
+                print(f"Processing item: {item.name}, original price: {item.price}, count: {item.count}")
                 product_data = {
                     "name": item.name,
                     "description": f"Product from {order.user.username} (con descuento aplicado)",

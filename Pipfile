@@ -80,6 +80,7 @@ tornado = "==6.4.1"
 flake8 = "*"
 channels = "*"
 channels-redis = "*"
+pip-review = "*"
 
 [dev-packages]
 

@@ -46,6 +46,9 @@ volume:
 eline-db:
 	docker compose exec postgres-db psql --username=postgres --dbname=shop-eline
 
+pip-review:
+	docker compose exec api pip-review --local --interactive
+
 test:
 	docker compose exec api pytest -p no:warnings --cov=.
 
