@@ -901,6 +901,42 @@ class PaymentViewSet(viewsets.ModelViewSet):
             "customer_email": user_email,
         }
 
+        # --- INICIO: Integración de cupones nativos de Stripe ---
+        discounts = []
+        try:
+            # Obtener el carrito del usuario
+            cart = order.user.cart
+            coupon = cart.coupon if hasattr(cart, 'coupon') else None
+            if coupon:
+                # Buscar o crear el cupón en Stripe
+                stripe_coupons = stripe.Coupon.list(limit=100)
+                stripe_coupon_id = None
+                for sc in stripe_coupons.auto_paging_iter():
+                    if sc.name == coupon.code:
+                        stripe_coupon_id = sc.id
+                        break
+                if not stripe_coupon_id:
+                    if coupon.percentage_coupon:
+                        stripe_coupon = stripe.Coupon.create(
+                            name=coupon.code,
+                            percent_off=float(coupon.percentage_coupon.discount_percentage),
+                            duration="once"
+                        )
+                        stripe_coupon_id = stripe_coupon.id
+                    elif coupon.fixed_price_coupon:
+                        stripe_coupon = stripe.Coupon.create(
+                            name=coupon.code,
+                            amount_off=int(float(coupon.fixed_price_coupon.discount_price) * 100),
+                            currency=order.currency.lower(),
+                            duration="once"
+                        )
+                        stripe_coupon_id = stripe_coupon.id
+                if stripe_coupon_id:
+                    discounts.append({"coupon": stripe_coupon_id})
+        except Exception as e:
+            logger.error(f"Error integrando cupón con Stripe: {str(e)}")
+        # --- FIN: Integración de cupones nativos de Stripe ---
+
         # Configuración base de la sesión
         session_data = {
             "payment_method_types": ["card"],
@@ -926,8 +962,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
             },
         }
 
-        # Agregar descuentos si existen
-        discounts = self._get_discounts(order)
+        # Agregar descuentos si existen (Stripe native discounts)
         if discounts:
             session_data["discounts"] = discounts
 
@@ -1132,6 +1167,28 @@ class PaymentViewSet(viewsets.ModelViewSet):
         return f"{settings.FRONTEND_URL}/order/cancelled"
 
     def _get_metadata(self, order, payment):
+        # Obtener productos y cantidades
+        items = list(order.orderitem_set.all())
+        products_summary = ", ".join([
+            f"{item.name} (x{item.count})" for item in items
+        ])
+        products_json = [
+            {
+                "product_id": str(item.inventory.id) if item.inventory else "N/A",
+                "name": item.name,
+                "count": item.count,
+                "price": str(item.price),
+            }
+            for item in items
+        ]
+        # Obtener cupón si existe
+        coupon_code = ""
+        try:
+            cart = order.user.cart
+            if hasattr(cart, 'coupon') and cart.coupon:
+                coupon_code = cart.coupon.code
+        except Exception:
+            coupon_code = ""
         return {
             # Información básica de la orden
             "order_id": str(order.id),
@@ -1144,23 +1201,26 @@ class PaymentViewSet(viewsets.ModelViewSet):
             "username": order.user.username,
             # Información de envío
             "shipping_method": order.shipping.name if order.shipping else "No shipping",
+            "shipping_cost": str(order.shipping.standard_shipping_cost) if order.shipping else "0",
             "shipping_address": str(order.address) if order.address else "No address",
             "delivery_time": (
                 order.shipping.time_to_delivery if order.shipping else "N/A"
             ),
             # Información del pago
-            "payment_method": payment.payment_method,
+            "payment_method": str(payment.payment_method),
             "currency": order.currency,
             "subtotal": str(order.amount),
-            "shipping_cost": str(
-                order.shipping.standard_shipping_cost if order.shipping else 0
-            ),
+            "shipping_cost": str(order.shipping.standard_shipping_cost) if order.shipping else "0",
             "tax_amount": str(payment.tax_amount),
             "discount_amount": str(payment.discount_amount),
             "total_amount": str(payment.amount),
             # Información del pedido
             "items_count": str(order.orderitem_set.count()),
-            "items_total": str(sum(item.count for item in order.orderitem_set.all())),
+            "items_total": str(sum(item.count for item in items)),
+            "products_summary": products_summary,
+            "products_json": str(products_json),
+            # Información de cupón
+            "coupon_code": coupon_code,
             # Metadata del sistema
             "environment": (
                 settings.ENVIRONMENT
