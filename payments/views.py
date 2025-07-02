@@ -612,6 +612,13 @@ class PaymentViewSet(viewsets.ModelViewSet):
         """Crear sesión de checkout de Stripe (Fase 1 - Mejorado)"""
         start_time = time.time()
         request_id = f"checkout_{int(start_time)}"
+        # Validar dirección por defecto antes de continuar
+        default_address = request.user.address_set.filter(is_default=True).first()
+        if not default_address:
+            return Response(
+                {"error": "Debes tener una dirección de envío por defecto para continuar con el pago."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         if STRUCTLOG_AVAILABLE:
             structlog_logger.info(
@@ -1164,7 +1171,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         )
 
     def _get_cancel_url(self):
-        return f"{settings.FRONTEND_URL}/order/cancelled"
+        return f"{settings.FRONTEND_URL}/order/cancelled?session_id={{CHECKOUT_SESSION_ID}}"
 
     def _get_metadata(self, order, payment):
         # Obtener productos y cantidades
@@ -1189,7 +1196,8 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 coupon_code = cart.coupon.code
         except Exception:
             coupon_code = ""
-        return {
+        # Construir metadatos solo con campos que aplican
+        metadata = {
             # Información básica de la orden
             "order_id": str(order.id),
             "payment_id": str(payment.id),
@@ -1199,20 +1207,11 @@ class PaymentViewSet(viewsets.ModelViewSet):
             "user_id": str(order.user.id),
             "user_email": order.user.email,
             "username": order.user.username,
-            # Información de envío
-            "shipping_method": order.shipping.name if order.shipping else "No shipping",
-            "shipping_cost": str(order.shipping.standard_shipping_cost) if order.shipping else "0",
-            "shipping_address": str(order.address) if order.address else "No address",
-            "delivery_time": (
-                order.shipping.time_to_delivery if order.shipping else "N/A"
-            ),
             # Información del pago
             "payment_method": str(payment.payment_method),
             "currency": order.currency,
             "subtotal": str(order.amount),
-            "shipping_cost": str(order.shipping.standard_shipping_cost) if order.shipping else "0",
             "tax_amount": str(payment.tax_amount),
-            "discount_amount": str(payment.discount_amount),
             "total_amount": str(payment.amount),
             # Información del pedido
             "items_count": str(order.orderitem_set.count()),
@@ -1231,7 +1230,18 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 settings.API_VERSION if hasattr(settings, "API_VERSION") else "1.0"
             ),
             "created_at": order.created_at.isoformat(),
+            # Dirección de envío SIEMPRE presente
+            "shipping_address": str(order.address) if order.address else "No address",
         }
+        # Shipping solo si aplica
+        if order.shipping and order.shipping.standard_shipping_cost and Decimal(str(order.shipping.standard_shipping_cost)) > 0:
+            metadata["shipping_method"] = order.shipping.name
+            metadata["shipping_cost"] = str(order.shipping.standard_shipping_cost)
+            metadata["delivery_time"] = order.shipping.time_to_delivery
+        # Discount solo si aplica
+        if payment.discount_amount and Decimal(str(payment.discount_amount)) > 0:
+            metadata["discount_amount"] = str(payment.discount_amount)
+        return metadata
 
     def _get_expiration_time(self):
         return int(timezone.now().timestamp() + int(settings.PAYMENT_SESSION_TIMEOUT))
@@ -1707,3 +1717,63 @@ class PaymentViewSet(viewsets.ModelViewSet):
             user=self.request.user,
         )
         return payment
+
+    @action(detail=True, methods=["POST"])
+    @transaction.atomic
+    def cancel(self, request, id=None):
+        payment = self._get_payment_or_404(id)
+        if payment.status == payment.PaymentStatus.COMPLETED:
+            return Response({"error": "No se puede cancelar un pago ya completado."}, status=400)
+        payment.status = payment.PaymentStatus.CANCELLED
+        payment.save()
+        payment.order.status = payment.order.OrderStatus.CANCELLED
+        payment.order.save()
+        return Response({"status": "cancelled", "payment_id": str(payment.id), "order_id": str(payment.order.id)})
+
+    @action(detail=False, methods=["GET"])
+    def get_payment_by_session(self, request):
+        """Obtener información del pago a partir del session_id de Stripe"""
+        session_id = request.query_params.get("session_id")
+        if not session_id:
+            return Response(
+                {"error": "session_id es requerido"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            # Buscar el pago por session_id
+            payment = Payment.objects.select_related("order", "payment_method").get(
+                stripe_session_id=session_id
+            )
+
+            # Verificar que el usuario tenga acceso a este pago
+            if payment.user != request.user and not request.user.is_staff:
+                return Response(
+                    {"error": "No autorizado"},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+            return Response({
+                "payment_id": str(payment.id),
+                "order_id": str(payment.order.id),
+                "status": payment.status,
+                "status_display": payment.get_status_display(),
+                "amount": payment.amount,
+                "currency": payment.currency,
+                "payment_method": PaymentMethodSerializer(payment.payment_method).data,
+                "created_at": payment.created_at,
+                "order_status": payment.order.status,
+                "order_status_display": payment.order.get_status_display(),
+            })
+
+        except Payment.DoesNotExist:
+            return Response(
+                {"error": "Pago no encontrado"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f"Error obteniendo pago por session_id: {str(e)}")
+            return Response(
+                {"error": "Error interno del servidor"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

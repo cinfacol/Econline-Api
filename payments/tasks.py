@@ -492,6 +492,74 @@ def handle_subscription_deleted_task(subscription_data):
         raise
 
 
+@shared_task(
+    name="payments.tasks.handle_checkout_session_expired_task",
+    autoretry_for=(Exception,),
+    max_retries=3,
+    default_retry_delay=60,
+)
+def handle_checkout_session_expired_task(session_data):
+    """Manejar la expiración de sesiones de checkout de Stripe"""
+    logger.info("Procesando evento checkout.session.expired")
+    logger.info(f"Datos de la sesión: {session_data}")
+
+    payment_id = session_data.get("metadata", {}).get("payment_id")
+    order_id = session_data.get("metadata", {}).get("order_id")
+    session_id = session_data.get("id")
+
+    if not payment_id:
+        logger.error("No payment_id found in session metadata")
+        return
+
+    if not order_id:
+        logger.error("No order_id found in session metadata")
+        return
+
+    try:
+        payment = Payment.objects.select_related("order").get(id=payment_id)
+    except Payment.DoesNotExist:
+        logger.error(f"Payment with id {payment_id} not found")
+        return
+
+    try:
+        order = Order.objects.get(id=order_id)
+    except Order.DoesNotExist:
+        logger.error(f"Order with id {order_id} not found")
+        return
+
+    try:
+        logger.info(f"Actualizando estado del pago {payment_id} a CANCELLED")
+        payment.status = Payment.PaymentStatus.CANCELLED
+        payment.save()
+
+        logger.info(f"Actualizando estado de la orden {order_id} a CANCELLED")
+        order.status = Order.OrderStatus.CANCELLED
+        order.save()
+
+        logger.info(
+            f"Checkout session expired for payment {payment_id}",
+            extra={
+                "payment_id": payment_id,
+                "order_id": order.id,
+                "session_id": session_id,
+            },
+        )
+
+        logger.info(f"Checkout session expired for payment {payment_id}")
+
+    except Exception as e:
+        logger.error(
+            f"Error handling checkout.session.expired: {str(e)}",
+            exc_info=True,
+            extra={
+                "payment_id": payment_id,
+                "order_id": order_id,
+                "session_id": session_id,
+            },
+        )
+        raise
+
+
 @shared_task
 def handle_charge_succeeded_task(charge_data):
     logger.info("Procesando evento charge.succeeded")

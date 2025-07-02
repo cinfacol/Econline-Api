@@ -40,6 +40,11 @@ urlpatterns = [
         name="payment-methods",
     ),
     path(
+        "get-payment-by-session/",
+        PaymentViewSet.as_view({"get": "get_payment_by_session"}),
+        name="get-payment-by-session",
+    ),
+    path(
         "<uuid:id>/refund/",
         PaymentViewSet.as_view({"post": "refund"}),
         name="refund-payment",
