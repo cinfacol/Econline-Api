@@ -1,4 +1,5 @@
 from pathlib import Path
+import structlog
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -67,3 +68,37 @@ LOGGING = {
         },
     },
 }
+
+def configure_structlog():
+    """Configurar structlog para el proyecto (Fase 1)"""
+    structlog.configure(
+        processors=[
+            structlog.stdlib.filter_by_level,
+            structlog.stdlib.add_logger_name,
+            structlog.stdlib.add_log_level,
+            structlog.stdlib.PositionalArgumentsFormatter(),
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.StackInfoRenderer(),
+            structlog.processors.format_exc_info,
+            structlog.processors.UnicodeDecoder(),
+            structlog.processors.JSONRenderer()
+        ],
+        context_class=dict,
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=structlog.stdlib.BoundLogger,
+        cache_logger_on_first_use=True,
+    )
+
+def setup_payment_logging():
+    """Configurar logging específico para pagos (Fase 1)"""
+    try:
+        configure_structlog()
+        return True
+    except ImportError:
+        # Fallback a logging estándar
+        import logging
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        return False

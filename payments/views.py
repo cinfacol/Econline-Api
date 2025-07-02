@@ -1,6 +1,7 @@
 # Standard Library
 import uuid
 import logging
+import time
 from decimal import Decimal
 import json
 
@@ -61,6 +62,15 @@ from .webhooks import WebhookHandler
 stripe.api_key = settings.STRIPE_SECRET_KEY
 logger = logging.getLogger(__name__)
 
+# Configuración de logging estructurado (Fase 1)
+try:
+    import structlog
+    structlog_logger = structlog.get_logger()
+    STRUCTLOG_AVAILABLE = True
+except ImportError:
+    structlog_logger = logger
+    STRUCTLOG_AVAILABLE = False
+
 CHANNELS_AVAILABLE = True
 
 STRIPE_CONFIG = {
@@ -79,6 +89,137 @@ WEBHOOK_HANDLERS = {
     "customer.subscription.updated": handle_subscription_updated_task,
     "customer.subscription.deleted": handle_subscription_deleted_task,
 }
+
+
+class PaymentMetrics:
+    """Métricas básicas para monitoreo de pagos (Fase 1)"""
+
+    @staticmethod
+    def _create_safe_cache_key(prefix, payment_method, suffix=None):
+        """Crear una cache key segura para memcached"""
+        # Manejar tanto objetos PaymentMethod como cadenas
+        if hasattr(payment_method, 'key'):
+            # Es un objeto PaymentMethod
+            payment_method_str = payment_method.key
+        elif isinstance(payment_method, str):
+            # Es una cadena
+            payment_method_str = payment_method
+        else:
+            # Convertir a cadena si es otro tipo
+            payment_method_str = str(payment_method)
+
+        safe_payment_method = payment_method_str.replace(' ', '_').replace('-', '_').lower()
+        if suffix:
+            return f"{prefix}_{safe_payment_method}_{suffix}"
+        return f"{prefix}_{safe_payment_method}"
+
+    @staticmethod
+    def record_payment_attempt(payment_method, user_id):
+        """Registrar intento de pago"""
+        cache_key = PaymentMetrics._create_safe_cache_key("payment_attempts", payment_method, user_id)
+        attempts = cache.get(cache_key, 0) + 1
+        cache.set(cache_key, attempts, timeout=3600)  # 1 hora
+
+        if STRUCTLOG_AVAILABLE:
+            structlog_logger.info(
+                "payment_attempt_recorded",
+                payment_method=payment_method,
+                user_id=user_id,
+                attempts=attempts
+            )
+        else:
+            logger.info(f"Payment attempt recorded - Method: {payment_method}, User: {user_id}, Attempts: {attempts}")
+
+    @staticmethod
+    def record_payment_success(payment_id, payment_method, duration, amount):
+        """Registrar pago exitoso"""
+        if STRUCTLOG_AVAILABLE:
+            structlog_logger.info(
+                "payment_successful",
+                payment_id=payment_id,
+                payment_method=payment_method,
+                duration=duration,
+                amount=str(amount)
+            )
+        else:
+            logger.info(f"Payment successful - ID: {payment_id}, Method: {payment_method}, Duration: {duration}s, Amount: {amount}")
+
+        # Incrementar contador de éxito
+        cache_key = PaymentMetrics._create_safe_cache_key("payment_success", payment_method)
+        success_count = cache.get(cache_key, 0) + 1
+        cache.set(cache_key, success_count, timeout=86400)  # 24 horas
+
+    @staticmethod
+    def record_payment_failure(payment_id, payment_method, error_code, error_message):
+        """Registrar fallo de pago"""
+        if STRUCTLOG_AVAILABLE:
+            structlog_logger.error(
+                "payment_failed",
+                payment_id=payment_id,
+                payment_method=payment_method,
+                error_code=error_code,
+                error_message=error_message
+            )
+        else:
+            logger.error(f"Payment failed - ID: {payment_id}, Method: {payment_method}, Error: {error_code} - {error_code} - {error_message}")
+
+        # Incrementar contador de fallos
+        cache_key = PaymentMetrics._create_safe_cache_key("payment_failures", payment_method)
+        failure_count = cache.get(cache_key, 0) + 1
+        cache.set(cache_key, failure_count, timeout=86400)  # 24 horas
+
+    @staticmethod
+    def get_payment_stats(payment_method_key):
+        """Obtener estadísticas de pagos desde cache y base de datos"""
+        # Obtener estadísticas del cache (nuevos registros)
+        success_key = PaymentMetrics._create_safe_cache_key("payment_success", payment_method_key)
+        failure_key = PaymentMetrics._create_safe_cache_key("payment_failures", payment_method_key)
+
+        cache_success = cache.get(success_key, 0)
+        cache_failure = cache.get(failure_key, 0)
+
+        # Obtener estadísticas de la base de datos (pagos existentes)
+        from .models import Payment, PaymentMethod
+
+        try:
+            # Buscar el método de pago por key
+            payment_method = PaymentMethod.objects.get(key=payment_method_key.upper())
+
+            db_success = Payment.objects.filter(
+                payment_method=payment_method,
+                status=Payment.PaymentStatus.COMPLETED
+            ).count()
+
+            db_failure = Payment.objects.filter(
+                payment_method=payment_method,
+                status=Payment.PaymentStatus.FAILED
+            ).count()
+        except PaymentMethod.DoesNotExist:
+            # Si no existe el método de pago, usar 0
+            db_success = 0
+            db_failure = 0
+
+        # Combinar estadísticas del cache y base de datos
+        total_success = db_success + cache_success
+        total_failure = db_failure + cache_failure
+        total_attempts = total_success + total_failure
+
+        success_rate = (total_success / total_attempts * 100) if total_attempts > 0 else 0
+
+        return {
+            'success_count': total_success,
+            'failure_count': total_failure,
+            'total_attempts': total_attempts,
+            'success_rate': round(success_rate, 2),
+            'from_cache': {
+                'success': cache_success,
+                'failure': cache_failure
+            },
+            'from_database': {
+                'success': db_success,
+                'failure': db_failure
+            }
+        }
 
 
 class StripeClient:
@@ -123,6 +264,9 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action == "stripe_webhook":
+            return [permissions.AllowAny()]
+        elif self.action == "payment_stats_public":
+            # Permitir acceso público a estadísticas para testing (Fase 1)
             return [permissions.AllowAny()]
         return [permission() for permission in self.permission_classes]
 
@@ -240,6 +384,45 @@ class PaymentViewSet(viewsets.ModelViewSet):
         )
         return Response({"payment_methods": serializer.data})
 
+    @action(detail=False, methods=["GET"])
+    def payment_stats(self, request):
+        """Endpoint para obtener estadísticas de pagos (Fase 1)"""
+        payment_method = request.query_params.get('payment_method', 'all')
+
+        if payment_method == 'all':
+            # Obtener estadísticas de todos los métodos
+            stats = {}
+            payment_methods = ['SC', 'PP', 'TR']  # Stripe Card, PayPal, Transferencia PSE
+            for method in payment_methods:
+                stats[method] = PaymentMetrics.get_payment_stats(method)
+        else:
+            stats = PaymentMetrics.get_payment_stats(payment_method)
+
+        return Response({
+            'payment_stats': stats,
+            'timestamp': time.time()
+        })
+
+    @action(detail=False, methods=["GET"])
+    def payment_stats_public(self, request):
+        """Endpoint público para obtener estadísticas de pagos (Fase 1 - Testing)"""
+        payment_method = request.query_params.get('payment_method', 'all')
+
+        if payment_method == 'all':
+            # Obtener estadísticas de todos los métodos
+            stats = {}
+            payment_methods = ['SC', 'PP', 'TR']  # Stripe Card, PayPal, Transferencia PSE
+            for method in payment_methods:
+                stats[method] = PaymentMetrics.get_payment_stats(method)
+        else:
+            stats = PaymentMetrics.get_payment_stats(payment_method)
+
+        return Response({
+            'payment_stats': stats,
+            'timestamp': time.time(),
+            'status': 'public_endpoint'
+        })
+
     @action(detail=True, methods=["POST"])
     def refund(self, request, id=None):
         payment = self.get_object()
@@ -277,7 +460,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         try:
             shipping_id = request.query_params.get("shipping_id")
             coupon_id = request.query_params.get("coupon_id")
-            
+
             cart, _ = Cart.objects.prefetch_related("items").get_or_create(
                 user=request.user
             )
@@ -305,7 +488,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
             shipping = get_object_or_404(Shipping, id=shipping_id)
             subtotal = Decimal(str(cart.get_subtotal()))
             shipping_cost = Decimal(str(shipping.calculate_shipping_cost(subtotal)))
-            
+
             # Aplicar cupón si se proporciona coupon_id
             discount = Decimal("0")
             if coupon_id:
@@ -324,7 +507,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
                         elif coupon.fixed_price_coupon:
                             # Cupón de monto fijo
                             discount = coupon.fixed_price_coupon.discount_price
-                        
+
                         # Aplicar el cupón al carrito
                         cart.coupon = coupon
                         cart.save()
@@ -338,7 +521,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
                     cart.save()
             # Si no hay coupon_id, NO usar el descuento actual del carrito
             # Solo calcular el total sin descuentos de cupón
-            
+
             total = subtotal + shipping_cost - discount
 
             # Obtener la dirección del usuario para la cotización de Servientrega
@@ -426,49 +609,176 @@ class PaymentViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["POST"])
     @transaction.atomic
     def create_checkout_session(self, request, id=None):
-        """Crear sesión de checkout de Stripe"""
+        """Crear sesión de checkout de Stripe (Fase 1 - Mejorado)"""
+        start_time = time.time()
+        request_id = f"checkout_{int(start_time)}"
+
+        if STRUCTLOG_AVAILABLE:
+            structlog_logger.info(
+                "checkout_session_started",
+                request_id=request_id,
+                user_id=request.user.id,
+                data=request.data
+            )
+        else:
+            logger.info(f"Checkout session started - Request ID: {request_id}, User: {request.user.id}")
+
         try:
-            logger.info("Iniciando creación de sesión de checkout")
-            
             # Usar explícitamente el serializer correcto para este endpoint
             from .serializers import CheckoutSessionSerializer
             serializer = CheckoutSessionSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
 
-            # Log de datos recibidos
-            logger.info(f"Checkout data: {serializer.validated_data}")
+            if STRUCTLOG_AVAILABLE:
+                structlog_logger.info(
+                    "checkout_data_validated",
+                    request_id=request_id,
+                    validated_data=serializer.validated_data
+                )
+            else:
+                logger.info(f"Checkout data validated - Request ID: {request_id}")
 
             cart = self.get_user_cart(request.user)
-            logger.info(f"Cart subtotal: {cart.get_subtotal()}")
+            if STRUCTLOG_AVAILABLE:
+                structlog_logger.info(
+                    "cart_retrieved",
+                    request_id=request_id,
+                    cart_id=cart.id,
+                    items_count=cart.items.count(),
+                    subtotal=cart.get_subtotal()
+                )
+            else:
+                logger.info(f"Cart retrieved - Request ID: {request_id}, Subtotal: {cart.get_subtotal()}")
 
             shipping = self.validate_checkout_request(
                 cart, serializer.validated_data["shipping_id"]
             )
-            logger.info(f"Shipping method: {shipping.name}")
-            logger.info(f"Shipping threshold: {shipping.free_shipping_threshold}")
+            if STRUCTLOG_AVAILABLE:
+                structlog_logger.info(
+                    "shipping_validated",
+                    request_id=request_id,
+                    shipping_id=shipping.id,
+                    shipping_name=shipping.name
+                )
+            else:
+                logger.info(f"Shipping validated - Request ID: {request_id}, Method: {shipping.name}")
 
             total = self._calculate_order_total(cart, shipping)
-            logger.info(f"Total calculated: {total}")
+            if STRUCTLOG_AVAILABLE:
+                structlog_logger.info(
+                    "total_calculated",
+                    request_id=request_id,
+                    total=str(total)
+                )
+            else:
+                logger.info(f"Total calculated - Request ID: {request_id}, Total: {total}")
 
             transaction_id = self.generate_transaction_id()
+            if STRUCTLOG_AVAILABLE:
+                structlog_logger.info(
+                    "transaction_id_generated",
+                    request_id=request_id,
+                    transaction_id=transaction_id
+                )
+            else:
+                logger.info(f"Transaction ID generated - Request ID: {request_id}, ID: {transaction_id}")
+
+            # Registrar intento de pago
+            PaymentMetrics.record_payment_attempt(
+                serializer.validated_data["payment_method_id"],
+                request.user.id
+            )
+
             order = self.create_order(request.user, total, shipping, transaction_id)
+            if STRUCTLOG_AVAILABLE:
+                structlog_logger.info(
+                    "order_created",
+                    request_id=request_id,
+                    order_id=order.id,
+                    order_amount=str(order.amount)
+                )
+            else:
+                logger.info(f"Order created - Request ID: {request_id}, Order ID: {order.id}")
+
             payment = self.create_payment(
                 order,
                 total,
                 serializer.validated_data["payment_method_id"],
                 user=request.user,
             )
+            if STRUCTLOG_AVAILABLE:
+                structlog_logger.info(
+                    "payment_created",
+                    request_id=request_id,
+                    payment_id=payment.id,
+                    payment_amount=str(payment.amount)
+                )
+            else:
+                logger.info(f"Payment created - Request ID: {request_id}, Payment ID: {payment.id}")
+
             checkout_session = self.create_stripe_session(
                 order, payment, request.user.email
             )
+            if STRUCTLOG_AVAILABLE:
+                structlog_logger.info(
+                    "stripe_session_created",
+                    request_id=request_id,
+                    session_id=checkout_session.id,
+                    checkout_url=checkout_session.url
+                )
+            else:
+                logger.info(f"Stripe session created - Request ID: {request_id}, Session ID: {checkout_session.id}")
+
             payment.stripe_session_id = checkout_session.id
             payment.save()
+
+            # Calcular duración
+            duration = time.time() - start_time
+
+            # Registrar éxito
+            PaymentMetrics.record_payment_success(
+                payment.id,
+                serializer.validated_data["payment_method_id"],
+                duration,
+                total
+            )
+
+            if STRUCTLOG_AVAILABLE:
+                structlog_logger.info(
+                    "checkout_session_completed",
+                    request_id=request_id,
+                    duration=duration,
+                    payment_id=payment.id,
+                    session_id=checkout_session.id
+                )
+            else:
+                logger.info(f"Checkout session completed - Request ID: {request_id}, Duration: {duration}s")
+
             return Response(
                 self.format_checkout_response(checkout_session, payment),
                 status=status.HTTP_201_CREATED,
             )
         except stripe.error.StripeError as e:
-            logger.error("Stripe error in checkout: %s", str(e))
+            duration = time.time() - start_time
+            if STRUCTLOG_AVAILABLE:
+                structlog_logger.error(
+                    "stripe_error",
+                    request_id=request_id,
+                    error=str(e),
+                    duration=duration
+                )
+            else:
+                logger.error(f"Stripe error - Request ID: {request_id}, Error: {str(e)}, Duration: {duration}s")
+
+            # Registrar fallo de pago
+            if 'payment' in locals():
+                PaymentMetrics.record_payment_failure(
+                    payment.id,
+                    serializer.validated_data.get("payment_method_id", "unknown"),
+                    "stripe_error",
+                    str(e)
+                )
+
             return Response(
                 {
                     "error": _(
@@ -478,8 +788,33 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_502_BAD_GATEWAY,
             )
         except (ValidationError, ValueError, TypeError) as e:
-            logger.error("Error en checkout: %s", str(e))
+            duration = time.time() - start_time
+            if STRUCTLOG_AVAILABLE:
+                structlog_logger.error(
+                    "checkout_validation_error",
+                    request_id=request_id,
+                    error=str(e),
+                    duration=duration
+                )
+            else:
+                logger.error(f"Checkout validation error - Request ID: {request_id}, Error: {str(e)}, Duration: {duration}s")
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            duration = time.time() - start_time
+            if STRUCTLOG_AVAILABLE:
+                structlog_logger.error(
+                    "unexpected_error",
+                    request_id=request_id,
+                    error=str(e),
+                    duration=duration,
+                    exc_info=True
+                )
+            else:
+                logger.error(f"Unexpected error - Request ID: {request_id}, Error: {str(e)}, Duration: {duration}s", exc_info=True)
+            return Response(
+                {"error": "Error interno del servidor"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     def validate_checkout_request(self, cart, shipping_id):
         if not cart or not cart.items.exists():
@@ -679,17 +1014,17 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
         # Calcular el subtotal original (sin descuento)
         original_subtotal = sum(
-            Decimal(str(item.price)) * item.count 
+            Decimal(str(item.price)) * item.count
             for item in order.orderitem_set.all()
         )
-        
+
         # Calcular el descuento aplicado
         discount_amount = original_subtotal - order.amount
-        
+
         # Si hay descuento, ajustar los precios proporcionalmente
         if discount_amount > 0:
             discount_ratio = order.amount / original_subtotal
-            
+
             # Agregar cada producto con precio ajustado
             for item in order.orderitem_set.all():
                 print(f"Processing item: {item.name}, original price: {item.price}, count: {item.count}")
@@ -1245,12 +1580,12 @@ class PaymentViewSet(viewsets.ModelViewSet):
         """Obtener o crear la orden basada en los datos validados"""
         cart = self.get_user_cart(self.request.user)
         logger.info(f"Cart subtotal: {cart.get_subtotal()}")
-        
+
         shipping = self.validate_checkout_request(
             cart, validated_data["shipping_id"]
         )
         logger.info(f"Shipping method: {shipping.name}")
-        
+
         # Usar los valores calculados del frontend si están disponibles
         if all(key in validated_data for key in ['total_amount', 'subtotal', 'shipping_cost', 'discount']):
             total = Decimal(str(validated_data['total_amount']))
@@ -1259,7 +1594,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
             # Fallback: calcular desde el carrito
             total = self._calculate_order_total(cart, shipping)
             logger.info(f"Using backend calculated total: {total}")
-        
+
         # Aplicar cupón al carrito si se proporciona
         if validated_data.get('coupon_id'):
             try:
@@ -1272,13 +1607,13 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 logger.warning(f"Coupon {validated_data['coupon_id']} not found")
                 cart.coupon = None
                 cart.save()
-        
+
         transaction_id = self.generate_transaction_id()
         logger.info(f"Generated transaction ID: {transaction_id}")
-        
+
         order = self.create_order(self.request.user, total, shipping, transaction_id)
         logger.info(f"Created order: {order.id} with amount: {order.amount}")
-        
+
         return order
 
     def _create_payment(self, order, validated_data):
