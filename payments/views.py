@@ -987,8 +987,11 @@ class PaymentViewSet(viewsets.ModelViewSet):
     def _get_line_items(self, order):
         line_items = []
 
+        # Prefetch de inventario, producto y media (imágenes) para evitar N+1 queries
+        order_items = order.orderitem_set.select_related("inventory__product").prefetch_related("inventory__inventory_media")
+
         # Si no hay items en la orden, crear un item genérico
-        if not order.orderitem_set.exists():
+        if not order_items.exists():
             line_items.append(
                 {
                     "price_data": {
@@ -1015,7 +1018,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         # Calcular el subtotal original (sin descuento)
         original_subtotal = sum(
             Decimal(str(item.price)) * item.count
-            for item in order.orderitem_set.all()
+            for item in order_items
         )
 
         # Calcular el descuento aplicado
@@ -1026,8 +1029,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
             discount_ratio = order.amount / original_subtotal
 
             # Agregar cada producto con precio ajustado
-            for item in order.orderitem_set.all():
-                print(f"Processing item: {item.name}, original price: {item.price}, count: {item.count}")
+            for item in order_items:
                 product_data = {
                     "name": item.name,
                     "description": f"Product from {order.user.username} (con descuento aplicado)",
@@ -1042,8 +1044,8 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 }
 
                 # Añadir imágenes si están disponibles
-                if item.inventory and hasattr(item.inventory, "media"):
-                    images = [img.image.url for img in item.inventory.media.all()[:8]]
+                if item.inventory:
+                    images = [img.image.url for img in item.inventory.inventory_media.all()[:8]]
                     if images:
                         product_data["images"] = images
 
@@ -1065,7 +1067,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 )
         else:
             # Sin descuento, usar precios originales
-            for item in order.orderitem_set.all():
+            for item in order_items:
                 product_data = {
                     "name": item.name,
                     "description": f"Product from {order.user.username}",
@@ -1078,8 +1080,8 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 }
 
                 # Añadir imágenes si están disponibles
-                if item.inventory and hasattr(item.inventory, "media"):
-                    images = [img.image.url for img in item.inventory.media.all()[:8]]
+                if item.inventory:
+                    images = [img.image.url for img in item.inventory.inventory_media.all()[:8]]
                     if images:
                         product_data["images"] = images
 
@@ -1289,7 +1291,10 @@ class PaymentViewSet(viewsets.ModelViewSet):
             )
 
     def _get_payment_or_404(self, payment_id):
-        return get_object_or_404(Payment.objects.select_related("order"), id=payment_id)
+        return get_object_or_404(
+            Payment.objects.select_related("order", "payment_method", "user", "order__shipping"),
+            id=payment_id
+        )
 
     def _validate_user_authorization(self, payment, user):
         if payment.order.user != user:
@@ -1407,7 +1412,10 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["get"])
     def verify(self, request, id=None):
-        payment = get_object_or_404(Payment, id=id)
+        payment = get_object_or_404(
+            Payment.objects.select_related("order", "payment_method", "user", "order__shipping"),
+            id=id
+        )
         if payment.order.user != request.user:
             return Response(
                 {"error": _("Payment not found")}, status=status.HTTP_404_NOT_FOUND
