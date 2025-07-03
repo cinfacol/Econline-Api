@@ -65,6 +65,7 @@ logger = logging.getLogger(__name__)
 # Configuración de logging estructurado (Fase 1)
 try:
     import structlog
+
     structlog_logger = structlog.get_logger()
     STRUCTLOG_AVAILABLE = True
 except ImportError:
@@ -98,7 +99,7 @@ class PaymentMetrics:
     def _create_safe_cache_key(prefix, payment_method, suffix=None):
         """Crear una cache key segura para memcached"""
         # Manejar tanto objetos PaymentMethod como cadenas
-        if hasattr(payment_method, 'key'):
+        if hasattr(payment_method, "key"):
             # Es un objeto PaymentMethod
             payment_method_str = payment_method.key
         elif isinstance(payment_method, str):
@@ -108,7 +109,9 @@ class PaymentMetrics:
             # Convertir a cadena si es otro tipo
             payment_method_str = str(payment_method)
 
-        safe_payment_method = payment_method_str.replace(' ', '_').replace('-', '_').lower()
+        safe_payment_method = (
+            payment_method_str.replace(" ", "_").replace("-", "_").lower()
+        )
         if suffix:
             return f"{prefix}_{safe_payment_method}_{suffix}"
         return f"{prefix}_{safe_payment_method}"
@@ -116,7 +119,9 @@ class PaymentMetrics:
     @staticmethod
     def record_payment_attempt(payment_method, user_id):
         """Registrar intento de pago"""
-        cache_key = PaymentMetrics._create_safe_cache_key("payment_attempts", payment_method, user_id)
+        cache_key = PaymentMetrics._create_safe_cache_key(
+            "payment_attempts", payment_method, user_id
+        )
         attempts = cache.get(cache_key, 0) + 1
         cache.set(cache_key, attempts, timeout=3600)  # 1 hora
 
@@ -125,10 +130,12 @@ class PaymentMetrics:
                 "payment_attempt_recorded",
                 payment_method=payment_method,
                 user_id=user_id,
-                attempts=attempts
+                attempts=attempts,
             )
         else:
-            logger.info(f"Payment attempt recorded - Method: {payment_method}, User: {user_id}, Attempts: {attempts}")
+            logger.info(
+                f"Payment attempt recorded - Method: {payment_method}, User: {user_id}, Attempts: {attempts}"
+            )
 
     @staticmethod
     def record_payment_success(payment_id, payment_method, duration, amount):
@@ -139,13 +146,17 @@ class PaymentMetrics:
                 payment_id=payment_id,
                 payment_method=payment_method,
                 duration=duration,
-                amount=str(amount)
+                amount=str(amount),
             )
         else:
-            logger.info(f"Payment successful - ID: {payment_id}, Method: {payment_method}, Duration: {duration}s, Amount: {amount}")
+            logger.info(
+                f"Payment successful - ID: {payment_id}, Method: {payment_method}, Duration: {duration}s, Amount: {amount}"
+            )
 
         # Incrementar contador de éxito
-        cache_key = PaymentMetrics._create_safe_cache_key("payment_success", payment_method)
+        cache_key = PaymentMetrics._create_safe_cache_key(
+            "payment_success", payment_method
+        )
         success_count = cache.get(cache_key, 0) + 1
         cache.set(cache_key, success_count, timeout=86400)  # 24 horas
 
@@ -158,13 +169,17 @@ class PaymentMetrics:
                 payment_id=payment_id,
                 payment_method=payment_method,
                 error_code=error_code,
-                error_message=error_message
+                error_message=error_message,
             )
         else:
-            logger.error(f"Payment failed - ID: {payment_id}, Method: {payment_method}, Error: {error_code} - {error_code} - {error_message}")
+            logger.error(
+                f"Payment failed - ID: {payment_id}, Method: {payment_method}, Error: {error_code} - {error_code} - {error_message}"
+            )
 
         # Incrementar contador de fallos
-        cache_key = PaymentMetrics._create_safe_cache_key("payment_failures", payment_method)
+        cache_key = PaymentMetrics._create_safe_cache_key(
+            "payment_failures", payment_method
+        )
         failure_count = cache.get(cache_key, 0) + 1
         cache.set(cache_key, failure_count, timeout=86400)  # 24 horas
 
@@ -172,8 +187,12 @@ class PaymentMetrics:
     def get_payment_stats(payment_method_key):
         """Obtener estadísticas de pagos desde cache y base de datos"""
         # Obtener estadísticas del cache (nuevos registros)
-        success_key = PaymentMetrics._create_safe_cache_key("payment_success", payment_method_key)
-        failure_key = PaymentMetrics._create_safe_cache_key("payment_failures", payment_method_key)
+        success_key = PaymentMetrics._create_safe_cache_key(
+            "payment_success", payment_method_key
+        )
+        failure_key = PaymentMetrics._create_safe_cache_key(
+            "payment_failures", payment_method_key
+        )
 
         cache_success = cache.get(success_key, 0)
         cache_failure = cache.get(failure_key, 0)
@@ -186,13 +205,11 @@ class PaymentMetrics:
             payment_method = PaymentMethod.objects.get(key=payment_method_key.upper())
 
             db_success = Payment.objects.filter(
-                payment_method=payment_method,
-                status=Payment.PaymentStatus.COMPLETED
+                payment_method=payment_method, status=Payment.PaymentStatus.COMPLETED
             ).count()
 
             db_failure = Payment.objects.filter(
-                payment_method=payment_method,
-                status=Payment.PaymentStatus.FAILED
+                payment_method=payment_method, status=Payment.PaymentStatus.FAILED
             ).count()
         except PaymentMethod.DoesNotExist:
             # Si no existe el método de pago, usar 0
@@ -204,21 +221,17 @@ class PaymentMetrics:
         total_failure = db_failure + cache_failure
         total_attempts = total_success + total_failure
 
-        success_rate = (total_success / total_attempts * 100) if total_attempts > 0 else 0
+        success_rate = (
+            (total_success / total_attempts * 100) if total_attempts > 0 else 0
+        )
 
         return {
-            'success_count': total_success,
-            'failure_count': total_failure,
-            'total_attempts': total_attempts,
-            'success_rate': round(success_rate, 2),
-            'from_cache': {
-                'success': cache_success,
-                'failure': cache_failure
-            },
-            'from_database': {
-                'success': db_success,
-                'failure': db_failure
-            }
+            "success_count": total_success,
+            "failure_count": total_failure,
+            "total_attempts": total_attempts,
+            "success_rate": round(success_rate, 2),
+            "from_cache": {"success": cache_success, "failure": cache_failure},
+            "from_database": {"success": db_success, "failure": db_failure},
         }
 
 
@@ -387,41 +400,48 @@ class PaymentViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["GET"])
     def payment_stats(self, request):
         """Endpoint para obtener estadísticas de pagos (Fase 1)"""
-        payment_method = request.query_params.get('payment_method', 'all')
+        payment_method = request.query_params.get("payment_method", "all")
 
-        if payment_method == 'all':
+        if payment_method == "all":
             # Obtener estadísticas de todos los métodos
             stats = {}
-            payment_methods = ['SC', 'PP', 'TR']  # Stripe Card, PayPal, Transferencia PSE
+            payment_methods = [
+                "SC",
+                "PP",
+                "TR",
+            ]  # Stripe Card, PayPal, Transferencia PSE
             for method in payment_methods:
                 stats[method] = PaymentMetrics.get_payment_stats(method)
         else:
             stats = PaymentMetrics.get_payment_stats(payment_method)
 
-        return Response({
-            'payment_stats': stats,
-            'timestamp': time.time()
-        })
+        return Response({"payment_stats": stats, "timestamp": time.time()})
 
     @action(detail=False, methods=["GET"])
     def payment_stats_public(self, request):
         """Endpoint público para obtener estadísticas de pagos (Fase 1 - Testing)"""
-        payment_method = request.query_params.get('payment_method', 'all')
+        payment_method = request.query_params.get("payment_method", "all")
 
-        if payment_method == 'all':
+        if payment_method == "all":
             # Obtener estadísticas de todos los métodos
             stats = {}
-            payment_methods = ['SC', 'PP', 'TR']  # Stripe Card, PayPal, Transferencia PSE
+            payment_methods = [
+                "SC",
+                "PP",
+                "TR",
+            ]  # Stripe Card, PayPal, Transferencia PSE
             for method in payment_methods:
                 stats[method] = PaymentMetrics.get_payment_stats(method)
         else:
             stats = PaymentMetrics.get_payment_stats(payment_method)
 
-        return Response({
-            'payment_stats': stats,
-            'timestamp': time.time(),
-            'status': 'public_endpoint'
-        })
+        return Response(
+            {
+                "payment_stats": stats,
+                "timestamp": time.time(),
+                "status": "public_endpoint",
+            }
+        )
 
     @action(detail=True, methods=["POST"])
     def refund(self, request, id=None):
@@ -494,13 +514,19 @@ class PaymentViewSet(viewsets.ModelViewSet):
             if coupon_id:
                 try:
                     from coupons.models import Coupon
+
                     coupon = Coupon.objects.get(id=coupon_id, is_active=True)
                     # Verificar si el cupón es válido para el subtotal actual
-                    if not coupon.min_purchase_amount or subtotal >= coupon.min_purchase_amount:
+                    if (
+                        not coupon.min_purchase_amount
+                        or subtotal >= coupon.min_purchase_amount
+                    ):
                         # Calcular descuento basado en el tipo de cupón
                         if coupon.percentage_coupon:
                             # Cupón de porcentaje
-                            discount = (subtotal * coupon.percentage_coupon.discount_percentage) / 100
+                            discount = (
+                                subtotal * coupon.percentage_coupon.discount_percentage
+                            ) / 100
                             # Aplicar máximo descuento si está configurado
                             if coupon.max_discount_amount:
                                 discount = min(discount, coupon.max_discount_amount)
@@ -616,7 +642,9 @@ class PaymentViewSet(viewsets.ModelViewSet):
         default_address = request.user.address_set.filter(is_default=True).first()
         if not default_address:
             return Response(
-                {"error": "Debes tener una dirección de envío por defecto para continuar con el pago."},
+                {
+                    "error": "Debes tener una dirección de envío por defecto para continuar con el pago."
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -625,14 +653,17 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 "checkout_session_started",
                 request_id=request_id,
                 user_id=request.user.id,
-                data=request.data
+                data=request.data,
             )
         else:
-            logger.info(f"Checkout session started - Request ID: {request_id}, User: {request.user.id}")
+            logger.info(
+                f"Checkout session started - Request ID: {request_id}, User: {request.user.id}"
+            )
 
         try:
             # Usar explícitamente el serializer correcto para este endpoint
             from .serializers import CheckoutSessionSerializer
+
             serializer = CheckoutSessionSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
 
@@ -640,7 +671,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 structlog_logger.info(
                     "checkout_data_validated",
                     request_id=request_id,
-                    validated_data=serializer.validated_data
+                    validated_data=serializer.validated_data,
                 )
             else:
                 logger.info(f"Checkout data validated - Request ID: {request_id}")
@@ -652,10 +683,12 @@ class PaymentViewSet(viewsets.ModelViewSet):
                     request_id=request_id,
                     cart_id=cart.id,
                     items_count=cart.items.count(),
-                    subtotal=cart.get_subtotal()
+                    subtotal=cart.get_subtotal(),
                 )
             else:
-                logger.info(f"Cart retrieved - Request ID: {request_id}, Subtotal: {cart.get_subtotal()}")
+                logger.info(
+                    f"Cart retrieved - Request ID: {request_id}, Subtotal: {cart.get_subtotal()}"
+                )
 
             shipping = self.validate_checkout_request(
                 cart, serializer.validated_data["shipping_id"]
@@ -665,35 +698,38 @@ class PaymentViewSet(viewsets.ModelViewSet):
                     "shipping_validated",
                     request_id=request_id,
                     shipping_id=shipping.id,
-                    shipping_name=shipping.name
+                    shipping_name=shipping.name,
                 )
             else:
-                logger.info(f"Shipping validated - Request ID: {request_id}, Method: {shipping.name}")
+                logger.info(
+                    f"Shipping validated - Request ID: {request_id}, Method: {shipping.name}"
+                )
 
             total = self._calculate_order_total(cart, shipping)
             if STRUCTLOG_AVAILABLE:
                 structlog_logger.info(
-                    "total_calculated",
-                    request_id=request_id,
-                    total=str(total)
+                    "total_calculated", request_id=request_id, total=str(total)
                 )
             else:
-                logger.info(f"Total calculated - Request ID: {request_id}, Total: {total}")
+                logger.info(
+                    f"Total calculated - Request ID: {request_id}, Total: {total}"
+                )
 
             transaction_id = self.generate_transaction_id()
             if STRUCTLOG_AVAILABLE:
                 structlog_logger.info(
                     "transaction_id_generated",
                     request_id=request_id,
-                    transaction_id=transaction_id
+                    transaction_id=transaction_id,
                 )
             else:
-                logger.info(f"Transaction ID generated - Request ID: {request_id}, ID: {transaction_id}")
+                logger.info(
+                    f"Transaction ID generated - Request ID: {request_id}, ID: {transaction_id}"
+                )
 
             # Registrar intento de pago
             PaymentMetrics.record_payment_attempt(
-                serializer.validated_data["payment_method_id"],
-                request.user.id
+                serializer.validated_data["payment_method_id"], request.user.id
             )
 
             order = self.create_order(request.user, total, shipping, transaction_id)
@@ -702,10 +738,12 @@ class PaymentViewSet(viewsets.ModelViewSet):
                     "order_created",
                     request_id=request_id,
                     order_id=order.id,
-                    order_amount=str(order.amount)
+                    order_amount=str(order.amount),
                 )
             else:
-                logger.info(f"Order created - Request ID: {request_id}, Order ID: {order.id}")
+                logger.info(
+                    f"Order created - Request ID: {request_id}, Order ID: {order.id}"
+                )
 
             payment = self.create_payment(
                 order,
@@ -718,10 +756,12 @@ class PaymentViewSet(viewsets.ModelViewSet):
                     "payment_created",
                     request_id=request_id,
                     payment_id=payment.id,
-                    payment_amount=str(payment.amount)
+                    payment_amount=str(payment.amount),
                 )
             else:
-                logger.info(f"Payment created - Request ID: {request_id}, Payment ID: {payment.id}")
+                logger.info(
+                    f"Payment created - Request ID: {request_id}, Payment ID: {payment.id}"
+                )
 
             checkout_session = self.create_stripe_session(
                 order, payment, request.user.email
@@ -731,10 +771,12 @@ class PaymentViewSet(viewsets.ModelViewSet):
                     "stripe_session_created",
                     request_id=request_id,
                     session_id=checkout_session.id,
-                    checkout_url=checkout_session.url
+                    checkout_url=checkout_session.url,
                 )
             else:
-                logger.info(f"Stripe session created - Request ID: {request_id}, Session ID: {checkout_session.id}")
+                logger.info(
+                    f"Stripe session created - Request ID: {request_id}, Session ID: {checkout_session.id}"
+                )
 
             payment.stripe_session_id = checkout_session.id
             payment.save()
@@ -747,7 +789,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 payment.id,
                 serializer.validated_data["payment_method_id"],
                 duration,
-                total
+                total,
             )
 
             if STRUCTLOG_AVAILABLE:
@@ -756,10 +798,12 @@ class PaymentViewSet(viewsets.ModelViewSet):
                     request_id=request_id,
                     duration=duration,
                     payment_id=payment.id,
-                    session_id=checkout_session.id
+                    session_id=checkout_session.id,
                 )
             else:
-                logger.info(f"Checkout session completed - Request ID: {request_id}, Duration: {duration}s")
+                logger.info(
+                    f"Checkout session completed - Request ID: {request_id}, Duration: {duration}s"
+                )
 
             return Response(
                 self.format_checkout_response(checkout_session, payment),
@@ -772,18 +816,20 @@ class PaymentViewSet(viewsets.ModelViewSet):
                     "stripe_error",
                     request_id=request_id,
                     error=str(e),
-                    duration=duration
+                    duration=duration,
                 )
             else:
-                logger.error(f"Stripe error - Request ID: {request_id}, Error: {str(e)}, Duration: {duration}s")
+                logger.error(
+                    f"Stripe error - Request ID: {request_id}, Error: {str(e)}, Duration: {duration}s"
+                )
 
             # Registrar fallo de pago
-            if 'payment' in locals():
+            if "payment" in locals():
                 PaymentMetrics.record_payment_failure(
                     payment.id,
                     serializer.validated_data.get("payment_method_id", "unknown"),
                     "stripe_error",
-                    str(e)
+                    str(e),
                 )
 
             return Response(
@@ -801,10 +847,12 @@ class PaymentViewSet(viewsets.ModelViewSet):
                     "checkout_validation_error",
                     request_id=request_id,
                     error=str(e),
-                    duration=duration
+                    duration=duration,
                 )
             else:
-                logger.error(f"Checkout validation error - Request ID: {request_id}, Error: {str(e)}, Duration: {duration}s")
+                logger.error(
+                    f"Checkout validation error - Request ID: {request_id}, Error: {str(e)}, Duration: {duration}s"
+                )
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             duration = time.time() - start_time
@@ -814,10 +862,13 @@ class PaymentViewSet(viewsets.ModelViewSet):
                     request_id=request_id,
                     error=str(e),
                     duration=duration,
-                    exc_info=True
+                    exc_info=True,
                 )
             else:
-                logger.error(f"Unexpected error - Request ID: {request_id}, Error: {str(e)}, Duration: {duration}s", exc_info=True)
+                logger.error(
+                    f"Unexpected error - Request ID: {request_id}, Error: {str(e)}, Duration: {duration}s",
+                    exc_info=True,
+                )
             return Response(
                 {"error": "Error interno del servidor"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -913,8 +964,11 @@ class PaymentViewSet(viewsets.ModelViewSet):
         try:
             # Obtener el carrito del usuario
             cart = order.user.cart
-            coupon = cart.coupon if hasattr(cart, 'coupon') else None
-            if coupon:
+            coupon = cart.coupon if hasattr(cart, "coupon") else None
+            if coupon and (
+                getattr(coupon, "percentage_coupon", None)
+                or getattr(coupon, "fixed_price_coupon", None)
+            ):
                 # Buscar o crear el cupón en Stripe
                 stripe_coupons = stripe.Coupon.list(limit=100)
                 stripe_coupon_id = None
@@ -926,16 +980,20 @@ class PaymentViewSet(viewsets.ModelViewSet):
                     if coupon.percentage_coupon:
                         stripe_coupon = stripe.Coupon.create(
                             name=coupon.code,
-                            percent_off=float(coupon.percentage_coupon.discount_percentage),
-                            duration="once"
+                            percent_off=float(
+                                coupon.percentage_coupon.discount_percentage
+                            ),
+                            duration="once",
                         )
                         stripe_coupon_id = stripe_coupon.id
                     elif coupon.fixed_price_coupon:
                         stripe_coupon = stripe.Coupon.create(
                             name=coupon.code,
-                            amount_off=int(float(coupon.fixed_price_coupon.discount_price) * 100),
+                            amount_off=int(
+                                float(coupon.fixed_price_coupon.discount_price) * 100
+                            ),
                             currency=order.currency.lower(),
-                            duration="once"
+                            duration="once",
                         )
                         stripe_coupon_id = stripe_coupon.id
                 if stripe_coupon_id:
@@ -1030,7 +1088,9 @@ class PaymentViewSet(viewsets.ModelViewSet):
         line_items = []
 
         # Prefetch de inventario, producto y media (imágenes) para evitar N+1 queries
-        order_items = order.orderitem_set.select_related("inventory__product").prefetch_related("inventory__inventory_media")
+        order_items = order.orderitem_set.select_related(
+            "inventory__product"
+        ).prefetch_related("inventory__inventory_media")
 
         # Si no hay items en la orden, crear un item genérico
         if not order_items.exists():
@@ -1058,8 +1118,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         else:
             # Calcular el subtotal original (sin descuento)
             original_subtotal = sum(
-                Decimal(str(item.price)) * item.count
-                for item in order_items
+                Decimal(str(item.price)) * item.count for item in order_items
             )
 
             # Calcular el descuento aplicado
@@ -1075,7 +1134,9 @@ class PaymentViewSet(viewsets.ModelViewSet):
                         "name": item.name,
                         "description": f"Product from {order.user.username} (con descuento aplicado)",
                         "metadata": {
-                            "product_id": str(item.inventory.id) if item.inventory else "N/A",
+                            "product_id": (
+                                str(item.inventory.id) if item.inventory else "N/A"
+                            ),
                             "order_id": str(order.id),
                             "payment_id": str(order.payments.first().id),
                             "transaction_id": order.transaction_id,
@@ -1086,7 +1147,10 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
                     # Añadir imágenes si están disponibles
                     if item.inventory:
-                        images = [img.image.url for img in item.inventory.inventory_media.all()[:8]]
+                        images = [
+                            img.image.url
+                            for img in item.inventory.inventory_media.all()[:8]
+                        ]
                         if images:
                             product_data["images"] = images
 
@@ -1113,7 +1177,9 @@ class PaymentViewSet(viewsets.ModelViewSet):
                         "name": item.name,
                         "description": f"Product from {order.user.username}",
                         "metadata": {
-                            "product_id": str(item.inventory.id) if item.inventory else "N/A",
+                            "product_id": (
+                                str(item.inventory.id) if item.inventory else "N/A"
+                            ),
                             "order_id": str(order.id),
                             "payment_id": str(order.payments.first().id),
                             "transaction_id": order.transaction_id,
@@ -1122,7 +1188,10 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
                     # Añadir imágenes si están disponibles
                     if item.inventory:
-                        images = [img.image.url for img in item.inventory.inventory_media.all()[:8]]
+                        images = [
+                            img.image.url
+                            for img in item.inventory.inventory_media.all()[:8]
+                        ]
                         if images:
                             product_data["images"] = images
 
@@ -1143,19 +1212,27 @@ class PaymentViewSet(viewsets.ModelViewSet):
                     )
 
         # Agregar el shipping como un line item separado si aplica
-        if order.shipping and order.shipping.standard_shipping_cost and Decimal(str(order.shipping.standard_shipping_cost)) > 0:
-            line_items.append({
-                "price_data": {
-                    "currency": order.currency.lower(),
-                    "unit_amount": int(float(str(order.shipping.standard_shipping_cost)) * 100),
-                    "product_data": {
-                        "name": f"Shipping ({order.shipping.name})",
-                        "description": f"Shipping method: {order.shipping.name}",
+        if (
+            order.shipping
+            and order.shipping.standard_shipping_cost
+            and Decimal(str(order.shipping.standard_shipping_cost)) > 0
+        ):
+            line_items.append(
+                {
+                    "price_data": {
+                        "currency": order.currency.lower(),
+                        "unit_amount": int(
+                            float(str(order.shipping.standard_shipping_cost)) * 100
+                        ),
+                        "product_data": {
+                            "name": f"Shipping ({order.shipping.name})",
+                            "description": f"Shipping method: {order.shipping.name}",
+                        },
                     },
-                },
-                "quantity": 1,
-                "adjustable_quantity": {"enabled": False},
-            })
+                    "quantity": 1,
+                    "adjustable_quantity": {"enabled": False},
+                }
+            )
 
         return line_items
 
@@ -1176,9 +1253,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
     def _get_metadata(self, order, payment):
         # Obtener productos y cantidades
         items = list(order.orderitem_set.all())
-        products_summary = ", ".join([
-            f"{item.name} (x{item.count})" for item in items
-        ])
+        products_summary = ", ".join([f"{item.name} (x{item.count})" for item in items])
         products_json = [
             {
                 "product_id": str(item.inventory.id) if item.inventory else "N/A",
@@ -1192,7 +1267,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         coupon_code = ""
         try:
             cart = order.user.cart
-            if hasattr(cart, 'coupon') and cart.coupon:
+            if hasattr(cart, "coupon") and cart.coupon:
                 coupon_code = cart.coupon.code
         except Exception:
             coupon_code = ""
@@ -1234,7 +1309,11 @@ class PaymentViewSet(viewsets.ModelViewSet):
             "shipping_address": str(order.address) if order.address else "No address",
         }
         # Shipping solo si aplica
-        if order.shipping and order.shipping.standard_shipping_cost and Decimal(str(order.shipping.standard_shipping_cost)) > 0:
+        if (
+            order.shipping
+            and order.shipping.standard_shipping_cost
+            and Decimal(str(order.shipping.standard_shipping_cost)) > 0
+        ):
             metadata["shipping_method"] = order.shipping.name
             metadata["shipping_cost"] = str(order.shipping.standard_shipping_cost)
             metadata["delivery_time"] = order.shipping.time_to_delivery
@@ -1376,8 +1455,10 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
     def _get_payment_or_404(self, payment_id):
         return get_object_or_404(
-            Payment.objects.select_related("order", "payment_method", "user", "order__shipping"),
-            id=payment_id
+            Payment.objects.select_related(
+                "order", "payment_method", "user", "order__shipping"
+            ),
+            id=payment_id,
         )
 
     def _validate_user_authorization(self, payment, user):
@@ -1497,8 +1578,10 @@ class PaymentViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["get"])
     def verify(self, request, id=None):
         payment = get_object_or_404(
-            Payment.objects.select_related("order", "payment_method", "user", "order__shipping"),
-            id=id
+            Payment.objects.select_related(
+                "order", "payment_method", "user", "order__shipping"
+            ),
+            id=id,
         )
         if payment.order.user != request.user:
             return Response(
@@ -1673,14 +1756,15 @@ class PaymentViewSet(viewsets.ModelViewSet):
         cart = self.get_user_cart(self.request.user)
         logger.info(f"Cart subtotal: {cart.get_subtotal()}")
 
-        shipping = self.validate_checkout_request(
-            cart, validated_data["shipping_id"]
-        )
+        shipping = self.validate_checkout_request(cart, validated_data["shipping_id"])
         logger.info(f"Shipping method: {shipping.name}")
 
         # Usar los valores calculados del frontend si están disponibles
-        if all(key in validated_data for key in ['total_amount', 'subtotal', 'shipping_cost', 'discount']):
-            total = Decimal(str(validated_data['total_amount']))
+        if all(
+            key in validated_data
+            for key in ["total_amount", "subtotal", "shipping_cost", "discount"]
+        ):
+            total = Decimal(str(validated_data["total_amount"]))
             logger.info(f"Using frontend calculated total: {total}")
         else:
             # Fallback: calcular desde el carrito
@@ -1688,10 +1772,13 @@ class PaymentViewSet(viewsets.ModelViewSet):
             logger.info(f"Using backend calculated total: {total}")
 
         # Aplicar cupón al carrito si se proporciona
-        if validated_data.get('coupon_id'):
+        if validated_data.get("coupon_id"):
             try:
                 from coupons.models import Coupon
-                coupon = Coupon.objects.get(id=validated_data['coupon_id'], is_active=True)
+
+                coupon = Coupon.objects.get(
+                    id=validated_data["coupon_id"], is_active=True
+                )
                 cart.coupon = coupon
                 cart.save()
                 logger.info(f"Applied coupon: {coupon.name}")
@@ -1723,12 +1810,20 @@ class PaymentViewSet(viewsets.ModelViewSet):
     def cancel(self, request, id=None):
         payment = self._get_payment_or_404(id)
         if payment.status == payment.PaymentStatus.COMPLETED:
-            return Response({"error": "No se puede cancelar un pago ya completado."}, status=400)
+            return Response(
+                {"error": "No se puede cancelar un pago ya completado."}, status=400
+            )
         payment.status = payment.PaymentStatus.CANCELLED
         payment.save()
         payment.order.status = payment.order.OrderStatus.CANCELLED
         payment.order.save()
-        return Response({"status": "cancelled", "payment_id": str(payment.id), "order_id": str(payment.order.id)})
+        return Response(
+            {
+                "status": "cancelled",
+                "payment_id": str(payment.id),
+                "order_id": str(payment.order.id),
+            }
+        )
 
     @action(detail=False, methods=["GET"])
     def get_payment_by_session(self, request):
@@ -1736,8 +1831,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         session_id = request.query_params.get("session_id")
         if not session_id:
             return Response(
-                {"error": "session_id es requerido"},
-                status=status.HTTP_400_BAD_REQUEST
+                {"error": "session_id es requerido"}, status=status.HTTP_400_BAD_REQUEST
             )
 
         try:
@@ -1749,31 +1843,33 @@ class PaymentViewSet(viewsets.ModelViewSet):
             # Verificar que el usuario tenga acceso a este pago
             if payment.user != request.user and not request.user.is_staff:
                 return Response(
-                    {"error": "No autorizado"},
-                    status=status.HTTP_403_FORBIDDEN
+                    {"error": "No autorizado"}, status=status.HTTP_403_FORBIDDEN
                 )
 
-            return Response({
-                "payment_id": str(payment.id),
-                "order_id": str(payment.order.id),
-                "status": payment.status,
-                "status_display": payment.get_status_display(),
-                "amount": payment.amount,
-                "currency": payment.currency,
-                "payment_method": PaymentMethodSerializer(payment.payment_method).data,
-                "created_at": payment.created_at,
-                "order_status": payment.order.status,
-                "order_status_display": payment.order.get_status_display(),
-            })
+            return Response(
+                {
+                    "payment_id": str(payment.id),
+                    "order_id": str(payment.order.id),
+                    "status": payment.status,
+                    "status_display": payment.get_status_display(),
+                    "amount": payment.amount,
+                    "currency": payment.currency,
+                    "payment_method": PaymentMethodSerializer(
+                        payment.payment_method
+                    ).data,
+                    "created_at": payment.created_at,
+                    "order_status": payment.order.status,
+                    "order_status_display": payment.order.get_status_display(),
+                }
+            )
 
         except Payment.DoesNotExist:
             return Response(
-                {"error": "Pago no encontrado"},
-                status=status.HTTP_404_NOT_FOUND
+                {"error": "Pago no encontrado"}, status=status.HTTP_404_NOT_FOUND
             )
         except Exception as e:
             logger.error(f"Error obteniendo pago por session_id: {str(e)}")
             return Response(
                 {"error": "Error interno del servidor"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
