@@ -259,6 +259,55 @@ class PaymentRateThrottle(UserRateThrottle):
 
 
 class PaymentViewSet(viewsets.ModelViewSet):
+    def reserve_inventory(self, cart_items):
+        """Reserva el inventario de los productos del carrito al crear la orden."""
+        for item in cart_items:
+            inventory = item.inventory
+            stock = getattr(inventory, "inventory_stock", None)
+            logger.info(
+                f"[RESERVE] Item: {getattr(inventory, 'id', None)} | Stock: {stock} | Qty: {item.quantity}"
+            )
+            if not stock:
+                logger.error(
+                    f"[RESERVE] No hay registro de stock para {getattr(inventory.product, 'name', 'N/A')}"
+                )
+                raise ValidationError(
+                    f"No hay registro de stock para {inventory.product.name}"
+                )
+            if stock.units < item.quantity:
+                logger.error(
+                    f"[RESERVE] Inventario insuficiente para {getattr(inventory.product, 'name', 'N/A')}: {stock.units} < {item.quantity}"
+                )
+                raise ValidationError(
+                    f"Inventario insuficiente para {inventory.product.name}"
+                )
+            stock.units -= item.quantity
+            stock.units_sold += item.quantity
+            stock.save()
+            logger.info(
+                f"[RESERVE] Nuevo stock: {stock.units} | Vendidos: {stock.units_sold}"
+            )
+
+    def release_inventory(self, order_items):
+        """Libera el inventario reservado si el pago falla/caduca/cancela."""
+        for item in order_items:
+            inventory = item.inventory
+            stock = getattr(inventory, "inventory_stock", None)
+            logger.info(
+                f"[RELEASE] Item: {getattr(inventory, 'id', None)} | Stock: {stock} | Qty: {item.count}"
+            )
+            if not stock:
+                logger.warning(
+                    f"[RELEASE] No hay registro de stock para {getattr(inventory.product, 'name', 'N/A')}"
+                )
+                continue  # Si no hay stock, no se puede liberar
+            stock.units += item.count
+            stock.units_sold = max(0, stock.units_sold - item.count)
+            stock.save()
+            logger.info(
+                f"[RELEASE] Nuevo stock: {stock.units} | Vendidos: {stock.units_sold}"
+            )
+
     queryset = Payment.objects.select_related(
         "order", "user", "payment_method", "order__shipping", "order__user"
     ).prefetch_related("order__orderitem_set", "order__orderitem_set__inventory")
@@ -887,6 +936,8 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
     def create_order(self, user, total, shipping, transaction_id):
         cart = self.get_user_cart(user)
+        # Reservar inventario antes de crear la orden
+        self.reserve_inventory(cart.items.all())
         order = Order.objects.create(
             user=user,
             amount=total,
@@ -895,7 +946,6 @@ class PaymentViewSet(viewsets.ModelViewSet):
             transaction_id=transaction_id,
             currency="USD",
         )
-
         # Crear OrderItems para cada CartItem
         for cart_item in cart.items.all():
             OrderItem.objects.create(
@@ -905,7 +955,6 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 price=cart_item.inventory.store_price,
                 count=cart_item.quantity,
             )
-
         return order
 
     def create_payment(
@@ -1537,6 +1586,9 @@ class PaymentViewSet(viewsets.ModelViewSet):
     def _handle_failed_payment(self, session, payment):
         payment.status = Payment.PaymentStatus.FAILED
         payment.save()
+        # Liberar inventario si el pago falla
+        order_items = payment.order.orderitem_set.all()
+        self.release_inventory(order_items)
         return Response(
             {
                 "error": _("Payment failed"),
@@ -1551,7 +1603,9 @@ class PaymentViewSet(viewsets.ModelViewSet):
         payment.status = Payment.PaymentStatus.FAILED
         payment.error_message = str(error)
         payment.save()
-
+        # Liberar inventario si Stripe falla
+        order_items = payment.order.orderitem_set.all()
+        self.release_inventory(order_items)
         return Response(
             {
                 "error": _("Error procesando el pago"),
@@ -1809,21 +1863,59 @@ class PaymentViewSet(viewsets.ModelViewSet):
     @transaction.atomic
     def cancel(self, request, id=None):
         payment = self._get_payment_or_404(id)
+        logger.info(
+            f"[CANCEL] Iniciando cancelación para Payment ID: {payment.id} | Estado actual: {payment.status}"
+        )
         if payment.status == payment.PaymentStatus.COMPLETED:
+            logger.warning(
+                f"[CANCEL] No se puede cancelar un pago ya completado. Payment ID: {payment.id}"
+            )
             return Response(
                 {"error": "No se puede cancelar un pago ya completado."}, status=400
             )
+
+        # Intentar cancelar el PaymentIntent en Stripe si existe
+        stripe_error = None
+        if payment.stripe_session_id:
+            try:
+                session = stripe.checkout.Session.retrieve(payment.stripe_session_id)
+                payment_intent_id = session.payment_intent
+                logger.info(
+                    f"[CANCEL] Stripe session: {session.id} | PaymentIntent: {payment_intent_id}"
+                )
+                if payment_intent_id:
+                    stripe.PaymentIntent.cancel(payment_intent_id)
+                    logger.info(
+                        f"[CANCEL] PaymentIntent {payment_intent_id} cancelado en Stripe"
+                    )
+            except Exception as e:
+                logger.error(
+                    f"[CANCEL] Error al cancelar PaymentIntent en Stripe: {str(e)}"
+                )
+                stripe_error = str(e)
+
+        # Actualizar estado local
         payment.status = payment.PaymentStatus.CANCELLED
         payment.save()
         payment.order.status = payment.order.OrderStatus.CANCELLED
         payment.order.save()
-        return Response(
-            {
-                "status": "cancelled",
-                "payment_id": str(payment.id),
-                "order_id": str(payment.order.id),
-            }
+        logger.info(
+            f"[CANCEL] Estado local actualizado a CANCELLED para Payment ID: {payment.id} y Order ID: {payment.order.id}"
         )
+
+        # Liberar inventario
+        order_items = payment.order.orderitem_set.all()
+        self.release_inventory(order_items)
+        logger.info(f"[CANCEL] Inventario liberado para Order ID: {payment.order.id}")
+
+        response_data = {
+            "status": "cancelled",
+            "payment_id": str(payment.id),
+            "order_id": str(payment.order.id),
+        }
+        if stripe_error:
+            response_data["stripe_error"] = stripe_error
+        return Response(response_data)
 
     @action(detail=False, methods=["GET"])
     def get_payment_by_session(self, request):
