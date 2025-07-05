@@ -4,13 +4,13 @@ from coupons.serializers import CouponSerializer
 from .models import Cart, CartItem, DeliveryCost
 
 
+
 class CartItemSerializer(serializers.ModelSerializer):
     inventory = InventorySerializer()
-    coupon = CouponSerializer()
 
     class Meta:
         model = CartItem
-        fields = ["id", "cart", "coupon", "inventory", "quantity"]
+        fields = ["id", "cart", "inventory", "quantity"]
 
 
 class CartSerializer(serializers.ModelSerializer):

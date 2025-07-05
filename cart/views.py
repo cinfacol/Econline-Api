@@ -165,7 +165,6 @@ class AddItemToCartView(APIView):
         data = request.data
 
         item_id = data["inventory_id"]
-        coupon_id = data.get("coupon", {}).get("id")
         quantity = data["quantity"]
 
         try:
@@ -197,22 +196,6 @@ class AddItemToCartView(APIView):
             cart_item = CartItem.objects.create(
                 inventory=inventory, cart=cart, quantity=quantity
             )
-
-            if coupon_id:
-                try:
-                    coupon = Coupon.objects.get(id=coupon_id)
-                    if coupon.inventory != inventory:
-                        return Response(
-                            {"error": "Coupon does not apply to this inventory"},
-                            status=status.HTTP_400_BAD_REQUEST,
-                        )
-                    cart_item.coupon = coupon
-                    cart_item.save()
-                except Coupon.DoesNotExist:
-                    return Response(
-                        {"error": "Invalid coupon"}, status=status.HTTP_400_BAD_REQUEST
-                    )
-
             # Update total_items in the cart
             Cart.objects.filter(user=user).update(total_items=F("total_items") + 1)
             cart.refresh_from_db()  # Fetch the updated total_items value
@@ -394,31 +377,8 @@ class SynchCartItemsView(APIView):
                         status=status.HTTP_404_NOT_FOUND,
                     )
 
-                # Manejo seguro del cupón
-                coupon_data = item_data.get("coupon")
-                coupon = None
-                if isinstance(coupon_data, dict):
-                    coupon_id = coupon_data.get("id")
-                else:
-                    coupon_id = (
-                        None  # Si es una cadena o no es válido, lo dejamos como None
-                    )
-
-                # Obtener el cupón si se proporciona el id
-
-                if coupon_id:
-                    try:
-                        coupon = Coupon.objects.get(id=coupon_id)
-                    except Coupon.DoesNotExist:
-                        return Response(
-                            {"error": f"Coupon with id {coupon_id} does not exist"},
-                            status=status.HTTP_404_NOT_FOUND,
-                        )
-
-                # Crear y guardar el ítem del carrito
-                cart_item = CartItem(
-                    cart=cart, inventory=inventory, coupon=coupon, quantity=quantity
-                )
+                # Crear y guardar el ítem del carrito (sin cupón)
+                cart_item = CartItem(cart=cart, inventory=inventory, quantity=quantity)
                 cart_item.save()
                 items.append(cart_item)
 

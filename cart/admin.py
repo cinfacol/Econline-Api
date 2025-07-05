@@ -13,8 +13,8 @@ class CartAdmin(admin.ModelAdmin):
 
 @admin.register(CartItem)
 class CartItemAdmin(admin.ModelAdmin):
-    list_display = ["id", "cart", "coupon", "inventory"]
-    search_fields = ["id", "cart__id", "coupon", "inventory_product__title"]
+    list_display = ["id", "cart", "inventory"]
+    search_fields = ["id", "cart__id", "inventory_product__title"]
     list_filter = ["cart", "inventory"]
 
 

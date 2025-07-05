@@ -555,8 +555,9 @@ class PaymentViewSet(viewsets.ModelViewSet):
                     )
 
             shipping = get_object_or_404(Shipping, id=shipping_id)
-            subtotal = Decimal(str(cart.get_subtotal()))
+            subtotal = Decimal(str(cart.get_total()))
             shipping_cost = Decimal(str(shipping.calculate_shipping_cost(subtotal)))
+            print(f"Subtotal: {subtotal}, Shipping Cost: {shipping_cost}")
 
             # Aplicar cupón si se proporciona coupon_id
             discount = Decimal("0")
@@ -653,7 +654,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         """
         try:
             # Obtener el subtotal del carrito y asegurarnos que sea Decimal
-            subtotal = Decimal(str(cart.get_subtotal()))
+            subtotal = Decimal(str(cart.get_total()))
             logger.info(f"Subtotal: {subtotal}")
 
             # Calcular el costo de envío basado en el subtotal y asegurarnos que sea Decimal
@@ -661,11 +662,12 @@ class PaymentViewSet(viewsets.ModelViewSet):
             logger.info(f"Shipping cost: {shipping_cost}")
 
             # Obtener el descuento y asegurarnos que sea Decimal
-            discount = Decimal(str(cart.get_discount()))
-            logger.info(f"Discount: {discount}")
+            # discount = Decimal(str(cart.get_discount()))
+            # logger.info(f"Discount: {discount}")
 
             # Calcular el total final
-            total = subtotal + shipping_cost - discount
+            # total = subtotal + shipping_cost - discount
+            total = subtotal + shipping_cost
             logger.info(f"Total: {total}")
 
             # Validar que el total sea positivo
@@ -732,11 +734,11 @@ class PaymentViewSet(viewsets.ModelViewSet):
                     request_id=request_id,
                     cart_id=cart.id,
                     items_count=cart.items.count(),
-                    subtotal=cart.get_subtotal(),
+                    subtotal=cart.get_total(),
                 )
             else:
                 logger.info(
-                    f"Cart retrieved - Request ID: {request_id}, Subtotal: {cart.get_subtotal()}"
+                    f"Cart retrieved - Request ID: {request_id}, Subtotal: {cart.get_total()}"
                 )
 
             shipping = self.validate_checkout_request(
@@ -1312,10 +1314,16 @@ class PaymentViewSet(viewsets.ModelViewSet):
             }
             for item in items
         ]
+        print("metadata_products", products_json)
+        print("metadata_products_summary", products_summary)
         # Obtener cupón si existe
         coupon_code = ""
+        user_address = order.user.address_set.filter(is_default=True).first()
+
         try:
             cart = order.user.cart
+            print("metadata_cart", cart)
+            print("metadata_order_shipping", order.shipping)
             if hasattr(cart, "coupon") and cart.coupon:
                 coupon_code = cart.coupon.code
         except Exception:
@@ -1355,8 +1363,9 @@ class PaymentViewSet(viewsets.ModelViewSet):
             ),
             "created_at": order.created_at.isoformat(),
             # Dirección de envío SIEMPRE presente
-            "shipping_address": str(order.address) if order.address else "No address",
+            "shipping_address": str(user_address) if user_address else "No address",
         }
+        print("metadata", metadata)
         # Shipping solo si aplica
         if (
             order.shipping
@@ -1808,7 +1817,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
     def _get_or_create_order(self, validated_data):
         """Obtener o crear la orden basada en los datos validados"""
         cart = self.get_user_cart(self.request.user)
-        logger.info(f"Cart subtotal: {cart.get_subtotal()}")
+        logger.info(f"Cart subtotal: {cart.get_total()}")
 
         shipping = self.validate_checkout_request(cart, validated_data["shipping_id"])
         logger.info(f"Shipping method: {shipping.name}")
