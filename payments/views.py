@@ -557,7 +557,6 @@ class PaymentViewSet(viewsets.ModelViewSet):
             shipping = get_object_or_404(Shipping, id=shipping_id)
             subtotal = Decimal(str(cart.get_total()))
             shipping_cost = Decimal(str(shipping.calculate_shipping_cost(subtotal)))
-            print(f"Subtotal: {subtotal}, Shipping Cost: {shipping_cost}")
 
             # Aplicar cupón si se proporciona coupon_id
             discount = Decimal("0")
@@ -686,11 +685,12 @@ class PaymentViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["POST"])
     @transaction.atomic
     def create_checkout_session(self, request, id=None):
-        """Crear sesión de checkout de Stripe (Fase 1 - Mejorado)"""
+        """Crear sesión de checkout de Stripe"""
         start_time = time.time()
         request_id = f"checkout_{int(start_time)}"
         # Validar dirección por defecto antes de continuar
         default_address = request.user.address_set.filter(is_default=True).first()
+        print(f"request_data: {request.data}")
         if not default_address:
             return Response(
                 {
@@ -712,9 +712,6 @@ class PaymentViewSet(viewsets.ModelViewSet):
             )
 
         try:
-            # Usar explícitamente el serializer correcto para este endpoint
-            from .serializers import CheckoutSessionSerializer
-
             serializer = CheckoutSessionSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
 
@@ -744,6 +741,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
             shipping = self.validate_checkout_request(
                 cart, serializer.validated_data["shipping_id"]
             )
+            print(f"Shipping: {shipping}")
             if STRUCTLOG_AVAILABLE:
                 structlog_logger.info(
                     "shipping_validated",
@@ -815,7 +813,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 )
 
             checkout_session = self.create_stripe_session(
-                order, payment, request.user.email
+                order, payment, request.user.email, serializer
             )
             if STRUCTLOG_AVAILABLE:
                 structlog_logger.info(
@@ -992,9 +990,9 @@ class PaymentViewSet(viewsets.ModelViewSet):
         )
         return payment
 
-    def create_stripe_session(self, order, payment, user_email):
+    def create_stripe_session(self, order, payment, user_email, serializer):
         logger.info("Creando sesión de Stripe con los siguientes metadatos:")
-        metadata = self._get_metadata(order, payment)
+        metadata = self._get_metadata(order, payment, serializer)
         logger.info(metadata)
 
         # Obtener la dirección por defecto del usuario
@@ -1056,7 +1054,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         # Configuración base de la sesión
         session_data = {
             "payment_method_types": ["card"],
-            "line_items": self._get_line_items(order),
+            "line_items": self._get_line_items(order, serializer),
             "mode": "payment",
             "success_url": self._get_success_url(),
             "cancel_url": self._get_cancel_url(),
@@ -1135,7 +1133,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
             "currency": payment.currency,
         }
 
-    def _get_line_items(self, order):
+    def _get_line_items(self, order, serializer):
         line_items = []
 
         # Prefetch de inventario, producto y media (imágenes) para evitar N+1 queries
@@ -1263,18 +1261,14 @@ class PaymentViewSet(viewsets.ModelViewSet):
                     )
 
         # Agregar el shipping como un line item separado si aplica
-        if (
-            order.shipping
-            and order.shipping.standard_shipping_cost
-            and Decimal(str(order.shipping.standard_shipping_cost)) > 0
-        ):
+        shipping_cost = serializer.validated_data.get("shipping_cost")
+        print(f"Shipping cost: {shipping_cost}")
+        if shipping_cost > 0:
             line_items.append(
                 {
                     "price_data": {
                         "currency": order.currency.lower(),
-                        "unit_amount": int(
-                            float(str(order.shipping.standard_shipping_cost)) * 100
-                        ),
+                        "unit_amount": int(float(str(shipping_cost)) * 100),
                         "product_data": {
                             "name": f"Shipping ({order.shipping.name})",
                             "description": f"Shipping method: {order.shipping.name}",
@@ -1301,7 +1295,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
     def _get_cancel_url(self):
         return f"{settings.FRONTEND_URL}/order/cancelled?session_id={{CHECKOUT_SESSION_ID}}"
 
-    def _get_metadata(self, order, payment):
+    def _get_metadata(self, order, payment, serializer):
         # Obtener productos y cantidades
         items = list(order.orderitem_set.all())
         products_summary = ", ".join([f"{item.name} (x{item.count})" for item in items])
@@ -1373,7 +1367,12 @@ class PaymentViewSet(viewsets.ModelViewSet):
             and Decimal(str(order.shipping.standard_shipping_cost)) > 0
         ):
             metadata["shipping_method"] = order.shipping.name
-            metadata["shipping_cost"] = str(order.shipping.standard_shipping_cost)
+            shipping_cost = serializer.validated_data.get("shipping_cost")
+            metadata["shipping_cost"] = (
+                str(shipping_cost)
+                if shipping_cost is not None
+                else str(order.shipping.standard_shipping_cost)
+            )
             metadata["delivery_time"] = order.shipping.time_to_delivery
         # Discount solo si aplica
         if payment.discount_amount and Decimal(str(payment.discount_amount)) > 0:
