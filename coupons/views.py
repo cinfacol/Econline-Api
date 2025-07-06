@@ -73,7 +73,7 @@ class CheckCouponView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-    def validate_coupon(self, coupon, user, cart_total):
+    def validate_coupon(self, coupon, user, cart_total, cart_items=None): # Added cart_items parameter
         now = timezone.now()
 
         # Validar fechas
@@ -94,7 +94,7 @@ class CheckCouponView(APIView):
             }
 
         # Validar usos totales
-        if coupon.max_uses <= coupon.used_by.count():
+        if coupon.max_uses is not None and coupon.max_uses <= coupon.used_by.count(): # Added is not None check
             return {
                 "is_valid": False,
                 "message": "El cupón ha alcanzado su límite de usos",
@@ -103,6 +103,7 @@ class CheckCouponView(APIView):
         # Validar usos por usuario
         if (
             user
+            and coupon.max_uses_per_user is not None # Added is not None check
             and coupon.max_uses_per_user <= coupon.used_by.filter(id=user.id).count()
         ):
             return {
@@ -116,6 +117,26 @@ class CheckCouponView(APIView):
                 "is_valid": False,
                 "message": "Este cupón es solo para primera compra",
             }
+
+        # Validar aplicación a productos/categorías específicas
+        if coupon.apply_to != "ALL" and cart_items is not None:
+            applicable_items_found = False
+            for item in cart_items:
+                if coupon.apply_to == "CATEGORY":
+                    if item.inventory.product.category in coupon.categories.all():
+                        applicable_items_found = True
+                        break
+                elif coupon.apply_to == "PRODUCT":
+                    if item.inventory in coupon.products.all():
+                        applicable_items_found = True
+                        break
+
+            if not applicable_items_found:
+                return {
+                    "is_valid": False,
+                    "message": "Este cupón no aplica a los artículos en tu carrito",
+                }
+
 
         return {"is_valid": True, "message": "Cupón válido"}
 

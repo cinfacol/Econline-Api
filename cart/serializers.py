@@ -15,11 +15,12 @@ class CartItemSerializer(serializers.ModelSerializer):
 
 class CartSerializer(serializers.ModelSerializer):
     items = CartItemSerializer(many=True, read_only=True)
+    coupon = CouponSerializer(read_only=True) # Include coupon serializer
 
     class Meta:
         model = Cart
         depth = 1
-        fields = ["id", "user", "total_items", "items"]
+        fields = ["id", "user", "total_items", "items", "coupon"] # Add 'coupon' field
 
 
 class DeliveryCostSerializer(serializers.ModelSerializer):

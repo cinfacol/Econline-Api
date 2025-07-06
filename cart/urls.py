@@ -6,6 +6,7 @@ from .views import (
     DecreaseQuantityView,
     RemoveItemView,
     ClearCartView,
+    ApplyCouponView,  # Import the new view
 )
 
 urlpatterns = [
@@ -16,4 +17,7 @@ urlpatterns = [
     path("remove-item/", RemoveItemView.as_view()),
     path("clear/", ClearCartView.as_view(), name="clear-cart"),
     path("delivery-cost/", RemoveItemView.as_view()),
+    path(
+        "apply-coupon/", ApplyCouponView.as_view(), name="apply-coupon"
+    ),  # Add the new URL pattern
 ]
