@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -47,6 +49,8 @@ class CheckCouponView(APIView):
                     )
 
             # Validar el cupón
+            # Note: This view's validation might be used independently of a cart,
+            # so cart_items is optional here.
             validation_result = self.validate_coupon(coupon, user, cart_total)
             if not validation_result["is_valid"]:
                 return Response(
@@ -73,7 +77,9 @@ class CheckCouponView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-    def validate_coupon(self, coupon, user, cart_total, cart_items=None): # Added cart_items parameter
+    def validate_coupon(
+        self, coupon, user, cart_total, cart_items=None
+    ):  # Added cart_items parameter
         now = timezone.now()
 
         # Validar fechas
@@ -94,7 +100,9 @@ class CheckCouponView(APIView):
             }
 
         # Validar usos totales
-        if coupon.max_uses is not None and coupon.max_uses <= coupon.used_by.count(): # Added is not None check
+        if (
+            coupon.max_uses is not None and coupon.max_uses <= coupon.used_by.count()
+        ):  # Added is not None check
             return {
                 "is_valid": False,
                 "message": "El cupón ha alcanzado su límite de usos",
@@ -103,7 +111,7 @@ class CheckCouponView(APIView):
         # Validar usos por usuario
         if (
             user
-            and coupon.max_uses_per_user is not None # Added is not None check
+            and coupon.max_uses_per_user is not None  # Added is not None check
             and coupon.max_uses_per_user <= coupon.used_by.filter(id=user.id).count()
         ):
             return {
@@ -123,10 +131,12 @@ class CheckCouponView(APIView):
             applicable_items_found = False
             for item in cart_items:
                 if coupon.apply_to == "CATEGORY":
+                    # Assuming item.inventory.product.category is the Category object
                     if item.inventory.product.category in coupon.categories.all():
                         applicable_items_found = True
                         break
                 elif coupon.apply_to == "PRODUCT":
+                    # Assuming item.inventory is the Inventory object
                     if item.inventory in coupon.products.all():
                         applicable_items_found = True
                         break
@@ -136,7 +146,6 @@ class CheckCouponView(APIView):
                     "is_valid": False,
                     "message": "Este cupón no aplica a los artículos en tu carrito",
                 }
-
 
         return {"is_valid": True, "message": "Cupón válido"}
 
@@ -155,6 +164,46 @@ class CheckCouponView(APIView):
             discount = min(discount, float(coupon.max_discount_amount))
 
         return round(discount, 2)
+
+
+# New utility function to calculate total discount for a cart
+def calculate_total_coupon_discount(cart, user):
+    """
+    Calculates the total discount amount for all valid coupons applied to a cart.
+    """
+    total_discount = Decimal("0")
+    coupon_checker = CheckCouponView()
+    cart_items = cart.items.all()
+    subtotal = Decimal("0")
+    for item in cart_items:
+        subtotal += Decimal(str(item.inventory.store_price)) * Decimal(
+            str(item.quantity)
+        )
+
+    # Note: Complex coupon combination logic (e.g., applying percentage after fixed)
+    # would need a more sophisticated approach here.
+    # This implementation simply sums up the discounts of valid coupons.
+    # It assumes discounts are calculated based on the subtotal.
+
+    for coupon in cart.coupons.all():
+        # Validate the coupon in the context of the current cart and user
+        validation_result = coupon_checker.validate_coupon(
+            coupon, user, subtotal, cart_items=cart_items
+        )
+
+        if validation_result["is_valid"]:
+            # Calculate the discount for this specific coupon
+            coupon_discount = coupon_checker.calculate_discount(coupon, subtotal)
+            total_discount += coupon_discount
+        else:
+            # If a coupon in the cart is no longer valid, it should ideally be removed
+            # from the cart's coupons ManyToManyField. This could be done here,
+            # but might be better handled in the view that fetches/updates the cart
+            # to avoid modifying the cart during a calculation.
+            # For now, we just won't apply the discount of invalid coupons.
+            pass
+
+    return total_discount
 
 
 class CouponListView(ListCreateAPIView):

@@ -6,6 +6,7 @@ from django.db.models.manager import Manager
 from common.models import TimeStampedUUIDModel
 from inventory.models import Inventory
 from coupons.models import Coupon
+from coupons.views import CheckCouponView  # Assuming this is the correct import path
 
 from decimal import Decimal
 
@@ -18,29 +19,24 @@ class Cart(TimeStampedUUIDModel):
     objects: Manager = models.Manager()
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     total_items = models.IntegerField(default=0)
-    coupon = models.ForeignKey(Coupon, on_delete=models.SET_NULL, null=True, blank=True)
+    coupons = models.ManyToManyField(
+        Coupon, blank=True
+    )  # Changed to ManyToManyField and renamed to coupons
 
     def get_total(self):
+        """
+        Calculates the subtotal of all items in the cart.
+        Does NOT include coupon discounts, taxes, or shipping.
+        """
         try:
-            total = Decimal("0")
+            subtotal = Decimal("0")
             for item in self.items.all():
                 price = Decimal(str(item.inventory.store_price))
                 quantity = Decimal(str(item.quantity))
-                total += price * quantity
-
-            # Apply coupon discount if a coupon is associated and valid
-            if (
-                self.coupon and self.coupon.is_active
-            ):  # Basic check, more detailed validation needed in views
-                # Assuming coupon validation and discount calculation logic is available/imported
-                # For now, a simplified example:
-                # discount_amount = calculate_discount(self.coupon, total)
-                # total -= discount_amount
-                pass  # Placeholder for actual coupon application logic
-
-            return total
+                subtotal += price * quantity
+            return subtotal
         except (TypeError, ValueError) as e:
-            logger.error(f"Error calculating cart total: {str(e)}")
+            logger.error(f"Error calculating cart subtotal: {str(e)}")
             return Decimal("0")
 
     def get_total_items(self):

@@ -1140,6 +1140,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         order_items = order.orderitem_set.select_related(
             "inventory__product"
         ).prefetch_related("inventory__inventory_media")
+        print(f"Validated_data: {serializer.validated_data}")
 
         # Si no hay items en la orden, crear un item genérico
         if not order_items.exists():
@@ -1170,12 +1171,17 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 Decimal(str(item.price)) * item.count for item in order_items
             )
 
+            total_to_pay = serializer.validated_data.get("total_amount", 0)
             # Calcular el descuento aplicado
-            discount_amount = original_subtotal - order.amount
+            discount_amount = serializer.validated_data.get("discount", 0)
+            # discount_amount = original_subtotal - order.amount
+            print(f"original_subtotal: {original_subtotal}")
+            print(f"order.amount: {order.amount}")
+            print(f"discount_amount: {discount_amount}")
 
             # Si hay descuento, ajustar los precios proporcionalmente
             if discount_amount > 0:
-                discount_ratio = order.amount / original_subtotal
+                # discount_ratio = order.amount / original_subtotal
 
                 # Agregar cada producto con precio ajustado
                 for item in order_items:
@@ -1204,8 +1210,8 @@ class PaymentViewSet(viewsets.ModelViewSet):
                             product_data["images"] = images
 
                     # Ajustar el precio con el descuento
-                    adjusted_price = Decimal(str(item.price)) * discount_ratio
-                    price_in_cents = int(float(str(adjusted_price)) * 100)
+                    # adjusted_price = Decimal(str(item.price)) * discount_ratio
+                    price_in_cents = int(float(str(original_subtotal)) * 100)
 
                     line_items.append(
                         {

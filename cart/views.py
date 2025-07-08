@@ -8,7 +8,7 @@ from rest_framework.parsers import JSONParser
 from rest_framework.permissions import (
     IsAuthenticated,
     IsAdminUser,
-)  # Import IsAdminUser
+)
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -18,7 +18,10 @@ from inventory.models import Inventory
 
 from .models import Cart, CartItem, DeliveryCost
 from .serializers import CartSerializer, CartItemSerializer, DeliveryCostSerializer
-from coupons.views import CheckCouponView  # Import CheckCouponView for validation logic
+from coupons.views import (
+    CheckCouponView,
+    calculate_total_coupon_discount,
+)  # Import CheckCouponView and the new utility function
 
 
 class GetItemsView(APIView):
@@ -33,10 +36,11 @@ class GetItemsView(APIView):
         cart_items = CartItem.objects.filter(cart=cart)
         serialized_cart_items = CartItemSerializer(cart_items, many=True).data
 
-        # Get cart total including potential coupon discount
-        cart_total = (
-            cart.get_total()
-        )  # get_total method in Cart model should handle coupon logic
+        # Get cart total including potential coupon discount using the utility function
+        subtotal = cart.get_total()  # get_total now calculates only subtotal
+        total_discount = calculate_total_coupon_discount(cart, user)
+        cart_total = subtotal - total_discount
+        cart_total = max(Decimal("0"), cart_total)  # Ensure total is not negative
 
         return Response(
             {
@@ -44,9 +48,11 @@ class GetItemsView(APIView):
                 "cart_items": serialized_cart_items,
                 "total_items": total_items,
                 "cart_total": cart_total,  # Include the calculated total
-                "coupon": CartSerializer(cart).data.get(
-                    "coupon"
-                ),  # Include coupon details if applied
+                "subtotal": subtotal,  # Include subtotal
+                "discount_amount": total_discount,  # Include total discount
+                "coupons": [
+                    CouponSerializer(coupon).data for coupon in cart.coupons.all()
+                ],  # Include coupon details if applied
             },
             status=status.HTTP_200_OK,
         )
@@ -74,28 +80,10 @@ class GetTotalView(APIView):
                 str(item.quantity)
             )
 
-        discount_amount = Decimal("0")
-        coupon_data = None
+        # Calculate total discount using the utility function
+        total_discount = calculate_total_coupon_discount(cart, user)
 
-        # Check if a coupon is applied to the cart and is valid
-        if cart.coupon:
-            coupon_checker = CheckCouponView()
-            # Pass the subtotal to the validation logic
-            validation_result = coupon_checker.validate_coupon(
-                cart.coupon, user, subtotal
-            )
-
-            if validation_result["is_valid"]:
-                discount_amount = coupon_checker.calculate_discount(
-                    cart.coupon, subtotal
-                )
-                coupon_data = CouponSerializer(cart.coupon).data
-            else:
-                # If the coupon in the cart is no longer valid, remove it
-                cart.coupon = None
-                cart.save()
-
-        final_total = subtotal - discount_amount
+        final_total = subtotal - total_discount
         # Ensure final total is not negative
         final_total = max(Decimal("0"), final_total)
 
@@ -113,12 +101,14 @@ class GetTotalView(APIView):
         return Response(
             {
                 "subtotal": subtotal,
-                "discount_amount": discount_amount,
+                "discount_amount": total_discount,  # Use total_discount from utility function
                 "final_total": final_total,
                 "tax_estimate": tax_estimate,
                 "shipping_estimate": shipping_estimate,
-                "finalPrice": final_price_with_taxes_shipping,  # This seems to correspond to the final price including taxes/shipping in the original view
-                "coupon": coupon_data,  # Include applied coupon data
+                "finalPrice": final_price_with_taxes_shipping,
+                "coupons": [
+                    CouponSerializer(coupon).data for coupon in cart.coupons.all()
+                ],  # Include applied coupon data as a list
             },
             status=status.HTTP_200_OK,
         )
@@ -189,7 +179,6 @@ class RemoveItemView(APIView):
         item_id = request.data.get(
             "inventory_id"
         )  # Assuming item_id is sent in request body
-
         if item_id is None:
             return Response(
                 {"error": "Item ID is required"}, status=status.HTTP_400_BAD_REQUEST
@@ -230,7 +219,7 @@ class ClearCartView(APIView):
         cart_items = CartItem.objects.filter(cart=cart)
         cart_items.delete()
         cart.total_items = 0
-        cart.coupon = None  # Remove applied coupon when clearing cart
+        cart.coupons.clear()  # Remove all applied coupons when clearing cart
         cart.save()
         serializer = CartSerializer(cart)
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -371,7 +360,7 @@ class SynchCartItemsView(APIView):
             with transaction.atomic():
                 cart.cartitem_set.all().delete()
                 cart.total_items = 0
-                cart.coupon = None  # Remove applied coupon when clearing cart
+                cart.coupons.clear()  # Remove applied coupons when clearing cart
                 cart.save()
             serialized_cart = CartSerializer(cart).data
             return Response(
@@ -384,7 +373,7 @@ class SynchCartItemsView(APIView):
             # Clear existing items from the cart
             cart.cartitem_set.all().delete()
             # Remove applied coupon when syncing items, as the total will be recalculated
-            cart.coupon = None
+            cart.coupons.clear()  # Remove applied coupons when syncing cart
             cart.save()
 
             created_items = []
@@ -489,395 +478,85 @@ class ApplyCouponView(APIView):
     def post(self, request, format=None):
         user = request.user
         data = request.data
-        coupon_code = data.get("coupon_code")
+        coupon_codes = data.get("coupon_codes", [])  # Expect a list of codes
 
-        if not coupon_code:
+        if not coupon_codes:
             return Response(
-                {"error": "Se requiere el código del cupón"},
+                {"error": "Se requiere al menos un código de cupón"},
                 status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        try:
-            coupon = Coupon.objects.get(code=coupon_code)
-        except Coupon.DoesNotExist:
-            return Response(
-                {"error": "Cupón no encontrado"},
-                status=status.HTTP_404_NOT_FOUND,
             )
 
         cart, _ = Cart.objects.get_or_create(user=user)
         cart_items = cart.items.all()  # Get cart items
+        cart_subtotal = cart.get_total()  # get_total now calculates only subtotal
 
-        # Use the validation logic from coupons.views.CheckCouponView
-        # Instantiate the view to access its methods
+        applied_coupons = []
+        errors = {}
         coupon_checker = CheckCouponView()
-        # Need to pass cart total and cart items to validate_coupon
-        cart_total = (
-            cart.get_total()
-        )  # Assuming get_total calculates subtotal before coupon
-        validation_result = coupon_checker.validate_coupon(
-            coupon, user, cart_total, cart_items=cart_items
-        )  # Pass cart_items
 
-        if not validation_result["is_valid"]:
-            return Response(
-                {"error": validation_result["message"]},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        # Clear existing coupons before applying new ones, or implement logic for adding/removing
+        # For simplicity now, replacing existing coupons with the new list
+        cart.coupons.clear()
 
-        # Apply the coupon to the cart
-        cart.coupon = coupon
-        cart.save()
+        for code in coupon_codes:
+            try:
+                coupon = Coupon.objects.get(code=code)
 
-        # Recalculate total with the applied coupon and return updated cart details
-        # The get_total method in the Cart model should now handle the coupon discount
+                # Validate the coupon
+                validation_result = coupon_checker.validate_coupon(
+                    coupon, user, cart_subtotal, cart_items=cart_items
+                )
+
+                if validation_result["is_valid"]:
+                    # Check for combinability if multiple coupons are being applied
+                    if len(applied_coupons) > 0 and not coupon.can_combine:
+                        errors[code] = (
+                            "Este cupón no se puede combinar con otros cupones."
+                        )
+                        continue  # Skip applying this coupon
+
+                    # Check if any already applied coupon is not combinable
+                    if any(not c.can_combine for c in applied_coupons):
+                        errors[code] = (
+                            "No se puede aplicar este cupón con los cupones existentes."
+                        )
+                        continue  # Skip applying this coupon
+
+                    applied_coupons.append(coupon)
+                    cart.coupons.add(coupon)  # Associate coupon with the cart
+
+                else:
+                    errors[code] = validation_result[
+                        "message"
+                    ]  # Store validation error
+
+            except Coupon.DoesNotExist:
+                errors[code] = "Cupón no encontrado"  # Store not found error
+
+        cart.save()  # Save the cart with associated coupons
+
+        # Recalculate total with the applied coupons and return updated cart details
+        # Use the utility function to get the total discount
+        total_discount = calculate_total_coupon_discount(cart, user)
+        subtotal = cart.get_total()  # get_total now calculates only subtotal
+        final_total = subtotal - total_discount
+        final_total = max(Decimal("0"), final_total)  # Ensure total is not negative
+
         serialized_cart = CartSerializer(cart).data
 
-        return Response(
-            {"message": "Cupón aplicado exitosamente", "cart": serialized_cart},
-            status=status.HTTP_200_OK,
-        )
+        response_data = {
+            "message": "Procesamiento de cupones completado",
+            "cart": serialized_cart,
+            "subtotal": subtotal,
+            "discount_amount": total_discount,
+            "final_total": final_total,
+        }
+        if errors:
+            response_data["errors"] = errors  # Include errors in the response
 
-
-class AddItemToCartView(APIView):
-    permission_classes = (IsAuthenticated,)
-
-    def post(self, request, format=None):
-        user = request.user
-        data = request.data
-
-        item_id = data["inventory_id"]
-        quantity = data["quantity"]
-
-        try:
-            inventory = Inventory.objects.get(id=item_id)
-            stock = (
-                inventory.inventory_stock.units - inventory.inventory_stock.units_sold
-            )
-
-        except Inventory.DoesNotExist:
-            return Response(
-                {"error": "Inventory not found"}, status=status.HTTP_404_NOT_FOUND
-            )
-
-        cart, _ = Cart.objects.get_or_create(user=user)
-
-        # Check if item already in cart
-        if CartItem.objects.filter(cart=cart, inventory=inventory).exists():
-            return Response(
-                {"error": "Item is already in cart"}, status=status.HTTP_409_CONFLICT
-            )
-
-        if int(stock) <= 0:
-            return Response(
-                {"error": "This product is out of stock"},
-                status=status.HTTP_409_CONFLICT,
-            )
-
-        with transaction.atomic():
-            cart_item = CartItem.objects.create(
-                inventory=inventory, cart=cart, quantity=quantity
-            )
-            # Update total_items in the cart
-            Cart.objects.filter(user=user).update(total_items=F("total_items") + 1)
-            cart.refresh_from_db()  # Fetch the updated total_items value
-
-        cart_items = CartItem.objects.filter(cart=cart)
-        serialized_cart_items = CartItemSerializer(cart_items, many=True).data
+        status_code = status.HTTP_200_OK if not errors else status.HTTP_400_BAD_REQUEST
 
         return Response(
-            {"cart": serialized_cart_items, "total_items": cart.total_items},
-            status=status.HTTP_200_OK,
-        )
-
-
-class RemoveItemView(APIView):
-
-    def post(self, request, format=None):
-        user = request.user
-        item_id = request.data
-
-        if item_id is None:
-            return Response(
-                {"error": "Item ID is required"}, status=status.HTTP_400_BAD_REQUEST
-            )
-
-        cart, _ = Cart.objects.get_or_create(user=user)
-        inventory = get_object_or_404(Inventory, id=item_id)
-        cart_item = CartItem.objects.filter(cart=cart, inventory=inventory).first()
-
-        if not cart_item:
-            return Response(
-                {"error": "Item is not in cart"}, status=status.HTTP_404_NOT_FOUND
-            )
-
-        cart_item.delete()
-
-        # Update the total number of items in the cart
-        total_items = max(0, int(cart.total_items) - 1)
-        cart.total_items = total_items
-        cart.save()
-        # Cart.objects.filter(user=user).update(total_items=total_items)
-
-        cart_items = CartItem.objects.filter(cart=cart)
-        serialized_cart_items = CartItemSerializer(cart_items, many=True).data
-
-        return Response(
-            {"cart": serialized_cart_items, "total_items": total_items},
-            status=status.HTTP_200_OK,
-        )
-
-
-class ClearCartView(APIView):
-
-    def post(self, request, format=None):
-        user = request.user
-        cart, _ = Cart.objects.get_or_create(user=user)
-        cart_items = CartItem.objects.filter(cart=cart)
-        cart_items.delete()
-        cart.total_items = 0
-        cart.save()
-        serializer = CartSerializer(cart)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-
-class DecreaseQuantityView(APIView):
-
-    def put(self, request):
-        user = request.user
-        inventory_id = request.data
-        item_id = inventory_id["inventoryId"]
-
-        # Obtener o crear el carrito del usuario
-        cart = Cart.objects.get(user=user)
-        inventory = Inventory.objects.get(id=item_id)
-        cart_item = CartItem.objects.get(cart=cart, inventory=inventory)
-        quantity = cart_item.quantity
-
-        if not cart_item:
-            return Response(
-                {"error": "Item is not in cart"}, status=status.HTTP_404_NOT_FOUND
-            )
-
-        if quantity <= 1:
-            return Response(
-                {"message": "Proceed to remove the Product"},
-                status=status.HTTP_200_OK,
-            )
-
-        # Utilizar una transacción atómica para garantizar la coherencia de los datos
-        with transaction.atomic():
-            # Limpiar el item existente
-            cart_item.delete()
-
-            # Update the total number of items in the cart
-            quantity = max(0, int(cart_item.quantity) - 1)
-
-            # Crear y guardar el ítem del carrito
-            cart_item_quantity = CartItem(
-                cart=cart, inventory=inventory, quantity=quantity
-            )
-            cart_item_quantity.save()
-
-        return Response(
-            {"quantity": cart_item.quantity},
-            status=status.HTTP_200_OK,
-        )
-
-
-class IncreaseQuantityView(APIView):
-
-    def put(self, request):
-        user = request.user
-        inventory_id = request.data
-        item_id = inventory_id["inventoryId"]
-
-        # Obtener o crear el carrito del usuario
-        cart = Cart.objects.get(user=user)
-        inventory = Inventory.objects.get(id=item_id)
-        cart_item = CartItem.objects.get(cart=cart, inventory=inventory)
-        quantity = cart_item.quantity
-
-        if not cart_item:
-            return Response(
-                {"error": "Item is not in cart"}, status=status.HTTP_404_NOT_FOUND
-            )
-
-        # Utilizar una transacción atómica para garantizar la coherencia de los datos
-        with transaction.atomic():
-            # Limpiar el item existente
-            cart_item.delete()
-
-            # Update the total number of items in the cart
-            quantity = max(0, int(cart_item.quantity) + 1)
-
-            # Crear y guardar el ítem del carrito
-            cart_item_quantity = CartItem(
-                cart=cart, inventory=inventory, quantity=quantity
-            )
-            cart_item_quantity.save()
-
-        return Response(
-            {"quantity": cart_item.quantity},
-            status=status.HTTP_200_OK,
-        )
-
-
-class SynchCartItemsView(APIView):
-
-    def put(self, request):
-        user = request.user
-        data = request.data
-        items = []
-
-        # Obtener o crear el carrito del usuario
-        cart, _ = Cart.objects.get_or_create(user=user)
-        cart_items = data.get("cart_items", [])
-
-        # Si no hay ítems en el carrito, devolver error
-        if not cart_items:
-            return Response(
-                {"error": "No items in cart"}, status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Utilizar una transacción atómica para garantizar la coherencia de los datos
-        with transaction.atomic():
-            # Limpiar los ítems existentes del carrito
-            cart.cartitem_set.all().delete()
-
-            # Recorrer los ítems del carrito
-            for item_data in cart_items:
-                inventory_id = item_data["inventory"]["id"]
-                quantity = item_data.get("quantity", 1)
-
-                # Validar si el inventario existe
-                try:
-                    inventory = Inventory.objects.get(id=inventory_id)
-                except Inventory.DoesNotExist:
-                    return Response(
-                        {"error": f"Inventory with id {inventory_id} does not exist"},
-                        status=status.HTTP_404_NOT_FOUND,
-                    )
-
-                # Crear y guardar el ítem del carrito (sin cupón)
-                cart_item = CartItem(cart=cart, inventory=inventory, quantity=quantity)
-                cart_item.save()
-                items.append(cart_item)
-
-            # Calcular el total de ítems en el carrito
-            cart.total_items = len(items)
-            cart.save()
-
-        # Serializar los ítems del carrito y devolver la respuesta
-        serialized_cart_items = CartItemSerializer(items, many=True).data
-        return Response(
-            {"cart": serialized_cart_items, "total_items": cart.total_items},
-            status=status.HTTP_200_OK,
-        )
-
-
-class DeliveryCostListAPIView(APIView):
-    """
-    API endpoint for listing and creating delivery costs.
-    """
-
-    def get(self):
-        delivery_costs = DeliveryCost.objects.all().order_by("id")
-        serializer = DeliveryCostSerializer(delivery_costs, many=True)
-        return Response(serializer.data)
-
-    def post(self, request):
-        serializer = DeliveryCostSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-class DeliveryCostDetailAPIView(APIView):
-    """
-    API endpoint for retrieving, updating, and deleting a specific delivery cost.
-    """
-
-    def get_object(self, pk):
-        try:
-            return DeliveryCost.objects.get(pk=pk)
-        except DeliveryCost.DoesNotExist:
-            return None
-
-    def get(self, pk):
-        delivery_cost = self.get_object(pk)
-        if not delivery_cost:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-        serializer = DeliveryCostSerializer(delivery_cost)
-        return Response(serializer.data)
-
-    def put(self, request, pk):
-        delivery_cost = self.get_object(pk)
-        if not delivery_cost:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-        serializer = DeliveryCostSerializer(delivery_cost, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def delete(self, pk):
-        delivery_cost = self.get_object(pk)
-        if not delivery_cost:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-        delivery_cost.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-
-class ApplyCouponView(APIView):
-    permission_classes = (IsAuthenticated,)
-
-    def post(self, request, format=None):
-        user = request.user
-        data = request.data
-        coupon_code = data.get("coupon_code")
-
-        if not coupon_code:
-            return Response(
-                {"error": "Se requiere el código del cupón"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        try:
-            coupon = Coupon.objects.get(code=coupon_code)
-        except Coupon.DoesNotExist:
-            return Response(
-                {"error": "Cupón no encontrado"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-        cart, _ = Cart.objects.get_or_create(user=user)
-
-        # Use the validation logic from coupons.views.CheckCouponView
-        # Instantiate the view to access its methods
-        coupon_checker = CheckCouponView()
-        # Need to pass cart total to validate_coupon
-        cart_total = (
-            cart.get_total()
-        )  # Assuming get_total calculates subtotal before coupon
-        validation_result = coupon_checker.validate_coupon(coupon, user, cart_total)
-
-        if not validation_result["is_valid"]:
-            return Response(
-                {"error": validation_result["message"]},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # Apply the coupon to the cart
-        cart.coupon = coupon
-        cart.save()
-
-        # Recalculate total with the applied coupon (logic needs to be added to Cart model's get_total or here)
-        # For now, just return the updated cart details
-        serialized_cart = CartSerializer(cart).data
-
-        return Response(
-            {"message": "Cupón aplicado exitosamente", "cart": serialized_cart},
-            status=status.HTTP_200_OK,
+            response_data,
+            status=status_code,
         )
