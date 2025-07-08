@@ -194,7 +194,8 @@ def calculate_total_coupon_discount(cart, user):
         if validation_result["is_valid"]:
             # Calculate the discount for this specific coupon
             coupon_discount = coupon_checker.calculate_discount(coupon, subtotal)
-            total_discount += coupon_discount
+            # Convertir a Decimal para evitar errores de tipo
+            total_discount += Decimal(str(coupon_discount))
         else:
             # If a coupon in the cart is no longer valid, it should ideally be removed
             # from the cart's coupons ManyToManyField. This could be done here,

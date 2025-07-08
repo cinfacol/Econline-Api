@@ -60,7 +60,7 @@ from .tasks import (
 from .webhooks import WebhookHandler
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("payments")
 
 # Configuración de logging estructurado (Fase 1)
 try:
@@ -71,6 +71,8 @@ try:
 except ImportError:
     structlog_logger = logger
     STRUCTLOG_AVAILABLE = False
+
+logger.info("Logging configurado correctamente")
 
 CHANNELS_AVAILABLE = True
 
@@ -584,16 +586,13 @@ class PaymentViewSet(viewsets.ModelViewSet):
                             discount = coupon.fixed_price_coupon.discount_price
 
                         # Aplicar el cupón al carrito
-                        cart.coupon = coupon
-                        cart.save()
+                        cart.coupons.add(coupon)
                     else:
                         # Limpiar cupón si no cumple el mínimo
-                        cart.coupon = None
-                        cart.save()
+                        cart.coupons.clear()
                 except Coupon.DoesNotExist:
                     # Limpiar cupón si no existe
-                    cart.coupon = None
-                    cart.save()
+                    cart.coupons.clear()
             # Si no hay coupon_id, NO usar el descuento actual del carrito
             # Solo calcular el total sin descuentos de cupón
 
@@ -781,7 +780,10 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 serializer.validated_data["payment_method_id"], request.user.id
             )
 
-            order = self.create_order(request.user, total, shipping, transaction_id)
+            # Usar la función que asocia el cupón al carrito y crea la orden correctamente
+            validated_data = serializer.validated_data.copy()
+            validated_data["total_amount"] = total  # asegura que el total esté actualizado
+            order = self._get_or_create_order(validated_data)
             if STRUCTLOG_AVAILABLE:
                 structlog_logger.info(
                     "order_created",
@@ -1011,9 +1013,36 @@ class PaymentViewSet(viewsets.ModelViewSet):
         # --- INICIO: Integración de cupones nativos de Stripe ---
         discounts = []
         try:
-            # Obtener el carrito del usuario
+            # Obtener el carrito del usuario y refrescarlo desde la base de datos
             cart = order.user.cart
-            coupon = cart.coupon if hasattr(cart, "coupon") else None
+            logger.info(f"Carrito obtenido: {cart.id}")
+            # Refrescar el carrito para asegurar que tenga el cupón aplicado
+            cart.refresh_from_db()
+            logger.info(f"Carrito después de refresh: {cart.id}")
+            
+            # Verificar si el carrito tiene el campo coupons (ManyToManyField)
+            logger.info(f"Carrito tiene campo coupons: {hasattr(cart, 'coupons')}")
+            
+            # Obtener el cupón usando la relación ManyToManyField correcta
+            coupon = None
+            if hasattr(cart, 'coupons'):
+                # Obtener el primer cupón aplicado (asumiendo que solo se aplica uno)
+                coupons = cart.coupons.all()
+                logger.info(f"Cupones en carrito: {list(coupons)}")
+                if coupons.exists():
+                    coupon = coupons.first()
+                    logger.info(f"Primer cupón encontrado: {coupon}")
+            
+            # Si no funciona, intentar obtener directamente desde la base de datos
+            if not coupon:
+                from cart.models import Cart
+                fresh_cart = Cart.objects.prefetch_related('coupons').get(id=cart.id)
+                coupons = fresh_cart.coupons.all()
+                if coupons.exists():
+                    coupon = coupons.first()
+                    logger.info(f"Cupón obtenido via fresh query: {coupon}")
+            
+            logger.info(f"Cupón en el carrito antes de Stripe: {coupon}")
             if coupon and (
                 getattr(coupon, "percentage_coupon", None)
                 or getattr(coupon, "fixed_price_coupon", None)
@@ -1047,6 +1076,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
                         stripe_coupon_id = stripe_coupon.id
                 if stripe_coupon_id:
                     discounts.append({"coupon": stripe_coupon_id})
+            logger.info(f"Stripe discounts to apply: {discounts}")
         except Exception as e:
             logger.error(f"Error integrando cupón con Stripe: {str(e)}")
         # --- FIN: Integración de cupones nativos de Stripe ---
@@ -1079,6 +1109,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         # Agregar descuentos si existen (Stripe native discounts)
         if discounts:
             session_data["discounts"] = discounts
+        logger.info(f"Stripe session_data antes de crear sesión: {session_data}")
 
         # Agregar información de envío si existe dirección por defecto
         if default_address:
@@ -1733,6 +1764,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         """Obtener o crear la orden basada en los datos validados"""
         cart = self.get_user_cart(self.request.user)
         logger.info(f"Cart subtotal: {cart.get_total()}")
+        logger.info(f"Cart antes de cupón: {cart}, cupón actual: {getattr(cart, 'coupon', None)}")
 
         shipping = self.validate_checkout_request(cart, validated_data["shipping_id"])
         logger.info(f"Shipping method: {shipping.name}")
@@ -1757,13 +1789,14 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 coupon = Coupon.objects.get(
                     id=validated_data["coupon_id"], is_active=True
                 )
-                cart.coupon = coupon
-                cart.save()
-                logger.info(f"Applied coupon: {coupon.name}")
+                # Usar la relación ManyToManyField correcta
+                cart.coupons.add(coupon)
+                logger.info(f"Applied coupon: {coupon.name} to cart {cart.id}")
             except Coupon.DoesNotExist:
                 logger.warning(f"Coupon {validated_data['coupon_id']} not found")
-                cart.coupon = None
-                cart.save()
+                cart.coupons.clear()
+
+        logger.info(f"Cart después de cupón: {cart}, cupones actuales: {list(cart.coupons.all())}")
 
         transaction_id = self.generate_transaction_id()
         logger.info(f"Generated transaction ID: {transaction_id}")

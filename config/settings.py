@@ -6,6 +6,13 @@ from celery.schedules import crontab
 
 import environ
 
+from config.logging import LOGGING
+from config.logging import setup_payment_logging
+
+setup_payment_logging()
+
+LOGGING = LOGGING
+
 env = environ.Env(DEBUG=(bool, False))
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -596,41 +603,3 @@ SERVIENTREGA_USERNAME = env("SERVIENTREGA_USERNAME", default="")
 SERVIENTREGA_PASSWORD = env("SERVIENTREGA_PASSWORD", default="")
 SERVIENTREGA_ORIGIN_CODE = env("SERVIENTREGA_ORIGIN_CODE", default="")
 
-# Logging Configuration
-LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "formatters": {
-        "verbose": {
-            "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
-            "style": "{",
-        },
-        "simple": {
-            "format": "{levelname} {message}",
-            "style": "{",
-        },
-    },
-    "handlers": {
-        "console": {
-            "class": "logging.StreamHandler",
-            "formatter": "verbose",
-        },
-        "file": {
-            "class": "logging.FileHandler",
-            "filename": BASE_DIR / "logs/django.log",
-            "formatter": "verbose",
-        },
-    },
-    "loggers": {
-        "django": {
-            "handlers": ["console", "file"],
-            "level": "INFO",
-            "propagate": True,
-        },
-        "ecommerce": {
-            "handlers": ["console", "file"],
-            "level": "DEBUG",
-            "propagate": True,
-        },
-    },
-}
