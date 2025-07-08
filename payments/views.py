@@ -1140,136 +1140,45 @@ class PaymentViewSet(viewsets.ModelViewSet):
         order_items = order.orderitem_set.select_related(
             "inventory__product"
         ).prefetch_related("inventory__inventory_media")
-        print(f"Validated_data: {serializer.validated_data}")
 
-        # Si no hay items en la orden, crear un item genérico
-        if not order_items.exists():
+        # 1. Agregar productos con precio real
+        for item in order_items:
+            product_data = {
+                "name": item.name,
+                "description": f"Product from {order.user.username}",
+                "metadata": {
+                    "product_id": (str(item.inventory.id) if item.inventory else "N/A"),
+                    "order_id": str(order.id),
+                    "payment_id": str(order.payments.first().id),
+                    "transaction_id": order.transaction_id,
+                },
+            }
+            # Añadir imágenes si están disponibles
+            if item.inventory:
+                images = [
+                    img.image.url
+                    for img in item.inventory.inventory_media.all()[:8]
+                ]
+                if images:
+                    product_data["images"] = images
+
+            price_in_cents = int(float(str(item.price)) * 100)
             line_items.append(
                 {
                     "price_data": {
                         "currency": order.currency.lower(),
-                        "unit_amount": int(
-                            float(str(order.amount)) * 100
-                        ),  # Convertir a centavos
-                        "product_data": {
-                            "name": f"Order #{order.id}",
-                            "description": f"Payment for order {order.id}",
-                            "metadata": {
-                                "order_id": str(order.id),
-                                "payment_id": str(order.payments.first().id),
-                                "transaction_id": order.transaction_id,
-                            },
-                        },
+                        "unit_amount": price_in_cents,
+                        "product_data": product_data,
                     },
-                    "quantity": 1,
+                    "quantity": item.count,
                     "adjustable_quantity": {"enabled": False},
+                    "tax_rates": [],
                 }
             )
-        else:
-            # Calcular el subtotal original (sin descuento)
-            original_subtotal = sum(
-                Decimal(str(item.price)) * item.count for item in order_items
-            )
 
-            total_to_pay = serializer.validated_data.get("total_amount", 0)
-            # Calcular el descuento aplicado
-            discount_amount = serializer.validated_data.get("discount", 0)
-            # discount_amount = original_subtotal - order.amount
-            print(f"original_subtotal: {original_subtotal}")
-            print(f"order.amount: {order.amount}")
-            print(f"discount_amount: {discount_amount}")
-
-            # Si hay descuento, ajustar los precios proporcionalmente
-            if discount_amount > 0:
-                # discount_ratio = order.amount / original_subtotal
-
-                # Agregar cada producto con precio ajustado
-                for item in order_items:
-                    product_data = {
-                        "name": item.name,
-                        "description": f"Product from {order.user.username} (con descuento aplicado)",
-                        "metadata": {
-                            "product_id": (
-                                str(item.inventory.id) if item.inventory else "N/A"
-                            ),
-                            "order_id": str(order.id),
-                            "payment_id": str(order.payments.first().id),
-                            "transaction_id": order.transaction_id,
-                            "original_price": str(item.price),
-                            "discount_applied": "true",
-                        },
-                    }
-
-                    # Añadir imágenes si están disponibles
-                    if item.inventory:
-                        images = [
-                            img.image.url
-                            for img in item.inventory.inventory_media.all()[:8]
-                        ]
-                        if images:
-                            product_data["images"] = images
-
-                    # Ajustar el precio con el descuento
-                    # adjusted_price = Decimal(str(item.price)) * discount_ratio
-                    price_in_cents = int(float(str(original_subtotal)) * 100)
-
-                    line_items.append(
-                        {
-                            "price_data": {
-                                "currency": order.currency.lower(),
-                                "unit_amount": price_in_cents,
-                                "product_data": product_data,
-                            },
-                            "quantity": item.count,
-                            "adjustable_quantity": {"enabled": False},
-                            "tax_rates": [],
-                        }
-                    )
-            else:
-                # Sin descuento, usar precios originales
-                for item in order_items:
-                    product_data = {
-                        "name": item.name,
-                        "description": f"Product from {order.user.username}",
-                        "metadata": {
-                            "product_id": (
-                                str(item.inventory.id) if item.inventory else "N/A"
-                            ),
-                            "order_id": str(order.id),
-                            "payment_id": str(order.payments.first().id),
-                            "transaction_id": order.transaction_id,
-                        },
-                    }
-
-                    # Añadir imágenes si están disponibles
-                    if item.inventory:
-                        images = [
-                            img.image.url
-                            for img in item.inventory.inventory_media.all()[:8]
-                        ]
-                        if images:
-                            product_data["images"] = images
-
-                    # Usar el precio original del producto
-                    price_in_cents = int(float(str(item.price)) * 100)
-
-                    line_items.append(
-                        {
-                            "price_data": {
-                                "currency": order.currency.lower(),
-                                "unit_amount": price_in_cents,
-                                "product_data": product_data,
-                            },
-                            "quantity": item.count,
-                            "adjustable_quantity": {"enabled": False},
-                            "tax_rates": [],
-                        }
-                    )
-
-        # Agregar el shipping como un line item separado si aplica
+        # 2. Agregar envío como item aparte si aplica
         shipping_cost = serializer.validated_data.get("shipping_cost")
-        print(f"Shipping cost: {shipping_cost}")
-        if shipping_cost > 0:
+        if shipping_cost and float(shipping_cost) > 0:
             line_items.append(
                 {
                     "price_data": {
@@ -1285,6 +1194,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 }
             )
 
+        # 3. No agregar descuento como item negativo, se maneja como cupón nativo de Stripe
         return line_items
 
     def _get_discounts(self, order):
