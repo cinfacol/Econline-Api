@@ -13,6 +13,19 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def clear_cart_coupons(user):
+    """Limpiar cupones del carrito del usuario"""
+    try:
+        cart = Cart.objects.filter(user=user).first()
+        if cart and hasattr(cart, 'coupons'):
+            cart.coupons.clear()
+            logger.info(f"Cupones limpiados del carrito para usuario {user.id}")
+        return True
+    except Exception as e:
+        logger.error(f"Error limpiando cupones del carrito: {str(e)}")
+        return False
+
+
 @shared_task()
 def send_payment_success_email_task(email_address, subject=None, message=None):
     if not email_address:
@@ -98,6 +111,8 @@ def handle_checkout_session_completed_task(session_data):
         cart = Cart.objects.filter(user=payment.order.user).first()
         if cart:
             cart.items.all().delete()
+            # Limpiar cupones del carrito
+            clear_cart_coupons(payment.order.user)
 
         # Enviar email de éxito de pago
         if payment.order.user and payment.order.user.email and not payment.email_sent:
@@ -156,6 +171,8 @@ def handle_payment_intent_succeeded_task(payment_intent_data):
         cart = Cart.objects.filter(user=payment.order.user).first()
         if cart:
             cart.items.all().delete()
+            # Limpiar cupones del carrito
+            clear_cart_coupons(payment.order.user)
 
         # Enviar email de éxito de pago
         if payment.order.user and payment.order.user.email and not payment.email_sent:
@@ -214,6 +231,9 @@ def handle_payment_intent_payment_failed_task(payment_intent_data):
 
         order.status = Order.OrderStatus.CANCELLED
         order.save()
+
+        # Limpiar cupones del carrito cuando el pago falla
+        clear_cart_coupons(payment.order.user)
 
         logger.warning(
             f"Payment intent failed for payment {payment_id}",
@@ -536,6 +556,9 @@ def handle_checkout_session_expired_task(session_data):
         order.status = Order.OrderStatus.CANCELLED
         order.save()
 
+        # Limpiar cupones del carrito cuando la sesión expira
+        clear_cart_coupons(payment.order.user)
+
         logger.info(
             f"Checkout session expired for payment {payment_id}",
             extra={
@@ -596,6 +619,8 @@ def handle_charge_succeeded_task(charge_data):
             cart = Cart.objects.filter(user=payment.order.user).first()
             if cart:
                 cart.items.all().delete()
+                # Limpiar cupones del carrito
+                clear_cart_coupons(payment.order.user)
 
             # Enviar email de éxito de pago
             if payment.order.user and payment.order.user.email and not payment.email_sent:

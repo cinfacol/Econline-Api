@@ -1544,6 +1544,9 @@ class PaymentViewSet(viewsets.ModelViewSet):
         # Liberar inventario si el pago falla
         order_items = payment.order.orderitem_set.all()
         self.release_inventory(order_items)
+        # Limpiar cupones del carrito cuando el pago falla
+        from .tasks import clear_cart_coupons
+        clear_cart_coupons(payment.order.user)
         return Response(
             {
                 "error": _("Payment failed"),
@@ -1561,6 +1564,9 @@ class PaymentViewSet(viewsets.ModelViewSet):
         # Liberar inventario si Stripe falla
         order_items = payment.order.orderitem_set.all()
         self.release_inventory(order_items)
+        # Limpiar cupones del carrito cuando hay error de Stripe
+        from .tasks import clear_cart_coupons
+        clear_cart_coupons(payment.order.user)
         return Response(
             {
                 "error": _("Error procesando el pago"),
@@ -1865,6 +1871,11 @@ class PaymentViewSet(viewsets.ModelViewSet):
         self.release_inventory(order_items)
         logger.info(f"[CANCEL] Inventario liberado para Order ID: {payment.order.id}")
 
+        # Limpiar cupones del carrito cuando se cancela el pago
+        from .tasks import clear_cart_coupons
+        clear_cart_coupons(payment.order.user)
+        logger.info(f"[CANCEL] Cupones limpiados del carrito para Payment ID: {payment.id}")
+
         response_data = {
             "status": "cancelled",
             "payment_id": str(payment.id),
@@ -1873,6 +1884,29 @@ class PaymentViewSet(viewsets.ModelViewSet):
         if stripe_error:
             response_data["stripe_error"] = stripe_error
         return Response(response_data)
+
+    @action(detail=False, methods=["POST"])
+    def clear_cart_coupons(self, request):
+        """Limpiar cupones del carrito del usuario actual"""
+        try:
+            from .tasks import clear_cart_coupons
+            success = clear_cart_coupons(request.user)
+            if success:
+                return Response(
+                    {"message": "Cupones limpiados del carrito exitosamente"},
+                    status=status.HTTP_200_OK,
+                )
+            else:
+                return Response(
+                    {"error": "Error al limpiar cupones del carrito"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+        except Exception as e:
+            logger.error(f"Error limpiando cupones del carrito: {str(e)}")
+            return Response(
+                {"error": "Error interno del servidor"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     @action(detail=False, methods=["GET"])
     def get_payment_by_session(self, request):

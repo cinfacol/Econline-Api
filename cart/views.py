@@ -540,7 +540,7 @@ class ApplyCouponView(APIView):
         total_discount = calculate_total_coupon_discount(cart, user)
         subtotal = cart.get_total()  # get_total now calculates only subtotal
         final_total = subtotal - total_discount
-        final_total = max(Decimal("0"), final_total)  # Ensure total is not negative
+        final_total = max(Decimal("0"), final_total)
 
         serialized_cart = CartSerializer(cart).data
 
@@ -559,4 +559,99 @@ class ApplyCouponView(APIView):
         return Response(
             response_data,
             status=status_code,
+        )
+
+
+class RemoveCouponView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request, format=None):
+        user = request.user
+        data = request.data
+        coupon_code = data.get("coupon_code")  # Expect a single coupon code to remove
+
+        if not coupon_code:
+            return Response(
+                {"error": "Se requiere el código del cupón a remover"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        cart, _ = Cart.objects.get_or_create(user=user)
+        
+        try:
+            coupon = Coupon.objects.get(code=coupon_code)
+            
+            # Check if the coupon is actually applied to the cart
+            if cart.coupons.filter(id=coupon.id).exists():
+                cart.coupons.remove(coupon)
+                cart.save()
+                
+                # Recalculate total after removing the coupon
+                total_discount = calculate_total_coupon_discount(cart, user)
+                subtotal = cart.get_total()
+                final_total = subtotal - total_discount
+                final_total = max(Decimal("0"), final_total)
+                
+                serialized_cart = CartSerializer(cart).data
+                
+                return Response(
+                    {
+                        "message": f"Cupón {coupon_code} removido exitosamente",
+                        "cart": serialized_cart,
+                        "subtotal": subtotal,
+                        "discount_amount": total_discount,
+                        "final_total": final_total,
+                    },
+                    status=status.HTTP_200_OK,
+                )
+            else:
+                return Response(
+                    {"error": f"El cupón {coupon_code} no está aplicado al carrito"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+                
+        except Coupon.DoesNotExist:
+            return Response(
+                {"error": f"Cupón {coupon_code} no encontrado"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+
+class RemoveAllCouponsView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request, format=None):
+        user = request.user
+        cart, _ = Cart.objects.get_or_create(user=user)
+        
+        # Get the number of coupons before clearing
+        coupons_count = cart.coupons.count()
+        
+        if coupons_count == 0:
+            return Response(
+                {"message": "No hay cupones aplicados al carrito"},
+                status=status.HTTP_200_OK,
+            )
+        
+        # Clear all coupons
+        cart.coupons.clear()
+        cart.save()
+        
+        # Recalculate total after removing all coupons
+        total_discount = calculate_total_coupon_discount(cart, user)
+        subtotal = cart.get_total()
+        final_total = subtotal - total_discount
+        final_total = max(Decimal("0"), final_total)
+        
+        serialized_cart = CartSerializer(cart).data
+        
+        return Response(
+            {
+                "message": f"Se removieron {coupons_count} cupón(es) del carrito",
+                "cart": serialized_cart,
+                "subtotal": subtotal,
+                "discount_amount": total_discount,
+                "final_total": final_total,
+            },
+            status=status.HTTP_200_OK,
         )
