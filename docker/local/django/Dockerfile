@@ -1,4 +1,4 @@
-FROM python:3.11.4-slim-buster
+FROM python:3-alpine3.21
 
 ENV APP_HOME=/app
 RUN mkdir $APP_HOME
@@ -12,14 +12,17 @@ LABEL decription="Development image for Real Shop Project"
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-RUN apt-get update \
-  && apt-get install -y build-essential \
-  && apt-get install -y libpq-dev \
-  && apt-get install -y gettext \
-  && apt-get install -y curl \
-  && apt-get -y install netcat gcc postgresql \
-  && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
-  && rm -rf /var/lib/apt/lists/*lear
+RUN apk update && apk add --no-cache \
+    build-base \
+    postgresql-dev \
+    gettext \
+    curl \
+    netcat-openbsd \
+    libffi-dev \
+    openssl-dev \
+    jpeg-dev \
+    zlib-dev \
+    bash
 
 RUN pip3 install --upgrade pip
 
