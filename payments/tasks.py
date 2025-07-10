@@ -8,6 +8,7 @@ from django.db import transaction
 from django.conf import settings
 from django.core.mail import send_mail
 from django.utils.translation import gettext_lazy as _
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -17,7 +18,7 @@ def clear_cart_coupons(user):
     """Limpiar cupones del carrito del usuario"""
     try:
         cart = Cart.objects.filter(user=user).first()
-        if cart and hasattr(cart, 'coupons'):
+        if cart and hasattr(cart, "coupons"):
             cart.coupons.clear()
             logger.info(f"Cupones limpiados del carrito para usuario {user.id}")
         return True
@@ -513,12 +514,111 @@ def handle_subscription_deleted_task(subscription_data):
 
 
 @shared_task(
+    name="payments.tasks.handle_manual_payment_cancellation_task",
+    autoretry_for=(Exception,),
+    max_retries=3,
+    default_retry_delay=60,
+    bind=True,
+)
+def handle_manual_payment_cancellation_task(
+    self, payment_id, user_id, reason="manual_cancellation"
+):
+    """Manejar cancelaciones manuales de pagos"""
+    logger.info(f"Procesando cancelación manual para Payment ID: {payment_id}")
+
+    try:
+        # Importar aquí para evitar problemas de importación circular en contenedores
+        from django.db import transaction
+        from payments.models import Payment
+        from orders.models import Order
+        from cart.models import Cart
+
+        payment = Payment.objects.select_related("order", "user").get(id=payment_id)
+    except Payment.DoesNotExist:
+        logger.error(f"Payment with id {payment_id} not found")
+        return {"status": "error", "message": "Payment not found"}
+
+    try:
+        with transaction.atomic():
+            # Verificar que el pago no esté ya completado
+            if payment.status == Payment.PaymentStatus.COMPLETED:
+                logger.warning(
+                    f"Payment {payment_id} already completed, skipping cancellation"
+                )
+                return {"status": "skipped", "message": "Payment already completed"}
+
+            # Actualizar estado del pago
+            payment.status = Payment.PaymentStatus.CANCELLED
+            payment.error_message = f"Cancelación manual: {reason}"
+            payment.save()
+
+            # Actualizar estado de la orden
+            payment.order.status = Order.OrderStatus.CANCELLED
+            payment.order.save()
+
+            # Liberar inventario usando el método del ViewSet
+            try:
+                from payments.views import PaymentViewSet
+
+                viewset = PaymentViewSet()
+                order_items = payment.order.orderitem_set.all()
+                viewset.release_inventory(order_items)
+                logger.info(f"Inventario liberado para orden {payment.order.id}")
+            except Exception as e:
+                logger.error(f"Error liberando inventario: {str(e)}")
+                # No fallar la tarea por errores de inventario
+
+            # Limpiar cupones del carrito
+            try:
+                cart = Cart.objects.filter(user=payment.order.user).first()
+                if cart and hasattr(cart, "coupons"):
+                    cart.coupons.clear()
+                    logger.info(
+                        f"Cupones limpiados del carrito para usuario {payment.order.user.id}"
+                    )
+            except Exception as e:
+                logger.error(f"Error limpiando cupones: {str(e)}")
+                # No fallar la tarea por errores de cupones
+
+            logger.info(
+                f"Manual payment cancellation processed for payment {payment_id}",
+                extra={
+                    "payment_id": payment_id,
+                    "order_id": payment.order.id,
+                    "user_id": user_id,
+                    "reason": reason,
+                },
+            )
+
+            return {
+                "status": "success",
+                "payment_id": payment_id,
+                "order_id": str(payment.order.id),
+                "reason": reason,
+            }
+
+    except Exception as e:
+        logger.error(
+            f"Error handling manual payment cancellation: {str(e)}",
+            exc_info=True,
+            extra={
+                "payment_id": payment_id,
+                "user_id": user_id,
+                "reason": reason,
+            },
+        )
+        # Reintentar la tarea
+        raise self.retry(countdown=60, max_retries=3)
+
+
+@shared_task(
     name="payments.tasks.handle_checkout_session_expired_task",
     autoretry_for=(Exception,),
     max_retries=3,
     default_retry_delay=60,
+    bind=True,
 )
-def handle_checkout_session_expired_task(session_data):
+def handle_checkout_session_expired_task(self, session_data):
     """Manejar la expiración de sesiones de checkout de Stripe"""
     logger.info("Procesando evento checkout.session.expired")
     logger.info(f"Datos de la sesión: {session_data}")
@@ -529,46 +629,85 @@ def handle_checkout_session_expired_task(session_data):
 
     if not payment_id:
         logger.error("No payment_id found in session metadata")
-        return
+        return {"status": "error", "message": "No payment_id found"}
 
     if not order_id:
         logger.error("No order_id found in session metadata")
-        return
+        return {"status": "error", "message": "No order_id found"}
 
     try:
-        payment = Payment.objects.select_related("order").get(id=payment_id)
+        # Importar aquí para evitar problemas de importación circular en contenedores
+
+        payment = Payment.objects.select_related("order", "user").get(id=payment_id)
     except Payment.DoesNotExist:
         logger.error(f"Payment with id {payment_id} not found")
-        return
+        return {"status": "error", "message": "Payment not found"}
 
     try:
         order = Order.objects.get(id=order_id)
     except Order.DoesNotExist:
         logger.error(f"Order with id {order_id} not found")
-        return
+        return {"status": "error", "message": "Order not found"}
 
     try:
-        logger.info(f"Actualizando estado del pago {payment_id} a CANCELLED")
-        payment.status = Payment.PaymentStatus.CANCELLED
-        payment.save()
+        with transaction.atomic():
+            # Solo actualizar si el pago no está ya completado
+            if payment.status != Payment.PaymentStatus.COMPLETED:
+                logger.info(f"Actualizando estado del pago {payment_id} a CANCELLED")
+                payment.status = Payment.PaymentStatus.CANCELLED
+                payment.error_message = "Sesión de checkout expirada"
+                payment.save()
 
-        logger.info(f"Actualizando estado de la orden {order_id} a CANCELLED")
-        order.status = Order.OrderStatus.CANCELLED
-        order.save()
+                logger.info(f"Actualizando estado de la orden {order_id} a CANCELLED")
+                order.status = Order.OrderStatus.CANCELLED
+                order.save()
 
-        # Limpiar cupones del carrito cuando la sesión expira
-        clear_cart_coupons(payment.order.user)
+                # Liberar inventario
+                try:
+                    from payments.views import PaymentViewSet
 
-        logger.info(
-            f"Checkout session expired for payment {payment_id}",
-            extra={
-                "payment_id": payment_id,
-                "order_id": order.id,
-                "session_id": session_id,
-            },
-        )
+                    viewset = PaymentViewSet()
+                    order_items = order.orderitem_set.all()
+                    viewset.release_inventory(order_items)
+                    logger.info(f"Inventario liberado para orden {order.id}")
+                except Exception as e:
+                    logger.error(f"Error liberando inventario: {str(e)}")
 
-        logger.info(f"Checkout session expired for payment {payment_id}")
+                # Limpiar cupones del carrito cuando la sesión expira
+                try:
+                    cart = Cart.objects.filter(user=payment.order.user).first()
+                    if cart and hasattr(cart, "coupons"):
+                        cart.coupons.clear()
+                        logger.info(
+                            f"Cupones limpiados del carrito para usuario {payment.order.user.id}"
+                        )
+                except Exception as e:
+                    logger.error(f"Error limpiando cupones: {str(e)}")
+
+                logger.info(
+                    f"Checkout session expired for payment {payment_id}",
+                    extra={
+                        "payment_id": payment_id,
+                        "order_id": order.id,
+                        "session_id": session_id,
+                    },
+                )
+
+                return {
+                    "status": "success",
+                    "payment_id": payment_id,
+                    "order_id": str(order.id),
+                    "session_id": session_id,
+                }
+            else:
+                logger.info(
+                    f"Payment {payment_id} already completed, skipping expiration handling"
+                )
+                return {
+                    "status": "skipped",
+                    "message": "Payment already completed",
+                    "payment_id": payment_id,
+                }
 
     except Exception as e:
         logger.error(
@@ -580,7 +719,8 @@ def handle_checkout_session_expired_task(session_data):
                 "session_id": session_id,
             },
         )
-        raise
+        # Reintentar la tarea
+        raise self.retry(countdown=60, max_retries=3)
 
 
 @shared_task
@@ -623,7 +763,11 @@ def handle_charge_succeeded_task(charge_data):
                 clear_cart_coupons(payment.order.user)
 
             # Enviar email de éxito de pago
-            if payment.order.user and payment.order.user.email and not payment.email_sent:
+            if (
+                payment.order.user
+                and payment.order.user.email
+                and not payment.email_sent
+            ):
                 send_payment_success_email_task.delay(payment.order.user.email)
                 payment.email_sent = True
                 payment.save()
@@ -645,3 +789,184 @@ def handle_charge_succeeded_task(charge_data):
             },
         )
         raise
+
+
+@shared_task(
+    name="payments.tasks.periodic_clean_expired_sessions_task",
+    autoretry_for=(Exception,),
+    max_retries=3,
+    default_retry_delay=300,  # 5 minutos entre reintentos
+    bind=True,
+)
+def periodic_clean_expired_sessions_task(self):
+    """Tarea periódica para limpiar sesiones expiradas automáticamente"""
+    logger.info("Iniciando limpieza periódica de sesiones expiradas")
+
+    try:
+        import stripe
+        from django.conf import settings
+        from django.db import transaction
+        from payments.models import Payment
+
+        stripe.api_key = settings.STRIPE_SECRET_KEY
+
+        # Buscar pagos pendientes con sesiones de Stripe
+        pending_payments = Payment.objects.filter(
+            status=Payment.PaymentStatus.PENDING, stripe_session_id__isnull=False
+        ).select_related("order", "user")
+
+        logger.info(f"Verificando {pending_payments.count()} pagos pendientes")
+
+        expired_count = 0
+        error_count = 0
+
+        for payment in pending_payments:
+            try:
+                # Verificar el estado de la sesión en Stripe
+                session = stripe.checkout.Session.retrieve(payment.stripe_session_id)
+
+                # Si la sesión ha expirado, procesar la cancelación
+                if session.expires_at and session.expires_at < int(
+                    timezone.now().timestamp()
+                ):
+                    logger.info(
+                        f"Sesión expirada detectada: {payment.stripe_session_id}"
+                    )
+                    handle_checkout_session_expired_task.delay(session.to_dict())
+                    expired_count += 1
+
+                elif session.status == "expired":
+                    logger.info(
+                        f"Sesión marcada como expirada en Stripe: {payment.stripe_session_id}"
+                    )
+                    handle_checkout_session_expired_task.delay(session.to_dict())
+                    expired_count += 1
+
+            except stripe.error.InvalidRequestError:
+                # La sesión no existe en Stripe, marcarla como cancelada
+                logger.info(
+                    f"Sesión no encontrada en Stripe: {payment.stripe_session_id}"
+                )
+                handle_manual_payment_cancellation_task.delay(
+                    str(payment.id),
+                    str(payment.user.id),
+                    "sesión_no_encontrada_en_stripe",
+                )
+                expired_count += 1
+
+            except Exception as e:
+                error_count += 1
+                logger.error(
+                    f"Error verificando sesión {payment.stripe_session_id}: {str(e)}"
+                )
+
+        logger.info(
+            f"Limpieza periódica completada: {expired_count} expiradas, {error_count} errores"
+        )
+
+        return {
+            "status": "success",
+            "expired_count": expired_count,
+            "error_count": error_count,
+            "total_checked": pending_payments.count(),
+        }
+
+    except Exception as e:
+        logger.error(f"Error en limpieza periódica de sesiones: {str(e)}")
+        # Reintentar la tarea
+        raise self.retry(countdown=300, max_retries=3)
+
+
+@shared_task(
+    name="payments.tasks.clean_expired_sessions_task",
+    autoretry_for=(Exception,),
+    max_retries=3,
+    default_retry_delay=300,  # 5 minutos entre reintentos
+    bind=True,
+)
+def clean_expired_sessions_task(self):
+    """Tarea para limpiar sesiones expiradas (ejecutar manualmente o programada)"""
+    logger.info("Iniciando limpieza de sesiones expiradas")
+    
+    try:
+        import stripe
+        from django.conf import settings
+        from django.db import transaction
+        from payments.models import Payment
+        
+        stripe.api_key = settings.STRIPE_SECRET_KEY
+        
+        # Buscar pagos pendientes con sesiones de Stripe
+        pending_payments = Payment.objects.filter(
+            status=Payment.PaymentStatus.PENDING, stripe_session_id__isnull=False
+        ).select_related("order", "user")
+        
+        logger.info(f"Verificando {pending_payments.count()} pagos pendientes")
+        
+        expired_count = 0
+        error_count = 0
+        
+        for payment in pending_payments:
+            try:
+                # Verificar el estado de la sesión en Stripe
+                session = stripe.checkout.Session.retrieve(payment.stripe_session_id)
+                
+                # Si la sesión ha expirado, procesar la cancelación
+                if session.expires_at and session.expires_at < int(
+                    timezone.now().timestamp()
+                ):
+                    logger.info(
+                        f"Sesión expirada detectada: {payment.stripe_session_id}"
+                    )
+                    handle_checkout_session_expired_task.delay(session.to_dict())
+                    expired_count += 1
+                    
+                elif session.status == "expired":
+                    logger.info(
+                        f"Sesión marcada como expirada en Stripe: {payment.stripe_session_id}"
+                    )
+                    handle_checkout_session_expired_task.delay(session.to_dict())
+                    expired_count += 1
+                    
+            except stripe.error.InvalidRequestError:
+                # La sesión no existe en Stripe, marcarla como cancelada
+                logger.info(
+                    f"Sesión no encontrada en Stripe: {payment.stripe_session_id}"
+                )
+                handle_manual_payment_cancellation_task.delay(
+                    str(payment.id),
+                    str(payment.user.id),
+                    "sesión_no_encontrada_en_stripe",
+                )
+                expired_count += 1
+                
+            except Exception as e:
+                error_count += 1
+                logger.error(
+                    f"Error verificando sesión {payment.stripe_session_id}: {str(e)}"
+                )
+        
+        logger.info(
+            f"Limpieza completada: {expired_count} expiradas, {error_count} errores"
+        )
+        
+        # Programar la siguiente ejecución si es necesario
+        if expired_count > 0 or error_count > 0:
+            # Si se encontraron problemas, ejecutar de nuevo en 5 minutos
+            clean_expired_sessions_task.apply_async(countdown=300)
+        else:
+            # Si todo está bien, ejecutar de nuevo en 15 minutos
+            clean_expired_sessions_task.apply_async(countdown=900)
+        
+        return {
+            "status": "success",
+            "expired_count": expired_count,
+            "error_count": error_count,
+            "total_checked": pending_payments.count(),
+        }
+        
+    except Exception as e:
+        logger.error(f"Error en limpieza de sesiones: {str(e)}")
+        # Reintentar en 10 minutos si hay error
+        clean_expired_sessions_task.apply_async(countdown=600)
+        raise self.retry(countdown=600, max_retries=3)

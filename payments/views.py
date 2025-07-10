@@ -56,6 +56,7 @@ from .tasks import (
     send_payment_success_email_task,
     send_subscription_welcome_email,
     send_subscription_canceled_email,
+    clean_expired_sessions_task,
 )
 from .webhooks import WebhookHandler
 
@@ -1829,12 +1830,21 @@ class PaymentViewSet(viewsets.ModelViewSet):
         logger.info(
             f"[CANCEL] Iniciando cancelación para Payment ID: {payment.id} | Estado actual: {payment.status}"
         )
-        if payment.status == payment.PaymentStatus.COMPLETED:
+        
+        # Verificar que el usuario tenga autorización para cancelar este pago
+        if payment.order.user != request.user and not request.user.is_staff:
+            return Response(
+                {"error": "No autorizado para cancelar este pago"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        
+        if payment.status == Payment.PaymentStatus.COMPLETED:
             logger.warning(
                 f"[CANCEL] No se puede cancelar un pago ya completado. Payment ID: {payment.id}"
             )
             return Response(
-                {"error": "No se puede cancelar un pago ya completado."}, status=400
+                {"error": "No se puede cancelar un pago ya completado."}, 
+                status=status.HTTP_400_BAD_REQUEST
             )
 
         # Intentar cancelar el PaymentIntent en Stripe si existe
@@ -1847,43 +1857,131 @@ class PaymentViewSet(viewsets.ModelViewSet):
                     f"[CANCEL] Stripe session: {session.id} | PaymentIntent: {payment_intent_id}"
                 )
                 if payment_intent_id:
+                    # Cancelar el PaymentIntent en Stripe
                     stripe.PaymentIntent.cancel(payment_intent_id)
                     logger.info(
                         f"[CANCEL] PaymentIntent {payment_intent_id} cancelado en Stripe"
                     )
+                    
+                    # También cancelar la sesión de checkout si está abierta
+                    if session.status == "open":
+                        stripe.checkout.Session.expire(payment.stripe_session_id)
+                        logger.info(f"[CANCEL] Session {payment.stripe_session_id} expirada en Stripe")
+                        
+            except stripe.error.InvalidRequestError as e:
+                logger.warning(
+                    f"[CANCEL] PaymentIntent ya cancelado o no encontrado: {str(e)}"
+                )
+                # No es un error crítico, continuar con la cancelación local
             except Exception as e:
                 logger.error(
                     f"[CANCEL] Error al cancelar PaymentIntent en Stripe: {str(e)}"
                 )
                 stripe_error = str(e)
 
-        # Actualizar estado local
-        payment.status = payment.PaymentStatus.CANCELLED
-        payment.save()
-        payment.order.status = payment.order.OrderStatus.CANCELLED
-        payment.order.save()
-        logger.info(
-            f"[CANCEL] Estado local actualizado a CANCELLED para Payment ID: {payment.id} y Order ID: {payment.order.id}"
-        )
+        # Procesar la cancelación de forma síncrona para evitar problemas de estado
+        try:
+            with transaction.atomic():
+                # Verificar que el pago no esté ya completado
+                payment.refresh_from_db()
+                if payment.status == Payment.PaymentStatus.COMPLETED:
+                    logger.warning(
+                        f"[CANCEL] Payment {payment.id} already completed, skipping cancellation"
+                    )
+                    return Response(
+                        {"error": "El pago ya fue completado"}, 
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
 
-        # Liberar inventario
-        order_items = payment.order.orderitem_set.all()
-        self.release_inventory(order_items)
-        logger.info(f"[CANCEL] Inventario liberado para Order ID: {payment.order.id}")
+                # Actualizar estado del pago
+                payment.status = Payment.PaymentStatus.CANCELLED
+                payment.error_message = "Cancelación manual desde frontend"
+                payment.save()
 
-        # Limpiar cupones del carrito cuando se cancela el pago
-        from .tasks import clear_cart_coupons
-        clear_cart_coupons(payment.order.user)
-        logger.info(f"[CANCEL] Cupones limpiados del carrito para Payment ID: {payment.id}")
+                # Actualizar estado de la orden
+                payment.order.status = Order.OrderStatus.CANCELLED
+                payment.order.save()
+
+                # Liberar inventario
+                order_items = payment.order.orderitem_set.all()
+                self.release_inventory(order_items)
+                logger.info(f"[CANCEL] Inventario liberado para orden {payment.order.id}")
+
+                # Limpiar cupones del carrito
+                try:
+                    cart = Cart.objects.filter(user=payment.order.user).first()
+                    if cart and hasattr(cart, "coupons"):
+                        cart.coupons.clear()
+                        logger.info(
+                            f"[CANCEL] Cupones limpiados del carrito para usuario {payment.order.user.id}"
+                        )
+                except Exception as e:
+                    logger.error(f"[CANCEL] Error limpiando cupones: {str(e)}")
+
+                logger.info(
+                    f"[CANCEL] Cancelación completada para Payment ID: {payment.id}"
+                )
+
+        except Exception as e:
+            logger.error(
+                f"[CANCEL] Error procesando cancelación: {str(e)}",
+                exc_info=True
+            )
+            return Response(
+                {"error": "Error interno al procesar la cancelación"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
         response_data = {
             "status": "cancelled",
             "payment_id": str(payment.id),
             "order_id": str(payment.order.id),
+            "message": "Pago cancelado exitosamente",
+            "payment_status": payment.status,
+            "order_status": payment.order.status,
         }
+        
         if stripe_error:
             response_data["stripe_error"] = stripe_error
-        return Response(response_data)
+            response_data["warning"] = "Pago cancelado localmente, pero hubo un error con Stripe"
+            
+        return Response(response_data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=["POST"])
+    def check_expired_sessions(self, request):
+        """Verificar y limpiar sesiones expiradas"""
+        # Verificar permisos para contenedores
+        if not request.user.is_authenticated:
+            return Response(
+                {"error": "Autenticación requerida"},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        
+        # Solo permitir a staff o usuarios autorizados
+        if not request.user.is_staff:
+            return Response(
+                {"error": "Permisos insuficientes"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        
+        try:
+            # Ejecutar la tarea de limpieza de forma asíncrona
+            from .tasks import clean_expired_sessions_task
+            task_result = clean_expired_sessions_task.delay()
+            
+            return Response({
+                "message": "Limpieza de sesiones expiradas iniciada",
+                "task_id": str(task_result.id),
+                "status": "started",
+                "timestamp": timezone.now().isoformat(),
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"Error iniciando limpieza de sesiones: {str(e)}")
+            return Response(
+                {"error": "Error interno del servidor"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     @action(detail=False, methods=["POST"])
     def clear_cart_coupons(self, request):
@@ -1956,3 +2054,342 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 {"error": "Error interno del servidor"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+    @action(detail=False, methods=["GET"])
+    def task_status(self, request):
+        """Verificar el estado de una tarea de Celery"""
+        task_id = request.query_params.get("task_id")
+        if not task_id:
+            return Response(
+                {"error": "task_id es requerido"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            from celery.result import AsyncResult
+            from config.celery import app as celery_app
+            
+            # Obtener el resultado de la tarea
+            result = AsyncResult(task_id, app=celery_app)
+            
+            response_data = {
+                "task_id": task_id,
+                "status": result.status,
+                "ready": result.ready(),
+            }
+            
+            # Agregar información adicional según el estado
+            if result.ready():
+                if result.successful():
+                    response_data["result"] = result.result
+                    response_data["message"] = "Tarea completada exitosamente"
+                else:
+                    response_data["error"] = str(result.result)
+                    response_data["message"] = "Tarea falló"
+            else:
+                response_data["message"] = "Tarea en progreso"
+            
+            return Response(response_data, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Error verificando estado de tarea {task_id}: {str(e)}")
+            return Response(
+                {"error": "Error al verificar el estado de la tarea"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @action(detail=False, methods=["GET"])
+    def test_cancellation(self, request):
+        """Endpoint de prueba para verificar la cancelación de pagos"""
+        # Solo permitir en desarrollo o a usuarios staff
+        if not settings.DEBUG and not request.user.is_staff:
+            return Response(
+                {"error": "Endpoint solo disponible en desarrollo o para staff"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        
+        payment_id = request.query_params.get("payment_id")
+        user_email = request.query_params.get("user_email")
+        
+        try:
+            # Buscar pagos para probar
+            queryset = Payment.objects.select_related('order', 'user', 'payment_method')
+            
+            if payment_id:
+                payments = [queryset.get(id=payment_id)]
+            elif user_email:
+                user = User.objects.get(email=user_email)
+                payments = list(queryset.filter(user=user))
+            else:
+                # Por defecto, buscar pagos pendientes del usuario actual
+                payments = list(queryset.filter(
+                    user=request.user, 
+                    status=Payment.PaymentStatus.PENDING
+                )[:3])
+            
+            if not payments:
+                return Response(
+                    {"error": "No se encontraron pagos para probar"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            
+            # Preparar información de los pagos
+            payment_info = []
+            for payment in payments:
+                info = {
+                    "payment_id": str(payment.id),
+                    "order_id": str(payment.order.id),
+                    "payment_status": payment.status,
+                    "payment_status_display": payment.get_status_display(),
+                    "order_status": payment.order.status,
+                    "order_status_display": payment.order.get_status_display(),
+                    "amount": str(payment.amount),
+                    "currency": payment.currency,
+                    "user_email": payment.order.user.email,
+                    "stripe_session_id": payment.stripe_session_id,
+                    "created_at": payment.created_at.isoformat(),
+                }
+                
+                # Agregar información de Stripe si existe
+                if payment.stripe_session_id:
+                    try:
+                        session = stripe.checkout.Session.retrieve(payment.stripe_session_id)
+                        info["stripe"] = {
+                            "session_status": session.status,
+                            "payment_status": session.payment_status,
+                            "expires_at": session.expires_at,
+                        }
+                    except Exception as e:
+                        info["stripe"] = {"error": str(e)}
+                
+                payment_info.append(info)
+            
+            return Response({
+                "message": f"Encontrados {len(payments)} pagos para probar",
+                "payments": payment_info,
+                "test_endpoints": {
+                    "cancel": f"POST /api/payments/{{payment_id}}/cancel/",
+                    "status": f"GET /api/payments/{{payment_id}}/status/",
+                    "sync": f"POST /api/payments/{{payment_id}}/sync_status/",
+                }
+            }, status=status.HTTP_200_OK)
+            
+        except Payment.DoesNotExist:
+            return Response(
+                {"error": "Pago no encontrado"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except User.DoesNotExist:
+            return Response(
+                {"error": "Usuario no encontrado"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except Exception as e:
+            logger.error(f"Error en endpoint de prueba: {str(e)}")
+            return Response(
+                {"error": "Error interno del servidor"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @action(detail=True, methods=["POST"])
+    def debug_cancel(self, request, id=None):
+        """Endpoint de debug para cancelar un pago y verificar el proceso"""
+        # Solo permitir en desarrollo o a usuarios staff
+        if not settings.DEBUG and not request.user.is_staff:
+            return Response(
+                {"error": "Endpoint solo disponible en desarrollo o para staff"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        
+        payment = self._get_payment_or_404(id)
+        
+        debug_info = {
+            "request_user": request.user.email,
+            "payment_user": payment.order.user.email,
+            "payment_id": str(payment.id),
+            "order_id": str(payment.order.id),
+            "initial_payment_status": payment.status,
+            "initial_order_status": payment.order.status,
+            "stripe_session_id": payment.stripe_session_id,
+            "can_cancel": payment.status != Payment.PaymentStatus.COMPLETED,
+            "user_authorized": payment.order.user == request.user or request.user.is_staff,
+        }
+        
+        # Verificar autorización
+        if not debug_info["user_authorized"]:
+            return Response({
+                "error": "No autorizado para cancelar este pago",
+                "debug_info": debug_info
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        if not debug_info["can_cancel"]:
+            return Response({
+                "error": "No se puede cancelar un pago ya completado",
+                "debug_info": debug_info
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Intentar cancelar usando el método normal
+        try:
+            # Llamar al método cancel normal
+            response = self.cancel(request, id)
+            
+            # Refrescar el pago para obtener el estado final
+            payment.refresh_from_db()
+            payment.order.refresh_from_db()
+            
+            debug_info.update({
+                "final_payment_status": payment.status,
+                "final_order_status": payment.order.status,
+                "cancel_successful": payment.status == Payment.PaymentStatus.CANCELLED,
+                "response_status": response.status_code,
+                "response_data": response.data if hasattr(response, 'data') else None,
+            })
+            
+            return Response({
+                "message": "Cancelación completada",
+                "debug_info": debug_info,
+                "response": response.data if hasattr(response, 'data') else None,
+            }, status=response.status_code)
+            
+        except Exception as e:
+            debug_info["error"] = str(e)
+            logger.error(f"Error en debug_cancel: {str(e)}", exc_info=True)
+            return Response({
+                "error": "Error durante la cancelación",
+                "debug_info": debug_info
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=["POST"])
+    def sync_status(self, request, id=None):
+        """Sincronizar el estado del pago con Stripe"""
+        payment = self._get_payment_or_404(id)
+        
+        # Verificar que el usuario tenga autorización
+        if payment.order.user != request.user and not request.user.is_staff:
+            return Response(
+                {"error": "No autorizado para verificar este pago"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        
+        if not payment.stripe_session_id:
+            return Response(
+                {"error": "Este pago no tiene una sesión de Stripe asociada"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        try:
+            # Verificar el estado de la sesión en Stripe
+            session = stripe.checkout.Session.retrieve(payment.stripe_session_id)
+            
+            # Verificar si la sesión ha expirado
+            if session.expires_at and session.expires_at < int(timezone.now().timestamp()):
+                # Procesar la expiración
+                from .tasks import handle_checkout_session_expired_task
+                task_result = handle_checkout_session_expired_task.delay(session.to_dict())
+                
+                return Response({
+                    "status": "expired",
+                    "message": "La sesión ha expirado y se está procesando la cancelación",
+                    "payment_status": payment.status,
+                    "stripe_status": session.status,
+                    "expires_at": session.expires_at,
+                    "task_id": str(task_result.id),
+                }, status=status.HTTP_200_OK)
+            
+            # Verificar el estado del pago
+            if session.payment_status == "paid" and payment.status != Payment.PaymentStatus.COMPLETED:
+                # El pago está pagado en Stripe pero no en nuestra base de datos
+                from .tasks import handle_checkout_session_completed_task
+                task_result = handle_checkout_session_completed_task.delay(session.to_dict())
+                
+                return Response({
+                    "status": "syncing",
+                    "message": "El pago está pagado en Stripe, sincronizando estado",
+                    "payment_status": payment.status,
+                    "stripe_status": session.payment_status,
+                    "task_id": str(task_result.id),
+                }, status=status.HTTP_200_OK)
+            
+            elif session.payment_status == "unpaid" and payment.status == Payment.PaymentStatus.PENDING:
+                # El pago sigue pendiente
+                return Response({
+                    "status": "pending",
+                    "message": "El pago sigue pendiente",
+                    "payment_status": payment.status,
+                    "stripe_status": session.payment_status,
+                    "checkout_url": session.url if session.status == "open" else None,
+                    "expires_at": session.expires_at,
+                }, status=status.HTTP_200_OK)
+            
+            else:
+                # Estados coinciden
+                return Response({
+                    "status": "synced",
+                    "message": "El estado del pago está sincronizado",
+                    "payment_status": payment.status,
+                    "stripe_status": session.payment_status,
+                }, status=status.HTTP_200_OK)
+                
+        except stripe.error.InvalidRequestError:
+            # La sesión no existe en Stripe
+            from .tasks import handle_manual_payment_cancellation_task
+            task_result = handle_manual_payment_cancellation_task.delay(
+                str(payment.id), 
+                str(payment.user.id), 
+                "sesión_no_encontrada_en_stripe"
+            )
+            
+            return Response({
+                "status": "not_found",
+                "message": "La sesión no existe en Stripe, procesando cancelación",
+                "payment_status": payment.status,
+                "task_id": str(task_result.id),
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Error sincronizando estado del pago {payment.id}: {str(e)}")
+            return Response(
+                {"error": "Error al sincronizar el estado del pago"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @action(detail=True, methods=["GET"])
+    def status(self, request, id=None):
+        """Obtener el estado actual del pago"""
+        payment = self._get_payment_or_404(id)
+        
+        # Verificar que el usuario tenga autorización
+        if payment.order.user != request.user and not request.user.is_staff:
+            return Response(
+                {"error": "No autorizado para ver este pago"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        
+        response_data = {
+            "payment_id": str(payment.id),
+            "order_id": str(payment.order.id),
+            "payment_status": payment.status,
+            "payment_status_display": payment.get_status_display(),
+            "order_status": payment.order.status,
+            "order_status_display": payment.order.get_status_display(),
+            "amount": payment.amount,
+            "currency": payment.currency,
+            "created_at": payment.created_at,
+            "updated_at": payment.updated_at,
+        }
+        
+        # Agregar información de Stripe si existe
+        if payment.stripe_session_id:
+            try:
+                session = stripe.checkout.Session.retrieve(payment.stripe_session_id)
+                response_data["stripe"] = {
+                    "session_id": session.id,
+                    "session_status": session.status,
+                    "payment_status": session.payment_status,
+                    "expires_at": session.expires_at,
+                    "checkout_url": session.url if session.status == "open" else None,
+                }
+            except Exception as e:
+                logger.error(f"Error obteniendo información de Stripe: {str(e)}")
+                response_data["stripe"] = {"error": "No se pudo obtener información de Stripe"}
+        
+        return Response(response_data, status=status.HTTP_200_OK)
