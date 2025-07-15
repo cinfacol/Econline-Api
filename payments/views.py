@@ -1048,24 +1048,55 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 getattr(coupon, "percentage_coupon", None)
                 or getattr(coupon, "fixed_price_coupon", None)
             ):
-                # Buscar o crear el cupón en Stripe
-                stripe_coupons = stripe.Coupon.list(limit=100)
-                stripe_coupon_id = None
-                for sc in stripe_coupons.auto_paging_iter():
-                    if sc.name == coupon.code:
-                        stripe_coupon_id = sc.id
-                        break
-                if not stripe_coupon_id:
-                    if coupon.percentage_coupon:
+                # Calcular el subtotal real de los productos (sin envío) para cupones de porcentaje
+                subtotal = Decimal('0')
+                if coupon.percentage_coupon:
+                    for item in order.orderitem_set.all():
+                        subtotal += Decimal(str(item.price)) * Decimal(str(item.count))
+                    
+                    # Calcular el descuento real aplicando el límite máximo
+                    percentage_discount = (subtotal * coupon.percentage_coupon.discount_percentage) / 100
+                    
+                    # Aplicar límite máximo de descuento si está configurado
+                    if coupon.max_discount_amount:
+                        actual_discount = min(percentage_discount, coupon.max_discount_amount)
+                        logger.info(f"Subtotal: {subtotal}, descuento calculado: {percentage_discount}, límite: {coupon.max_discount_amount}, descuento final: {actual_discount}")
+                    else:
+                        actual_discount = percentage_discount
+                        logger.info(f"Subtotal: {subtotal}, descuento calculado sin límite: {actual_discount}")
+                    
+                    # Crear un identificador único que incluya el subtotal para evitar reutilizar cupones incorrectos
+                    coupon_identifier = f"{coupon.code}_{int(subtotal)}"
+                    
+                    # Buscar cupón existente con el identificador único
+                    stripe_coupons = stripe.Coupon.list(limit=100)
+                    stripe_coupon_id = None
+                    for sc in stripe_coupons.auto_paging_iter():
+                        if sc.name == coupon_identifier:
+                            stripe_coupon_id = sc.id
+                            logger.info(f"Cupón existente encontrado: {coupon_identifier}")
+                            break
+                    
+                    if not stripe_coupon_id:
+                        # Crear cupón de monto fijo en Stripe con el descuento calculado
                         stripe_coupon = stripe.Coupon.create(
-                            name=coupon.code,
-                            percent_off=float(
-                                coupon.percentage_coupon.discount_percentage
-                            ),
+                            name=coupon_identifier,  # Usar identificador único
+                            amount_off=int(float(actual_discount) * 100),  # Convertir a centavos
+                            currency=order.currency.lower(),
                             duration="once",
                         )
                         stripe_coupon_id = stripe_coupon.id
-                    elif coupon.fixed_price_coupon:
+                        logger.info(f"Cupón de Stripe creado con descuento fijo: {actual_discount}, identificador: {coupon_identifier}")
+                else:
+                    # Para cupones de monto fijo, usar el código original
+                    stripe_coupons = stripe.Coupon.list(limit=100)
+                    stripe_coupon_id = None
+                    for sc in stripe_coupons.auto_paging_iter():
+                        if sc.name == coupon.code:
+                            stripe_coupon_id = sc.id
+                            break
+                    
+                    if not stripe_coupon_id:
                         stripe_coupon = stripe.Coupon.create(
                             name=coupon.code,
                             amount_off=int(
