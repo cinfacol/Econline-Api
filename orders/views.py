@@ -26,10 +26,31 @@ class ListOrdersView(APIView):
                 item["status"] = order.status
                 item["transaction_id"] = order.transaction_id
                 item["amount"] = order.amount
-                item["shipping_price"] = order.shipping_price
+                item["shipping_price"] = order.shipping.standard_shipping_cost if order.shipping else None
                 item["created_at"] = order.created_at
-                item["address_line_1"] = order.address_line_1
-                item["address_line_2"] = order.address_line_2
+                item["address_line_1"] = order.address.address_line_1 if order.address else ""
+                item["address_line_2"] = order.address.address_line_2 if order.address else ""
+
+                # Agregar los artículos de la orden con imagen
+                order_items = OrderItem.objects.filter(order=order)
+                item["order_items"] = []
+                for order_item in order_items:
+                    inventory = order_item.inventory
+                    # Obtener la imagen principal (destacada o la primera)
+                    image_url = None
+                    if inventory:
+                        featured = getattr(inventory, 'inventory_media', None)
+                        if featured and featured.exists():
+                            # Buscar la destacada
+                            featured_img = featured.filter(is_featured=True).first() or featured.first()
+                            if featured_img:
+                                image_url = str(featured_img.image)
+                    item["order_items"].append({
+                        "name": order_item.name,
+                        "price": order_item.price,
+                        "count": order_item.count,
+                        "image": image_url,
+                    })
 
                 result.append(item)
 
