@@ -26,7 +26,16 @@ class ListOrdersView(APIView):
                 item["status"] = order.status
                 item["transaction_id"] = order.transaction_id
                 item["amount"] = order.amount
-                item["shipping_price"] = order.shipping.standard_shipping_cost if order.shipping else None
+                # Calcular el costo de envío igual que en Stripe
+                shipping_cost = None
+                if order.shipping:
+                    threshold = order.shipping.free_shipping_threshold
+                    standard_cost = order.shipping.standard_shipping_cost
+                    if order.amount >= threshold:
+                        shipping_cost = 0
+                    else:
+                        shipping_cost = standard_cost
+                item["shipping_price"] = shipping_cost
                 item["created_at"] = order.created_at
                 item["address_line_1"] = order.address.address_line_1 if order.address else ""
                 item["address_line_2"] = order.address.address_line_2 if order.address else ""
