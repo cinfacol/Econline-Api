@@ -35,6 +35,7 @@ class Order(TimeStampedUUIDModel):
         Address, on_delete=models.SET_NULL, null=True, blank=True
     )
     amount = models.DecimalField(max_digits=10, decimal_places=2)
+    discount_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     shipping = models.ForeignKey(
         Shipping, on_delete=models.SET_NULL, null=True, blank=True
     )

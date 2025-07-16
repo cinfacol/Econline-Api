@@ -5,6 +5,7 @@ from .models import Order, OrderItem
 from django.utils import timezone
 import datetime
 import logging
+from coupons.models import CouponUsage
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,17 @@ class ListOrdersView(APIView):
                 item["created_at"] = order.created_at
                 item["address_line_1"] = order.address.address_line_1 if order.address else ""
                 item["address_line_2"] = order.address.address_line_2 if order.address else ""
+
+                # Buscar cupón aplicado a la orden
+                coupon_usage = CouponUsage.objects.filter(order=order).first()
+                if coupon_usage:
+                    item["coupon"] = {
+                        "code": coupon_usage.coupon.code,
+                        "name": coupon_usage.coupon.name,
+                        "discount_amount": float(coupon_usage.discount_amount),
+                    }
+                else:
+                    item["coupon"] = None
 
                 # Agregar los artículos de la orden con imagen
                 order_items = OrderItem.objects.filter(order=order)

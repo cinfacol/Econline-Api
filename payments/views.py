@@ -59,6 +59,7 @@ from .tasks import (
     clean_expired_sessions_task,
 )
 from .webhooks import WebhookHandler
+from coupons.models import CouponUsage, Coupon
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 logger = logging.getLogger("payments")
@@ -937,7 +938,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
             raise ValidationError(_("Invalid shipping method"))
         return shipping
 
-    def create_order(self, user, total, shipping, transaction_id):
+    def create_order(self, user, total, shipping, transaction_id, discount_amount=0):
         cart = self.get_user_cart(user)
         # Reservar inventario antes de crear la orden
         self.reserve_inventory(cart.items.all())
@@ -948,6 +949,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
             status=Order.OrderStatus.PENDING,
             transaction_id=transaction_id,
             currency="USD",
+            discount_amount=discount_amount,
         )
         # Crear OrderItems para cada CartItem
         for cart_item in cart.items.all():
@@ -1799,7 +1801,6 @@ class PaymentViewSet(viewsets.ModelViewSet):
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     def _get_or_create_order(self, validated_data):
-        """Obtener o crear la orden basada en los datos validados"""
         cart = self.get_user_cart(self.request.user)
         logger.info(f"Cart subtotal: {cart.get_total()}")
         logger.info(f"Cart antes de cupón: {cart}, cupón actual: {getattr(cart, 'coupon', None)}")
@@ -1812,22 +1813,26 @@ class PaymentViewSet(viewsets.ModelViewSet):
             key in validated_data
             for key in ["total_amount", "subtotal", "shipping_cost", "discount"]
         ):
-            total = Decimal(str(validated_data["total_amount"]))
-            logger.info(f"Using frontend calculated total: {total}")
+            subtotal = Decimal(str(validated_data["subtotal"]))
+            shipping_cost = Decimal(str(validated_data["shipping_cost"]))
+            discount = Decimal(str(validated_data.get("discount", 0)))
+            net_total = subtotal + shipping_cost - discount
+            logger.info(f"Using frontend calculated net total: {net_total}")
         else:
             # Fallback: calcular desde el carrito
-            total = self._calculate_order_total(cart, shipping)
-            logger.info(f"Using backend calculated total: {total}")
+            subtotal = cart.get_total()
+            shipping_cost = shipping.calculate_shipping_cost(subtotal)
+            discount = Decimal("0")
+            net_total = subtotal + shipping_cost
+            logger.info(f"Using backend calculated net total: {net_total}")
 
+        coupon = None
         # Aplicar cupón al carrito si se proporciona
         if validated_data.get("coupon_id"):
             try:
-                from coupons.models import Coupon
-
                 coupon = Coupon.objects.get(
                     id=validated_data["coupon_id"], is_active=True
                 )
-                # Usar la relación ManyToManyField correcta
                 cart.coupons.add(coupon)
                 logger.info(f"Applied coupon: {coupon.name} to cart {cart.id}")
             except Coupon.DoesNotExist:
@@ -1839,8 +1844,17 @@ class PaymentViewSet(viewsets.ModelViewSet):
         transaction_id = self.generate_transaction_id()
         logger.info(f"Generated transaction ID: {transaction_id}")
 
-        order = self.create_order(self.request.user, total, shipping, transaction_id)
+        order = self.create_order(self.request.user, net_total, shipping, transaction_id, discount_amount=discount)
         logger.info(f"Created order: {order.id} with amount: {order.amount}")
+
+        # Crear registro CouponUsage si hay cupón y descuento
+        if coupon and discount > 0:
+            CouponUsage.objects.create(
+                coupon=coupon,
+                user=self.request.user,
+                order=order,
+                discount_amount=discount
+            )
 
         return order
 
