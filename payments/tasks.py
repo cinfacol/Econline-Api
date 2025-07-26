@@ -168,11 +168,7 @@ def handle_checkout_session_completed_task(session_data):
             # Limpiar cupones del carrito
             clear_cart_coupons(payment.order.user)
 
-        # Enviar email de éxito de pago
-        if payment.order.user and payment.order.user.email and not payment.email_sent:
-            send_payment_success_email_task.delay(payment.order.user.email)
-            payment.email_sent = True
-            payment.save()
+        # El envío de email de éxito de pago se realiza solo en el handler de charge.succeeded
 
         logger.info(f"Checkout session completed for payment {payment_id}")
 
@@ -276,11 +272,7 @@ def handle_payment_intent_succeeded_task(payment_intent_data):
             # Limpiar cupones del carrito
             clear_cart_coupons(payment.order.user)
 
-        # Enviar email de éxito de pago
-        if payment.order.user and payment.order.user.email and not payment.email_sent:
-            send_payment_success_email_task.delay(payment.order.user.email)
-            payment.email_sent = True
-            payment.save()
+        # El envío de email de éxito de pago se realiza solo en el handler de charge.succeeded
 
         logger.info(
             f"Payment intent succeeded for payment {payment_id}",
@@ -922,15 +914,13 @@ def handle_charge_succeeded_task(charge_data):
                 # Limpiar cupones del carrito
                 clear_cart_coupons(payment.order.user)
 
-            # Enviar email de éxito de pago
-            if (
-                payment.order.user
-                and payment.order.user.email
-                and not payment.email_sent
-            ):
-                send_payment_success_email_task.delay(payment.order.user.email)
-                payment.email_sent = True
-                payment.save()
+            # Enviar email de éxito de pago de forma atómica
+            if payment.order.user and payment.order.user.email:
+                updated = Payment.objects.filter(
+                    id=payment.id, email_sent=False
+                ).update(email_sent=True)
+                if updated:
+                    send_payment_success_email_task.delay(payment.order.user.email)
 
             logger.info(
                 f"Charge succeeded for payment {payment_id}",

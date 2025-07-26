@@ -18,9 +18,15 @@ from django.utils.translation import gettext_lazy as _
 from django.views.decorators.csrf import csrf_protect, csrf_exempt
 from rest_framework import status, viewsets, permissions, filters
 from rest_framework.decorators import action
+
+# Definir User correctamente para todo el archivo
+from django.contrib.auth import get_user_model
+
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 from rest_framework.throttling import UserRateThrottle
+
+User = get_user_model()
 import stripe
 
 # Local/First-party
@@ -401,29 +407,30 @@ class PaymentViewSet(viewsets.ModelViewSet):
         try:
             channel_layer = get_channel_layer()
 
-            # Extraer el user_id de los metadatos del evento
+            # Extraer el user_id de los metadatos del evento, o buscarlo por order_id/payment_id si no está
             user_id = None
-            if event_type == "charge.succeeded":
-                user_id = (
-                    event_data.get("data", {})
-                    .get("object", {})
-                    .get("metadata", {})
-                    .get("user_id")
-                )
-            elif event_type == "checkout.session.completed":
-                user_id = (
-                    event_data.get("data", {})
-                    .get("object", {})
-                    .get("metadata", {})
-                    .get("user_id")
-                )
-            elif event_type == "payment_intent.succeeded":
-                user_id = (
-                    event_data.get("data", {})
-                    .get("object", {})
-                    .get("metadata", {})
-                    .get("user_id")
-                )
+            metadata = event_data.get("data", {}).get("object", {}).get("metadata", {})
+            user_id = metadata.get("user_id")
+            if not user_id:
+                # Intentar obtener user_id desde la orden o el pago
+                order_id = metadata.get("order_id")
+                payment_id = metadata.get("payment_id")
+                from payments.models import Order, Payment
+
+                if order_id:
+                    try:
+                        order = Order.objects.filter(id=order_id).first()
+                        if order and order.user_id:
+                            user_id = str(order.user_id)
+                    except Exception:
+                        pass
+                if not user_id and payment_id:
+                    try:
+                        payment = Payment.objects.filter(id=payment_id).first()
+                        if payment and payment.user_id:
+                            user_id = str(payment.user_id)
+                    except Exception:
+                        pass
 
             if user_id:
                 async_to_sync(channel_layer.group_send)(
@@ -434,7 +441,9 @@ class PaymentViewSet(viewsets.ModelViewSet):
                     },
                 )
             else:
-                logger.warning(f"No se encontró user_id en el evento {event_type}")
+                logger.error(
+                    f"No se encontró user_id en el evento {event_type} (order_id: {metadata.get('order_id')}, payment_id: {metadata.get('payment_id')})"
+                )
         except Exception as e:
             logger.error(f"Error al enviar notificación WebSocket: {str(e)}")
 
@@ -1638,12 +1647,19 @@ class PaymentViewSet(viewsets.ModelViewSet):
         Cart.objects.filter(user=user).update(items=None)
 
     def _send_success_email(self, user):
+        # Evitar envío duplicado de email de éxito de pago
+
         if user and user.email:
-            send_payment_success_email_task.delay(
-                user.email,
-                from_email=settings.PAYMENT_EMAIL_FROM,
-                subject=settings.PAYMENT_EMAIL_SUBJECT,
-            )
+            cache_key = f"payment_success_email_sent_{user.id}"
+            if not cache.get(cache_key):
+                send_payment_success_email_task.delay(
+                    user.email,
+                    from_email=settings.PAYMENT_EMAIL_FROM,
+                    subject=settings.PAYMENT_EMAIL_SUBJECT,
+                )
+                cache.set(
+                    cache_key, True, timeout=3600
+                )  # 1 hora para evitar duplicados
 
     @action(detail=True, methods=["get"])
     def verify(self, request, id=None):
