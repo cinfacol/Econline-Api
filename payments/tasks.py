@@ -90,6 +90,59 @@ def handle_checkout_session_completed_task(session_data):
         logger.error(f"Order with id {order_id} not found")
         return
 
+    # Guardar dirección de envío de Stripe en la orden (después de obtener payment, order y session_id)
+    try:
+        import stripe
+        from orders.models import Address
+
+        stripe.api_key = settings.STRIPE_SECRET_KEY
+        if session_id:
+            stripe_session = stripe.checkout.Session.retrieve(session_id)
+            shipping_details = getattr(stripe_session, "shipping_details", None)
+            logger.info(f"shipping_details recibidos de Stripe: {shipping_details}")
+            if shipping_details and hasattr(order, "user") and order.user:
+                shipping_address = shipping_details.address
+                logger.info(f"shipping_address extraído: {shipping_address}")
+                address, created = Address.objects.get_or_create(
+                    address_line_1=shipping_address.line1,
+                    address_line_2=shipping_address.line2,
+                    city=shipping_address.city,
+                    state_province_region=shipping_address.state,
+                    postal_zip_code=shipping_address.postal_code,
+                    country_region=shipping_address.country,
+                    user=order.user,
+                )
+                logger.info(
+                    f"Address {'creada' if created else 'encontrada'}: {address}"
+                )
+                logger.info(
+                    f"[PRE] order.address antes de asociar: {order.address.id if order.address else None}"
+                )
+                if not order.address or order.address != address:
+                    order.address = address
+                    order.save()
+                    logger.info(f"Shipping address asociada a la orden {order.id}")
+                else:
+                    logger.info(
+                        f"La orden {order.id} ya tiene la dirección asociada correctamente"
+                    )
+                # Log SIEMPRE el estado final
+                logger.info(
+                    f"[POST] Estado final order.address: {order.address.id if order.address else None} | Datos: {order.address.address_line_1 if order.address else None}, {order.address.address_line_2 if order.address else None}"
+                )
+            else:
+                logger.warning(
+                    f"No se encontraron shipping_details o el usuario de la orden no está definido"
+                )
+        else:
+            logger.warning(
+                f"No se recibió session_id para recuperar la sesión de Stripe"
+            )
+    except Exception as e:
+        logger.error(
+            f"Error asociando dirección de envío a la orden: {str(e)}", exc_info=True
+        )
+
     try:
         logger.info(f"Actualizando estado del pago {payment_id} a COMPLETED")
         payment.status = Payment.PaymentStatus.COMPLETED
@@ -160,6 +213,54 @@ def handle_payment_intent_succeeded_task(payment_intent_data):
     except Order.DoesNotExist:
         logger.error(f"Order with id {order_id} not found")
         return
+
+    # Guardar dirección de envío si viene en el payment_intent
+    try:
+        shipping_details = payment_intent_data.get("shipping")
+        logger.info(f"shipping_details recibidos de payment_intent: {shipping_details}")
+        if shipping_details and hasattr(order, "user") and order.user:
+            shipping_address = shipping_details.get("address")
+            if shipping_address:
+                from orders.models import Address
+
+                address, created = Address.objects.get_or_create(
+                    address_line_1=shipping_address.get("line1", ""),
+                    address_line_2=shipping_address.get("line2", ""),
+                    city=shipping_address.get("city", ""),
+                    state_province_region=shipping_address.get("state", ""),
+                    postal_zip_code=shipping_address.get("postal_code", ""),
+                    country_region=shipping_address.get("country", ""),
+                    user=order.user,
+                )
+                logger.info(
+                    f"Address {'creada' if created else 'encontrada'}: {address}"
+                )
+                logger.info(
+                    f"[PRE] order.address antes de asociar: {order.address.id if order.address else None}"
+                )
+                if not order.address or order.address != address:
+                    order.address = address
+                    order.save()
+                    logger.info(f"Shipping address asociada a la orden {order.id}")
+                else:
+                    logger.info(
+                        f"La orden {order.id} ya tiene la dirección asociada correctamente"
+                    )
+                # Log SIEMPRE el estado final
+                logger.info(
+                    f"[POST] Estado final order.address: {order.address.id if order.address else None} | Datos: {order.address.address_line_1 if order.address else None}, {order.address.address_line_2 if order.address else None}"
+                )
+            else:
+                logger.warning(f"No se encontró address dentro de shipping_details")
+        else:
+            logger.warning(
+                f"No se encontraron shipping_details o el usuario de la orden no está definido"
+            )
+    except Exception as e:
+        logger.error(
+            f"Error asociando dirección de envío a la orden desde payment_intent: {str(e)}",
+            exc_info=True,
+        )
 
     try:
         payment.status = Payment.PaymentStatus.COMPLETED
@@ -744,6 +845,65 @@ def handle_charge_succeeded_task(charge_data):
 
     try:
         with transaction.atomic():
+            # Guardar dirección de envío si viene en el charge
+            try:
+                shipping_details = charge_data.get("shipping")
+                logger.info(f"shipping_details recibidos de charge: {shipping_details}")
+                if (
+                    shipping_details
+                    and hasattr(payment.order, "user")
+                    and payment.order.user
+                ):
+                    shipping_address = shipping_details.get("address")
+                    if shipping_address:
+                        from orders.models import Address
+
+                        address, created = Address.objects.get_or_create(
+                            address_line_1=shipping_address.get("line1", ""),
+                            address_line_2=shipping_address.get("line2", ""),
+                            city=shipping_address.get("city", ""),
+                            state_province_region=shipping_address.get("state", ""),
+                            postal_zip_code=shipping_address.get("postal_code", ""),
+                            country_region=shipping_address.get("country", ""),
+                            user=payment.order.user,
+                        )
+                        logger.info(
+                            f"Address {'creada' if created else 'encontrada'}: {address}"
+                        )
+                        logger.info(
+                            f"[PRE] payment.order.address antes de asociar: {payment.order.address.id if payment.order.address else None}"
+                        )
+                        if (
+                            not payment.order.address
+                            or payment.order.address != address
+                        ):
+                            payment.order.address = address
+                            payment.order.save()
+                            logger.info(
+                                f"Shipping address asociada a la orden {payment.order.id}"
+                            )
+                        else:
+                            logger.info(
+                                f"La orden {payment.order.id} ya tiene la dirección asociada correctamente"
+                            )
+                        # Log SIEMPRE el estado final
+                        logger.info(
+                            f"[POST] Estado final order.address: {payment.order.address.id if payment.order.address else None} | Datos: {payment.order.address.address_line_1 if payment.order.address else None}, {payment.order.address.address_line_2 if payment.order.address else None}"
+                        )
+                    else:
+                        logger.warning(
+                            f"No se encontró address dentro de shipping_details"
+                        )
+                else:
+                    logger.warning(
+                        f"No se encontraron shipping_details o el usuario de la orden no está definido"
+                    )
+            except Exception as e:
+                logger.error(
+                    f"Error asociando dirección de envío a la orden desde charge: {str(e)}",
+                    exc_info=True,
+                )
+
             logger.info(f"Actualizando estado del pago {payment_id} a COMPLETED")
             payment.status = Payment.PaymentStatus.COMPLETED
             payment.paid_at = timezone.now()
@@ -887,30 +1047,30 @@ def periodic_clean_expired_sessions_task(self):
 def clean_expired_sessions_task(self):
     """Tarea para limpiar sesiones expiradas (ejecutar manualmente o programada)"""
     logger.info("Iniciando limpieza de sesiones expiradas")
-    
+
     try:
         import stripe
         from django.conf import settings
         from django.db import transaction
         from payments.models import Payment
-        
+
         stripe.api_key = settings.STRIPE_SECRET_KEY
-        
+
         # Buscar pagos pendientes con sesiones de Stripe
         pending_payments = Payment.objects.filter(
             status=Payment.PaymentStatus.PENDING, stripe_session_id__isnull=False
         ).select_related("order", "user")
-        
+
         logger.info(f"Verificando {pending_payments.count()} pagos pendientes")
-        
+
         expired_count = 0
         error_count = 0
-        
+
         for payment in pending_payments:
             try:
                 # Verificar el estado de la sesión en Stripe
                 session = stripe.checkout.Session.retrieve(payment.stripe_session_id)
-                
+
                 # Si la sesión ha expirado, procesar la cancelación
                 if session.expires_at and session.expires_at < int(
                     timezone.now().timestamp()
@@ -920,14 +1080,14 @@ def clean_expired_sessions_task(self):
                     )
                     handle_checkout_session_expired_task.delay(session.to_dict())
                     expired_count += 1
-                    
+
                 elif session.status == "expired":
                     logger.info(
                         f"Sesión marcada como expirada en Stripe: {payment.stripe_session_id}"
                     )
                     handle_checkout_session_expired_task.delay(session.to_dict())
                     expired_count += 1
-                    
+
             except stripe.error.InvalidRequestError:
                 # La sesión no existe en Stripe, marcarla como cancelada
                 logger.info(
@@ -939,17 +1099,17 @@ def clean_expired_sessions_task(self):
                     "sesión_no_encontrada_en_stripe",
                 )
                 expired_count += 1
-                
+
             except Exception as e:
                 error_count += 1
                 logger.error(
                     f"Error verificando sesión {payment.stripe_session_id}: {str(e)}"
                 )
-        
+
         logger.info(
             f"Limpieza completada: {expired_count} expiradas, {error_count} errores"
         )
-        
+
         # Programar la siguiente ejecución si es necesario
         if expired_count > 0 or error_count > 0:
             # Si se encontraron problemas, ejecutar de nuevo en 5 minutos
@@ -957,14 +1117,14 @@ def clean_expired_sessions_task(self):
         else:
             # Si todo está bien, ejecutar de nuevo en 15 minutos
             clean_expired_sessions_task.apply_async(countdown=900)
-        
+
         return {
             "status": "success",
             "expired_count": expired_count,
             "error_count": error_count,
             "total_checked": pending_payments.count(),
         }
-        
+
     except Exception as e:
         logger.error(f"Error en limpieza de sesiones: {str(e)}")
         # Reintentar en 10 minutos si hay error

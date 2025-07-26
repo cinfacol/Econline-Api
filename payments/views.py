@@ -784,7 +784,9 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
             # Usar la función que asocia el cupón al carrito y crea la orden correctamente
             validated_data = serializer.validated_data.copy()
-            validated_data["total_amount"] = total  # asegura que el total esté actualizado
+            validated_data["total_amount"] = (
+                total  # asegura que el total esté actualizado
+            )
             order = self._get_or_create_order(validated_data)
             if STRUCTLOG_AVAILABLE:
                 structlog_logger.info(
@@ -942,6 +944,8 @@ class PaymentViewSet(viewsets.ModelViewSet):
         cart = self.get_user_cart(user)
         # Reservar inventario antes de crear la orden
         self.reserve_inventory(cart.items.all())
+        # Asociar la dirección de envío por defecto del usuario
+        default_address = user.address_set.filter(is_default=True).first()
         order = Order.objects.create(
             user=user,
             amount=total,
@@ -950,6 +954,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
             transaction_id=transaction_id,
             currency="USD",
             discount_amount=discount_amount,
+            address=default_address,
         )
         # Crear OrderItems para cada CartItem
         for cart_item in cart.items.all():
@@ -1022,73 +1027,88 @@ class PaymentViewSet(viewsets.ModelViewSet):
             # Refrescar el carrito para asegurar que tenga el cupón aplicado
             cart.refresh_from_db()
             logger.info(f"Carrito después de refresh: {cart.id}")
-            
+
             # Verificar si el carrito tiene el campo coupons (ManyToManyField)
             logger.info(f"Carrito tiene campo coupons: {hasattr(cart, 'coupons')}")
-            
+
             # Obtener el cupón usando la relación ManyToManyField correcta
             coupon = None
-            if hasattr(cart, 'coupons'):
+            if hasattr(cart, "coupons"):
                 # Obtener el primer cupón aplicado (asumiendo que solo se aplica uno)
                 coupons = cart.coupons.all()
                 logger.info(f"Cupones en carrito: {list(coupons)}")
                 if coupons.exists():
                     coupon = coupons.first()
                     logger.info(f"Primer cupón encontrado: {coupon}")
-            
+
             # Si no funciona, intentar obtener directamente desde la base de datos
             if not coupon:
                 from cart.models import Cart
-                fresh_cart = Cart.objects.prefetch_related('coupons').get(id=cart.id)
+
+                fresh_cart = Cart.objects.prefetch_related("coupons").get(id=cart.id)
                 coupons = fresh_cart.coupons.all()
                 if coupons.exists():
                     coupon = coupons.first()
                     logger.info(f"Cupón obtenido via fresh query: {coupon}")
-            
+
             logger.info(f"Cupón en el carrito antes de Stripe: {coupon}")
             if coupon and (
                 getattr(coupon, "percentage_coupon", None)
                 or getattr(coupon, "fixed_price_coupon", None)
             ):
                 # Calcular el subtotal real de los productos (sin envío) para cupones de porcentaje
-                subtotal = Decimal('0')
+                subtotal = Decimal("0")
                 if coupon.percentage_coupon:
                     for item in order.orderitem_set.all():
                         subtotal += Decimal(str(item.price)) * Decimal(str(item.count))
-                    
+
                     # Calcular el descuento real aplicando el límite máximo
-                    percentage_discount = (subtotal * coupon.percentage_coupon.discount_percentage) / 100
-                    
+                    percentage_discount = (
+                        subtotal * coupon.percentage_coupon.discount_percentage
+                    ) / 100
+
                     # Aplicar límite máximo de descuento si está configurado
                     if coupon.max_discount_amount:
-                        actual_discount = min(percentage_discount, coupon.max_discount_amount)
-                        logger.info(f"Subtotal: {subtotal}, descuento calculado: {percentage_discount}, límite: {coupon.max_discount_amount}, descuento final: {actual_discount}")
+                        actual_discount = min(
+                            percentage_discount, coupon.max_discount_amount
+                        )
+                        logger.info(
+                            f"Subtotal: {subtotal}, descuento calculado: {percentage_discount}, límite: {coupon.max_discount_amount}, descuento final: {actual_discount}"
+                        )
                     else:
                         actual_discount = percentage_discount
-                        logger.info(f"Subtotal: {subtotal}, descuento calculado sin límite: {actual_discount}")
-                    
+                        logger.info(
+                            f"Subtotal: {subtotal}, descuento calculado sin límite: {actual_discount}"
+                        )
+
                     # Crear un identificador único que incluya el subtotal para evitar reutilizar cupones incorrectos
                     coupon_identifier = f"{coupon.code}_{int(subtotal)}"
-                    
+
                     # Buscar cupón existente con el identificador único
                     stripe_coupons = stripe.Coupon.list(limit=100)
                     stripe_coupon_id = None
                     for sc in stripe_coupons.auto_paging_iter():
                         if sc.name == coupon_identifier:
                             stripe_coupon_id = sc.id
-                            logger.info(f"Cupón existente encontrado: {coupon_identifier}")
+                            logger.info(
+                                f"Cupón existente encontrado: {coupon_identifier}"
+                            )
                             break
-                    
+
                     if not stripe_coupon_id:
                         # Crear cupón de monto fijo en Stripe con el descuento calculado
                         stripe_coupon = stripe.Coupon.create(
                             name=coupon_identifier,  # Usar identificador único
-                            amount_off=int(float(actual_discount) * 100),  # Convertir a centavos
+                            amount_off=int(
+                                float(actual_discount) * 100
+                            ),  # Convertir a centavos
                             currency=order.currency.lower(),
                             duration="once",
                         )
                         stripe_coupon_id = stripe_coupon.id
-                        logger.info(f"Cupón de Stripe creado con descuento fijo: {actual_discount}, identificador: {coupon_identifier}")
+                        logger.info(
+                            f"Cupón de Stripe creado con descuento fijo: {actual_discount}, identificador: {coupon_identifier}"
+                        )
                 else:
                     # Para cupones de monto fijo, usar el código original
                     stripe_coupons = stripe.Coupon.list(limit=100)
@@ -1097,7 +1117,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
                         if sc.name == coupon.code:
                             stripe_coupon_id = sc.id
                             break
-                    
+
                     if not stripe_coupon_id:
                         stripe_coupon = stripe.Coupon.create(
                             name=coupon.code,
@@ -1221,8 +1241,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
             # Añadir imágenes si están disponibles
             if item.inventory:
                 images = [
-                    img.image.url
-                    for img in item.inventory.inventory_media.all()[:8]
+                    img.image.url for img in item.inventory.inventory_media.all()[:8]
                 ]
                 if images:
                     product_data["images"] = images
@@ -1580,6 +1599,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         self.release_inventory(order_items)
         # Limpiar cupones del carrito cuando el pago falla
         from .tasks import clear_cart_coupons
+
         clear_cart_coupons(payment.order.user)
         return Response(
             {
@@ -1600,6 +1620,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         self.release_inventory(order_items)
         # Limpiar cupones del carrito cuando hay error de Stripe
         from .tasks import clear_cart_coupons
+
         clear_cart_coupons(payment.order.user)
         return Response(
             {
@@ -1803,7 +1824,9 @@ class PaymentViewSet(viewsets.ModelViewSet):
     def _get_or_create_order(self, validated_data):
         cart = self.get_user_cart(self.request.user)
         logger.info(f"Cart subtotal: {cart.get_total()}")
-        logger.info(f"Cart antes de cupón: {cart}, cupón actual: {getattr(cart, 'coupon', None)}")
+        logger.info(
+            f"Cart antes de cupón: {cart}, cupón actual: {getattr(cart, 'coupon', None)}"
+        )
 
         shipping = self.validate_checkout_request(cart, validated_data["shipping_id"])
         logger.info(f"Shipping method: {shipping.name}")
@@ -1839,12 +1862,20 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 logger.warning(f"Coupon {validated_data['coupon_id']} not found")
                 cart.coupons.clear()
 
-        logger.info(f"Cart después de cupón: {cart}, cupones actuales: {list(cart.coupons.all())}")
+        logger.info(
+            f"Cart después de cupón: {cart}, cupones actuales: {list(cart.coupons.all())}"
+        )
 
         transaction_id = self.generate_transaction_id()
         logger.info(f"Generated transaction ID: {transaction_id}")
 
-        order = self.create_order(self.request.user, net_total, shipping, transaction_id, discount_amount=discount)
+        order = self.create_order(
+            self.request.user,
+            net_total,
+            shipping,
+            transaction_id,
+            discount_amount=discount,
+        )
         logger.info(f"Created order: {order.id} with amount: {order.amount}")
 
         # Crear registro CouponUsage si hay cupón y descuento
@@ -1853,7 +1884,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 coupon=coupon,
                 user=self.request.user,
                 order=order,
-                discount_amount=discount
+                discount_amount=discount,
             )
 
         return order
@@ -1875,21 +1906,21 @@ class PaymentViewSet(viewsets.ModelViewSet):
         logger.info(
             f"[CANCEL] Iniciando cancelación para Payment ID: {payment.id} | Estado actual: {payment.status}"
         )
-        
+
         # Verificar que el usuario tenga autorización para cancelar este pago
         if payment.order.user != request.user and not request.user.is_staff:
             return Response(
                 {"error": "No autorizado para cancelar este pago"},
                 status=status.HTTP_403_FORBIDDEN,
             )
-        
+
         if payment.status == Payment.PaymentStatus.COMPLETED:
             logger.warning(
                 f"[CANCEL] No se puede cancelar un pago ya completado. Payment ID: {payment.id}"
             )
             return Response(
-                {"error": "No se puede cancelar un pago ya completado."}, 
-                status=status.HTTP_400_BAD_REQUEST
+                {"error": "No se puede cancelar un pago ya completado."},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         # Intentar cancelar el PaymentIntent en Stripe si existe
@@ -1907,12 +1938,14 @@ class PaymentViewSet(viewsets.ModelViewSet):
                     logger.info(
                         f"[CANCEL] PaymentIntent {payment_intent_id} cancelado en Stripe"
                     )
-                    
+
                     # También cancelar la sesión de checkout si está abierta
                     if session.status == "open":
                         stripe.checkout.Session.expire(payment.stripe_session_id)
-                        logger.info(f"[CANCEL] Session {payment.stripe_session_id} expirada en Stripe")
-                        
+                        logger.info(
+                            f"[CANCEL] Session {payment.stripe_session_id} expirada en Stripe"
+                        )
+
             except stripe.error.InvalidRequestError as e:
                 logger.warning(
                     f"[CANCEL] PaymentIntent ya cancelado o no encontrado: {str(e)}"
@@ -1934,8 +1967,8 @@ class PaymentViewSet(viewsets.ModelViewSet):
                         f"[CANCEL] Payment {payment.id} already completed, skipping cancellation"
                     )
                     return Response(
-                        {"error": "El pago ya fue completado"}, 
-                        status=status.HTTP_400_BAD_REQUEST
+                        {"error": "El pago ya fue completado"},
+                        status=status.HTTP_400_BAD_REQUEST,
                     )
 
                 # Actualizar estado del pago
@@ -1950,7 +1983,9 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 # Liberar inventario
                 order_items = payment.order.orderitem_set.all()
                 self.release_inventory(order_items)
-                logger.info(f"[CANCEL] Inventario liberado para orden {payment.order.id}")
+                logger.info(
+                    f"[CANCEL] Inventario liberado para orden {payment.order.id}"
+                )
 
                 # Limpiar cupones del carrito
                 try:
@@ -1969,12 +2004,11 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
         except Exception as e:
             logger.error(
-                f"[CANCEL] Error procesando cancelación: {str(e)}",
-                exc_info=True
+                f"[CANCEL] Error procesando cancelación: {str(e)}", exc_info=True
             )
             return Response(
-                {"error": "Error interno al procesar la cancelación"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Error interno al procesar la cancelación"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
         response_data = {
@@ -1985,11 +2019,13 @@ class PaymentViewSet(viewsets.ModelViewSet):
             "payment_status": payment.status,
             "order_status": payment.order.status,
         }
-        
+
         if stripe_error:
             response_data["stripe_error"] = stripe_error
-            response_data["warning"] = "Pago cancelado localmente, pero hubo un error con Stripe"
-            
+            response_data["warning"] = (
+                "Pago cancelado localmente, pero hubo un error con Stripe"
+            )
+
         return Response(response_data, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=["POST"])
@@ -2001,25 +2037,29 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 {"error": "Autenticación requerida"},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
-        
+
         # Solo permitir a staff o usuarios autorizados
         if not request.user.is_staff:
             return Response(
                 {"error": "Permisos insuficientes"},
                 status=status.HTTP_403_FORBIDDEN,
             )
-        
+
         try:
             # Ejecutar la tarea de limpieza de forma asíncrona
             from .tasks import clean_expired_sessions_task
+
             task_result = clean_expired_sessions_task.delay()
-            
-            return Response({
-                "message": "Limpieza de sesiones expiradas iniciada",
-                "task_id": str(task_result.id),
-                "status": "started",
-                "timestamp": timezone.now().isoformat(),
-            }, status=status.HTTP_200_OK)
+
+            return Response(
+                {
+                    "message": "Limpieza de sesiones expiradas iniciada",
+                    "task_id": str(task_result.id),
+                    "status": "started",
+                    "timestamp": timezone.now().isoformat(),
+                },
+                status=status.HTTP_200_OK,
+            )
 
         except Exception as e:
             logger.error(f"Error iniciando limpieza de sesiones: {str(e)}")
@@ -2033,6 +2073,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         """Limpiar cupones del carrito del usuario actual"""
         try:
             from .tasks import clear_cart_coupons
+
             success = clear_cart_coupons(request.user)
             if success:
                 return Response(
@@ -2112,16 +2153,16 @@ class PaymentViewSet(viewsets.ModelViewSet):
         try:
             from celery.result import AsyncResult
             from config.celery import app as celery_app
-            
+
             # Obtener el resultado de la tarea
             result = AsyncResult(task_id, app=celery_app)
-            
+
             response_data = {
                 "task_id": task_id,
                 "status": result.status,
                 "ready": result.ready(),
             }
-            
+
             # Agregar información adicional según el estado
             if result.ready():
                 if result.successful():
@@ -2132,9 +2173,9 @@ class PaymentViewSet(viewsets.ModelViewSet):
                     response_data["message"] = "Tarea falló"
             else:
                 response_data["message"] = "Tarea en progreso"
-            
+
             return Response(response_data, status=status.HTTP_200_OK)
-            
+
         except Exception as e:
             logger.error(f"Error verificando estado de tarea {task_id}: {str(e)}")
             return Response(
@@ -2151,14 +2192,14 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 {"error": "Endpoint solo disponible en desarrollo o para staff"},
                 status=status.HTTP_403_FORBIDDEN,
             )
-        
+
         payment_id = request.query_params.get("payment_id")
         user_email = request.query_params.get("user_email")
-        
+
         try:
             # Buscar pagos para probar
-            queryset = Payment.objects.select_related('order', 'user', 'payment_method')
-            
+            queryset = Payment.objects.select_related("order", "user", "payment_method")
+
             if payment_id:
                 payments = [queryset.get(id=payment_id)]
             elif user_email:
@@ -2166,17 +2207,18 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 payments = list(queryset.filter(user=user))
             else:
                 # Por defecto, buscar pagos pendientes del usuario actual
-                payments = list(queryset.filter(
-                    user=request.user, 
-                    status=Payment.PaymentStatus.PENDING
-                )[:3])
-            
+                payments = list(
+                    queryset.filter(
+                        user=request.user, status=Payment.PaymentStatus.PENDING
+                    )[:3]
+                )
+
             if not payments:
                 return Response(
                     {"error": "No se encontraron pagos para probar"},
                     status=status.HTTP_404_NOT_FOUND,
                 )
-            
+
             # Preparar información de los pagos
             payment_info = []
             for payment in payments:
@@ -2193,11 +2235,13 @@ class PaymentViewSet(viewsets.ModelViewSet):
                     "stripe_session_id": payment.stripe_session_id,
                     "created_at": payment.created_at.isoformat(),
                 }
-                
+
                 # Agregar información de Stripe si existe
                 if payment.stripe_session_id:
                     try:
-                        session = stripe.checkout.Session.retrieve(payment.stripe_session_id)
+                        session = stripe.checkout.Session.retrieve(
+                            payment.stripe_session_id
+                        )
                         info["stripe"] = {
                             "session_status": session.status,
                             "payment_status": session.payment_status,
@@ -2205,19 +2249,22 @@ class PaymentViewSet(viewsets.ModelViewSet):
                         }
                     except Exception as e:
                         info["stripe"] = {"error": str(e)}
-                
+
                 payment_info.append(info)
-            
-            return Response({
-                "message": f"Encontrados {len(payments)} pagos para probar",
-                "payments": payment_info,
-                "test_endpoints": {
-                    "cancel": f"POST /api/payments/{{payment_id}}/cancel/",
-                    "status": f"GET /api/payments/{{payment_id}}/status/",
-                    "sync": f"POST /api/payments/{{payment_id}}/sync_status/",
-                }
-            }, status=status.HTTP_200_OK)
-            
+
+            return Response(
+                {
+                    "message": f"Encontrados {len(payments)} pagos para probar",
+                    "payments": payment_info,
+                    "test_endpoints": {
+                        "cancel": f"POST /api/payments/{{payment_id}}/cancel/",
+                        "status": f"GET /api/payments/{{payment_id}}/status/",
+                        "sync": f"POST /api/payments/{{payment_id}}/sync_status/",
+                    },
+                },
+                status=status.HTTP_200_OK,
+            )
+
         except Payment.DoesNotExist:
             return Response(
                 {"error": "Pago no encontrado"},
@@ -2244,9 +2291,9 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 {"error": "Endpoint solo disponible en desarrollo o para staff"},
                 status=status.HTTP_403_FORBIDDEN,
             )
-        
+
         payment = self._get_payment_or_404(id)
-        
+
         debug_info = {
             "request_user": request.user.email,
             "payment_user": payment.order.user.email,
@@ -2256,140 +2303,185 @@ class PaymentViewSet(viewsets.ModelViewSet):
             "initial_order_status": payment.order.status,
             "stripe_session_id": payment.stripe_session_id,
             "can_cancel": payment.status != Payment.PaymentStatus.COMPLETED,
-            "user_authorized": payment.order.user == request.user or request.user.is_staff,
+            "user_authorized": payment.order.user == request.user
+            or request.user.is_staff,
         }
-        
+
         # Verificar autorización
         if not debug_info["user_authorized"]:
-            return Response({
-                "error": "No autorizado para cancelar este pago",
-                "debug_info": debug_info
-            }, status=status.HTTP_403_FORBIDDEN)
-        
+            return Response(
+                {
+                    "error": "No autorizado para cancelar este pago",
+                    "debug_info": debug_info,
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         if not debug_info["can_cancel"]:
-            return Response({
-                "error": "No se puede cancelar un pago ya completado",
-                "debug_info": debug_info
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
+            return Response(
+                {
+                    "error": "No se puede cancelar un pago ya completado",
+                    "debug_info": debug_info,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         # Intentar cancelar usando el método normal
         try:
             # Llamar al método cancel normal
             response = self.cancel(request, id)
-            
+
             # Refrescar el pago para obtener el estado final
             payment.refresh_from_db()
             payment.order.refresh_from_db()
-            
-            debug_info.update({
-                "final_payment_status": payment.status,
-                "final_order_status": payment.order.status,
-                "cancel_successful": payment.status == Payment.PaymentStatus.CANCELLED,
-                "response_status": response.status_code,
-                "response_data": response.data if hasattr(response, 'data') else None,
-            })
-            
-            return Response({
-                "message": "Cancelación completada",
-                "debug_info": debug_info,
-                "response": response.data if hasattr(response, 'data') else None,
-            }, status=response.status_code)
-            
+
+            debug_info.update(
+                {
+                    "final_payment_status": payment.status,
+                    "final_order_status": payment.order.status,
+                    "cancel_successful": payment.status
+                    == Payment.PaymentStatus.CANCELLED,
+                    "response_status": response.status_code,
+                    "response_data": (
+                        response.data if hasattr(response, "data") else None
+                    ),
+                }
+            )
+
+            return Response(
+                {
+                    "message": "Cancelación completada",
+                    "debug_info": debug_info,
+                    "response": response.data if hasattr(response, "data") else None,
+                },
+                status=response.status_code,
+            )
+
         except Exception as e:
             debug_info["error"] = str(e)
             logger.error(f"Error en debug_cancel: {str(e)}", exc_info=True)
-            return Response({
-                "error": "Error durante la cancelación",
-                "debug_info": debug_info
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {"error": "Error durante la cancelación", "debug_info": debug_info},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     @action(detail=True, methods=["POST"])
     def sync_status(self, request, id=None):
         """Sincronizar el estado del pago con Stripe"""
         payment = self._get_payment_or_404(id)
-        
+
         # Verificar que el usuario tenga autorización
         if payment.order.user != request.user and not request.user.is_staff:
             return Response(
                 {"error": "No autorizado para verificar este pago"},
                 status=status.HTTP_403_FORBIDDEN,
             )
-        
+
         if not payment.stripe_session_id:
             return Response(
                 {"error": "Este pago no tiene una sesión de Stripe asociada"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        
+
         try:
             # Verificar el estado de la sesión en Stripe
             session = stripe.checkout.Session.retrieve(payment.stripe_session_id)
-            
+
             # Verificar si la sesión ha expirado
-            if session.expires_at and session.expires_at < int(timezone.now().timestamp()):
+            if session.expires_at and session.expires_at < int(
+                timezone.now().timestamp()
+            ):
                 # Procesar la expiración
                 from .tasks import handle_checkout_session_expired_task
-                task_result = handle_checkout_session_expired_task.delay(session.to_dict())
-                
-                return Response({
-                    "status": "expired",
-                    "message": "La sesión ha expirado y se está procesando la cancelación",
-                    "payment_status": payment.status,
-                    "stripe_status": session.status,
-                    "expires_at": session.expires_at,
-                    "task_id": str(task_result.id),
-                }, status=status.HTTP_200_OK)
-            
+
+                task_result = handle_checkout_session_expired_task.delay(
+                    session.to_dict()
+                )
+
+                return Response(
+                    {
+                        "status": "expired",
+                        "message": "La sesión ha expirado y se está procesando la cancelación",
+                        "payment_status": payment.status,
+                        "stripe_status": session.status,
+                        "expires_at": session.expires_at,
+                        "task_id": str(task_result.id),
+                    },
+                    status=status.HTTP_200_OK,
+                )
+
             # Verificar el estado del pago
-            if session.payment_status == "paid" and payment.status != Payment.PaymentStatus.COMPLETED:
+            if (
+                session.payment_status == "paid"
+                and payment.status != Payment.PaymentStatus.COMPLETED
+            ):
                 # El pago está pagado en Stripe pero no en nuestra base de datos
                 from .tasks import handle_checkout_session_completed_task
-                task_result = handle_checkout_session_completed_task.delay(session.to_dict())
-                
-                return Response({
-                    "status": "syncing",
-                    "message": "El pago está pagado en Stripe, sincronizando estado",
-                    "payment_status": payment.status,
-                    "stripe_status": session.payment_status,
-                    "task_id": str(task_result.id),
-                }, status=status.HTTP_200_OK)
-            
-            elif session.payment_status == "unpaid" and payment.status == Payment.PaymentStatus.PENDING:
+
+                task_result = handle_checkout_session_completed_task.delay(
+                    session.to_dict()
+                )
+
+                return Response(
+                    {
+                        "status": "syncing",
+                        "message": "El pago está pagado en Stripe, sincronizando estado",
+                        "payment_status": payment.status,
+                        "stripe_status": session.payment_status,
+                        "task_id": str(task_result.id),
+                    },
+                    status=status.HTTP_200_OK,
+                )
+
+            elif (
+                session.payment_status == "unpaid"
+                and payment.status == Payment.PaymentStatus.PENDING
+            ):
                 # El pago sigue pendiente
-                return Response({
-                    "status": "pending",
-                    "message": "El pago sigue pendiente",
-                    "payment_status": payment.status,
-                    "stripe_status": session.payment_status,
-                    "checkout_url": session.url if session.status == "open" else None,
-                    "expires_at": session.expires_at,
-                }, status=status.HTTP_200_OK)
-            
+                return Response(
+                    {
+                        "status": "pending",
+                        "message": "El pago sigue pendiente",
+                        "payment_status": payment.status,
+                        "stripe_status": session.payment_status,
+                        "checkout_url": (
+                            session.url if session.status == "open" else None
+                        ),
+                        "expires_at": session.expires_at,
+                    },
+                    status=status.HTTP_200_OK,
+                )
+
             else:
                 # Estados coinciden
-                return Response({
-                    "status": "synced",
-                    "message": "El estado del pago está sincronizado",
-                    "payment_status": payment.status,
-                    "stripe_status": session.payment_status,
-                }, status=status.HTTP_200_OK)
-                
+                return Response(
+                    {
+                        "status": "synced",
+                        "message": "El estado del pago está sincronizado",
+                        "payment_status": payment.status,
+                        "stripe_status": session.payment_status,
+                    },
+                    status=status.HTTP_200_OK,
+                )
+
         except stripe.error.InvalidRequestError:
             # La sesión no existe en Stripe
             from .tasks import handle_manual_payment_cancellation_task
+
             task_result = handle_manual_payment_cancellation_task.delay(
-                str(payment.id), 
-                str(payment.user.id), 
-                "sesión_no_encontrada_en_stripe"
+                str(payment.id), str(payment.user.id), "sesión_no_encontrada_en_stripe"
             )
-            
-            return Response({
-                "status": "not_found",
-                "message": "La sesión no existe en Stripe, procesando cancelación",
-                "payment_status": payment.status,
-                "task_id": str(task_result.id),
-            }, status=status.HTTP_200_OK)
-            
+
+            return Response(
+                {
+                    "status": "not_found",
+                    "message": "La sesión no existe en Stripe, procesando cancelación",
+                    "payment_status": payment.status,
+                    "task_id": str(task_result.id),
+                },
+                status=status.HTTP_200_OK,
+            )
+
         except Exception as e:
             logger.error(f"Error sincronizando estado del pago {payment.id}: {str(e)}")
             return Response(
@@ -2401,14 +2493,14 @@ class PaymentViewSet(viewsets.ModelViewSet):
     def status(self, request, id=None):
         """Obtener el estado actual del pago"""
         payment = self._get_payment_or_404(id)
-        
+
         # Verificar que el usuario tenga autorización
         if payment.order.user != request.user and not request.user.is_staff:
             return Response(
                 {"error": "No autorizado para ver este pago"},
                 status=status.HTTP_403_FORBIDDEN,
             )
-        
+
         response_data = {
             "payment_id": str(payment.id),
             "order_id": str(payment.order.id),
@@ -2421,7 +2513,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
             "created_at": payment.created_at,
             "updated_at": payment.updated_at,
         }
-        
+
         # Agregar información de Stripe si existe
         if payment.stripe_session_id:
             try:
@@ -2435,6 +2527,8 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 }
             except Exception as e:
                 logger.error(f"Error obteniendo información de Stripe: {str(e)}")
-                response_data["stripe"] = {"error": "No se pudo obtener información de Stripe"}
-        
+                response_data["stripe"] = {
+                    "error": "No se pudo obtener información de Stripe"
+                }
+
         return Response(response_data, status=status.HTTP_200_OK)
