@@ -52,6 +52,9 @@ pip-freeze:
 pip-review:
 	docker compose exec api pip-review --local --interactive
 
+pip-outdated:
+	docker compose exec api pip list --outdated --format=columns
+
 test:
 	docker compose exec api pytest -p no:warnings --cov=.
 
