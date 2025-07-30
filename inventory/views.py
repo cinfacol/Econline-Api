@@ -122,7 +122,7 @@ class InventoryByRefCode(APIView):
 
 
 @api_view(["PUT"])
-@permission_classes([permissions.IsAuthenticated])
+@permission_classes([permissions.IsAdminUser])
 def update_inventory_api_view(request, sku):
     try:
         inventory = Inventory.objects.get(sku=sku)
@@ -148,7 +148,7 @@ def update_inventory_api_view(request, sku):
 
 
 @api_view(["POST"])
-@permission_classes([permissions.IsAuthenticated])
+@permission_classes([permissions.IsAdminUser])
 def create_inventory_api_view(request):
     data = request.data
     data["user"] = request.user.pkid
@@ -162,7 +162,7 @@ def create_inventory_api_view(request):
 
 
 @api_view(["DELETE"])
-@permission_classes([permissions.IsAuthenticated])
+@permission_classes([permissions.IsAdminUser])
 def delete_inventory_api_view(request, sku):
     try:
         inventory = Inventory.objects.get(sku=sku)
