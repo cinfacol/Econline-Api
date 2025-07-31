@@ -1,4 +1,4 @@
-FROM python:3-alpine3.21
+FROM python:alpine3.22
 
 ENV APP_HOME=/app
 RUN mkdir $APP_HOME
