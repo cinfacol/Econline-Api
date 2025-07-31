@@ -5,13 +5,14 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django.utils.translation import gettext_lazy as _
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .models import Inventory, InventoryViews
+from .models import Inventory, InventoryViews, Media
 from .exceptions import InventoryNotFound
 from .pagination import InventoryPagination
 from .serializers import (
     InventorySerializer,
     InventoryViewSerializer,
     InventoryCreateSerializer,
+    InventoryImagesSerializer,
 )
 
 
@@ -118,6 +119,15 @@ class InventoryByRefCode(APIView):
     def get(self, request, query=None):
         queryset = Inventory.objects.filter(product__ref_code=query)
         serializer = InventorySerializer(queryset, many=True)
+        return Response(serializer.data)
+
+
+class InventoryImages(APIView):
+    permission_classes = (permissions.AllowAny,)
+
+    def get(self, request):
+        inventories = Inventory.objects.all()
+        serializer = InventoryImagesSerializer(inventories, many=True)
         return Response(serializer.data)
 
 

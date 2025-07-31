@@ -176,6 +176,14 @@ class InventorySerializer(serializers.ModelSerializer):
         return data
 
 
+class InventoryImagesSerializer(serializers.Serializer):
+    product_name = serializers.CharField(source="product.name")
+    images = serializers.SerializerMethodField()
+
+    def get_images(self, obj):
+        return MediaSerializer(obj.inventory_media.all(), many=True).data
+
+
 class InventoryCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Inventory
