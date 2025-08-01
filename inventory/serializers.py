@@ -71,7 +71,8 @@ class MediaSerializer(serializers.ModelSerializer):
         fields = ["id", "image", "inventory", "alt_text", "is_featured", "default"]
 
     def get_inventory(self, obj):
-        return obj.inventory.product.name
+        # return obj.inventory.product.name
+        return obj.inventory.id
 
 
 class StockSerializer(serializers.ModelSerializer):
