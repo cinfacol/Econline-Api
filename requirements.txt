@@ -5,7 +5,7 @@ attrs==25.3.0
 billiard==4.2.1
 braintree==4.37.0
 celery==5.5.3
-certifi==2025.7.14
+certifi==2025.8.3
 cffi==1.17.1
 channels==4.3.1
 channels_redis==4.3.0
