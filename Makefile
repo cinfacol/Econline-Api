@@ -37,6 +37,9 @@ superuser:
 sync-stripe-customers:
 	docker compose exec api python3 manage.py sync_stripe_customers
 
+wait-for-redis:
+	docker compose exec api python3 manage.py wait_for_redis --timeout 5 --interval 0.5
+
 collectstatic:
 	docker compose exec api python3 manage.py collectstatic --no-input --clear
 
