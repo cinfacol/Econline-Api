@@ -3,7 +3,7 @@ asgiref==3.9.1
 async-timeout==5.0.1
 attrs==25.3.0
 billiard==4.2.1
-braintree==4.37.0
+braintree==4.38.0
 celery==5.5.3
 certifi==2025.8.3
 cffi==1.17.1
@@ -15,9 +15,9 @@ click-didyoumean==0.3.1
 click-plugins==1.1.1.2
 click-repl==0.3.0
 cloudinary==1.44.1
-cryptography==45.0.5
+cryptography==45.0.6
 defusedxml==0.7.1
-Django==5.2.4
+Django==5.2.5
 django-appconf==1.1.0
 django-autoslug==1.9.9
 django-celery-email==3.0.0
@@ -30,7 +30,7 @@ django-js-asset==3.1.2
 django-phonenumber-field==8.1.0
 django-ratelimit==4.1.0
 django-templated-mail==1.1.1
-djangorestframework==3.16.0
+djangorestframework==3.16.1
 djangorestframework-api-response==0.1.0
 djangorestframework_simplejwt==5.5.1
 djoser==2.3.3
@@ -62,7 +62,7 @@ python-dateutil==2.9.0.post0
 python3-openid==3.2.0
 pytz==2025.2
 PyYAML==6.0.2
-redis==6.2.0
+redis==6.3.0
 referencing==0.36.2
 requests==2.32.4
 requests-oauthlib==2.0.0
