@@ -28,7 +28,7 @@ services:
         networks:
             - frontend
         healthcheck:
-            test: ["CMD", "curl", "--fail", "--silent", "--show-error", "http://localhost:8000/api/auth/health/"]
+            test: ["CMD-SHELL", "python3 manage.py check --tag=models"]
             interval: 30s
             timeout: 10s
             retries: 3
