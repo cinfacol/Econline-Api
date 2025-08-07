@@ -14,7 +14,7 @@ from django.db import transaction
 from django.conf import settings
 from django.core.cache import cache
 from django.utils.decorators import method_decorator
-from django.utils.translation import gettext_lazy as _
+from django.utils.translation import gettext as _
 from django.views.decorators.csrf import csrf_protect, csrf_exempt
 from rest_framework import status, viewsets, permissions, filters
 from rest_framework.decorators import action
@@ -543,7 +543,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
             shipping_id = request.query_params.get("shipping_id")
             coupon_id = request.query_params.get("coupon_id")
 
-            cart, _ = Cart.objects.prefetch_related("items").get_or_create(
+            cart, created = Cart.objects.prefetch_related("items").get_or_create(
                 user=request.user
             )
             if not cart.items.exists():
