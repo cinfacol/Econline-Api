@@ -146,6 +146,7 @@ def handle_checkout_session_completed_task(session_data):
     try:
         logger.info(f"Actualizando estado del pago {payment_id} a COMPLETED")
         payment.status = Payment.PaymentStatus.COMPLETED
+        payment.paid_at = timezone.now()  # Agregar paid_at
         payment.save()
 
         logger.info(f"Actualizando estado de la orden {order_id} a COMPLETED")

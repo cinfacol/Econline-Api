@@ -3,9 +3,21 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+from payments.views import PaymentViewSet
 
 urlpatterns = [
     path("supersecret/", admin.site.urls),
+    # Webhooks de Stripe (acceso directo sin prefijo API)
+    path(
+        "stripe_webhook/",
+        PaymentViewSet.as_view({"post": "stripe_webhook"}),
+        name="stripe-webhook-direct",
+    ),
+    path(
+        "webhook_test/",
+        PaymentViewSet.as_view({"post": "webhook_test"}),
+        name="webhook-test-direct",
+    ),
     path("api/auth/", include("djoser.urls")),
     path("api/auth/", include("users.urls")),
     # path("api/auth/", include("djoser.urls.jwt")),

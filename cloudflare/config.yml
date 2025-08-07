@@ -1,0 +1,29 @@
+# Configuración del túnel Cloudflare para Econline API - DESARROLLO
+# Túnel ID: econline-api
+
+tunnel: 234513a1-cf21-4303-8ff8-9aeeded54300
+credentials-file: /etc/cloudflared/credentials.json
+
+# Configuración de ingreso - Mapeo de dominios a servicios
+ingress:
+  # API de desarrollo - usando nginx desde Docker
+  - hostname: api.virtualeline.com
+    service: http://nginx:80
+    originRequest:
+      httpHostHeader: api.virtualeline.com
+      connectTimeout: 30s
+      tlsTimeout: 30s
+      tcpKeepAlive: 30s
+      
+  # Catch-all rule (debe ser la última)
+  - service: http_status:404
+
+# Configuración adicional
+logLevel: info
+transport-loglevel: warn
+
+# Métricas (opcional)
+metrics: 0.0.0.0:8080
+
+# Autoupdate
+autoupdate-freq: 24h

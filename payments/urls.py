@@ -34,6 +34,12 @@ urlpatterns = [
         PaymentViewSet.as_view({"post": "stripe_webhook"}),
         name="stripe-webhook",
     ),
+    # Webhook de prueba
+    path(
+        "webhook-test/",
+        PaymentViewSet.as_view({"post": "webhook_test"}),
+        name="webhook-test",
+    ),
     path(
         "payment-methods/",
         PaymentViewSet.as_view({"get": "payment_methods"}),

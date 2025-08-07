@@ -337,6 +337,8 @@ class PaymentViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action == "stripe_webhook":
             return [permissions.AllowAny()]
+        elif self.action == "webhook_test":
+            return [permissions.AllowAny()]
         elif self.action == "payment_stats_public":
             # Permitir acceso público a estadísticas para testing (Fase 1)
             return [permissions.AllowAny()]
@@ -358,7 +360,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
-    @action(detail=False, methods=["POST"])
+    @action(detail=False, methods=["POST", "GET"])
     @csrf_exempt
     def stripe_webhook(self, request):
         webhook_handler = WebhookHandler()
@@ -395,6 +397,55 @@ class PaymentViewSet(viewsets.ModelViewSet):
             return Response(
                 {"error": "Internal server error"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @action(detail=False, methods=["POST", "GET"])
+    @csrf_exempt
+    def webhook_test(self, request):
+        """Endpoint temporal para probar conectividad del webhook"""
+        logger.info(f"Webhook test called with method: {request.method}")
+        logger.info(f"Headers: {dict(request.headers)}")
+        logger.info(f"Body length: {len(request.body) if request.body else 0}")
+
+        if request.method == "GET":
+            return Response(
+                {
+                    "status": "webhook_test_endpoint_working",
+                    "timestamp": timezone.now().isoformat(),
+                    "message": "Tunnel connectivity OK",
+                }
+            )
+
+        # Para POST, simular procesamiento de webhook
+        try:
+            if request.body:
+                data = json.loads(request.body.decode("utf-8"))
+                logger.info(f"Received webhook test data: {data}")
+
+                return Response(
+                    {
+                        "status": "success",
+                        "received_data": data,
+                        "timestamp": timezone.now().isoformat(),
+                    }
+                )
+            else:
+                return Response(
+                    {
+                        "status": "success",
+                        "message": "Webhook test endpoint working - no data received",
+                        "timestamp": timezone.now().isoformat(),
+                    }
+                )
+
+        except Exception as e:
+            logger.error(f"Error in webhook test: {str(e)}")
+            return Response(
+                {
+                    "status": "error",
+                    "error": str(e),
+                    "timestamp": timezone.now().isoformat(),
+                }
             )
 
     def notify_payment_update(self, event_type: str, event_data: dict):
@@ -1190,7 +1241,9 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
         # Crear la sesión de Stripe
         try:
+            logger.info(f"Creating Stripe session with data: {session_data}")
             session = stripe.checkout.Session.create(**session_data)
+            logger.info(f"Stripe session created successfully: {session.id}")
 
             # Actualizar el descriptor de la declaración después de crear la sesión
             if session.payment_intent:
@@ -1199,10 +1252,12 @@ class PaymentViewSet(viewsets.ModelViewSet):
                     statement_descriptor="ECONLINE STORE",
                     statement_descriptor_suffix=str(order.id)[:4],
                 )
+                logger.info(f"Payment intent updated: {session.payment_intent}")
 
             return session
         except Exception as e:
             logger.error(f"Error creating Stripe session: {str(e)}")
+            logger.error(f"Session data that failed: {session_data}")
             raise
 
     def get_user_cart(self, user):
@@ -1462,8 +1517,21 @@ class PaymentViewSet(viewsets.ModelViewSet):
         # Si no hay sesión o la anterior expiró, crear una nueva
         if not payment.stripe_session_id:
             try:
+                # Crear serializer dummy para mantener compatibilidad
+                from .serializers import CheckoutSessionSerializer
+
+                dummy_data = {
+                    "shipping_id": payment.order.shipping.id,
+                    "payment_method_id": payment.payment_method.id,
+                    "shipping_cost": str(
+                        payment.order.shipping.calculate_shipping_cost(payment.amount)
+                    ),
+                }
+                serializer = CheckoutSessionSerializer(data=dummy_data)
+                serializer.is_valid()
+
                 session = self.create_stripe_session(
-                    payment.order, payment, request.user.email
+                    payment.order, payment, request.user.email, serializer
                 )
                 payment.stripe_session_id = session.id
                 payment.save()
@@ -1723,6 +1791,212 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 "order_id": str(payment.order.id),
             }
         )
+
+    @action(detail=True, methods=["post"])
+    def sync_with_stripe(self, request, id=None):
+        """Sincronizar manualmente el estado del pago con Stripe"""
+        payment = get_object_or_404(
+            Payment.objects.select_related("order", "payment_method", "user"),
+            id=id,
+        )
+
+        if payment.order.user != request.user:
+            return Response(
+                {"error": _("Payment not found")}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        if not payment.stripe_session_id:
+            return Response(
+                {"error": _("No Stripe session found for this payment")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            session = stripe.checkout.Session.retrieve(payment.stripe_session_id)
+            logger.info(
+                f"Stripe session status: {session.payment_status} for payment {payment.id}"
+            )
+
+            # Si el pago está pagado en Stripe pero no en nuestra base de datos
+            if (
+                session.payment_status == "paid"
+                and payment.status != Payment.PaymentStatus.COMPLETED
+            ):
+                payment.status = Payment.PaymentStatus.COMPLETED
+                payment.paid_at = timezone.now()
+                payment.save()
+
+                # Actualizar el estado de la orden
+                payment.order.status = Order.OrderStatus.COMPLETED
+                payment.order.save()
+
+                # Limpiar el carrito
+                cart = Cart.objects.filter(user=payment.order.user).first()
+                if cart:
+                    cart.items.all().delete()
+
+                logger.info(
+                    f"Payment {payment.id} synchronized with Stripe - marked as completed"
+                )
+
+                return Response(
+                    {
+                        "status": "success",
+                        "message": _("Payment synchronized with Stripe"),
+                        "payment_status": payment.status,
+                        "stripe_status": session.payment_status,
+                    }
+                )
+
+            return Response(
+                {
+                    "status": "no_change",
+                    "message": _("Payment is already in sync with Stripe"),
+                    "payment_status": payment.status,
+                    "stripe_status": session.payment_status,
+                }
+            )
+
+        except stripe.error.StripeError as e:
+            logger.error(f"Error retrieving Stripe session: {str(e)}")
+            return Response(
+                {"error": _("Error retrieving payment information from Stripe")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    @action(detail=False, methods=["post"])
+    def force_sync_payment(self, request):
+        """Forzar sincronización de un pago usando session_id de Stripe"""
+        session_id = request.data.get("session_id")
+
+        if not session_id:
+            return Response(
+                {"error": _("session_id is required")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            # Obtener sesión de Stripe
+            session = stripe.checkout.Session.retrieve(session_id)
+            logger.info(
+                f"Retrieved session {session_id}: status={session.payment_status}"
+            )
+
+            # Buscar pago por session_id
+            try:
+                payment = Payment.objects.select_related("order").get(
+                    stripe_session_id=session_id, order__user=request.user
+                )
+            except Payment.DoesNotExist:
+                return Response(
+                    {"error": _("Payment not found for this session")},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            # Si el pago ya está completado, no hacer nada
+            if payment.status == Payment.PaymentStatus.COMPLETED:
+                return Response(
+                    {
+                        "status": "already_completed",
+                        "message": _("Payment is already completed"),
+                        "payment_id": str(payment.id),
+                        "order_id": str(payment.order.id),
+                    }
+                )
+
+            # Si la sesión está pagada, actualizar nuestro estado
+            if session.payment_status == "paid":
+                with transaction.atomic():
+                    payment.status = Payment.PaymentStatus.COMPLETED
+                    payment.paid_at = timezone.now()
+                    payment.save()
+
+                    # Actualizar orden
+                    payment.order.status = Order.OrderStatus.COMPLETED
+                    payment.order.save()
+
+                    # Limpiar carrito
+                    cart = Cart.objects.filter(user=payment.order.user).first()
+                    if cart:
+                        cart.items.all().delete()
+
+                    logger.info(
+                        f"Force synced payment {payment.id} - marked as completed"
+                    )
+
+                    return Response(
+                        {
+                            "status": "synced",
+                            "message": _("Payment synchronized successfully"),
+                            "payment_id": str(payment.id),
+                            "order_id": str(payment.order.id),
+                            "stripe_status": session.payment_status,
+                        }
+                    )
+            else:
+                return Response(
+                    {
+                        "status": "not_paid",
+                        "message": _("Payment is not completed in Stripe"),
+                        "stripe_status": session.payment_status,
+                        "checkout_url": (
+                            session.url if session.payment_status == "unpaid" else None
+                        ),
+                    }
+                )
+
+        except stripe.error.StripeError as e:
+            logger.error(f"Stripe error in force sync: {str(e)}")
+            return Response(
+                {"error": _("Error retrieving payment information from Stripe")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as e:
+            logger.error(f"Error in force sync: {str(e)}")
+            return Response(
+                {"error": _("Internal server error")},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @action(detail=False, methods=["get"])
+    def order_payments(self, request):
+        """Obtener todos los pagos de una orden específica"""
+        order_id = request.query_params.get("order_id")
+        if not order_id:
+            return Response(
+                {"error": _("order_id parameter is required")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            payments = Payment.objects.filter(
+                order_id=order_id, order__user=request.user
+            ).select_related("order", "payment_method")
+
+            if not payments.exists():
+                return Response(
+                    {"error": _("No payments found for this order")},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            serializer = PaymentSerializer(payments, many=True)
+            return Response(
+                {
+                    "payments": serializer.data,
+                    "order_id": order_id,
+                    "total_payments": payments.count(),
+                    "completed_payments": payments.filter(
+                        status=Payment.PaymentStatus.COMPLETED
+                    ).count(),
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"Error retrieving order payments: {str(e)}")
+            return Response(
+                {"error": _("Error retrieving order payments")},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     @action(detail=True, methods=["post"])
     @transaction.atomic
