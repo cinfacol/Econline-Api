@@ -1,5 +1,11 @@
 from rest_framework import serializers
-from .models import Category
+from .models import Category, MeasureUnit
+
+
+class MeasureUnitSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MeasureUnit
+        fields = ("id", "description", "is_custom")
 
 
 class CategorySerializer(serializers.ModelSerializer):

@@ -18,10 +18,17 @@ class MeasureUnit(TimeStampedUUIDModel):
 
     description = models.CharField(
         verbose_name=_("Descripción"),
-        max_length=50,
-        choices=MeasureType.choices,
-        default=MeasureType.UNITS,
+        max_length=100,  # Aumentar longitud para descripciones personalizadas
         unique=True,
+    )
+
+    # Campo para distinguir si es una unidad predefinida o personalizada
+    is_custom = models.BooleanField(
+        verbose_name=_("Es personalizada"),
+        default=False,
+        help_text=_(
+            "Indica si es una unidad de medida personalizada creada por el usuario"
+        ),
     )
 
     class Meta:
