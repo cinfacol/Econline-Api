@@ -50,19 +50,3 @@ class Product(TimeStampedUUIDModel):
             random.choices(string.ascii_uppercase + string.digits, k=10)
         )
         super(Product, self).save(*args, **kwargs)
-
-
-""" class ProductViews(TimeStampedUUIDModel):
-    ip = models.CharField(verbose_name=_("IP Address"), max_length=250)
-    product = models.ForeignKey(
-        Product, related_name="product_views", on_delete=models.CASCADE
-    )
-
-    def __str__(self):
-        return (
-            f"Total views on - {self.product.title} is - {self.product.views} view(s)"
-        )
-
-    class Meta:
-        verbose_name = "Total Views on Product"
-        verbose_name_plural = "Total Product Views" """
