@@ -30,7 +30,13 @@ class Order(TimeStampedUUIDModel):
         default=OrderStatus.PENDING,
     )
     currency = models.CharField(max_length=10, default="USD")
-    user = models.ForeignKey(User, related_name="orders", on_delete=models.CASCADE)
+    user = models.ForeignKey(
+        User,
+        related_name="orders",
+        on_delete=models.CASCADE,
+        blank=True,
+        null=True,
+    )
     address = models.ForeignKey(
         Address, on_delete=models.SET_NULL, null=True, blank=True
     )
@@ -49,7 +55,12 @@ class Order(TimeStampedUUIDModel):
 
 class OrderItem(TimeStampedUUIDModel):
     inventory = models.ForeignKey(Inventory, on_delete=models.SET_NULL, null=True)
-    order = models.ForeignKey(Order, on_delete=models.CASCADE)
+    order = models.ForeignKey(
+        Order,
+        on_delete=models.CASCADE,
+        blank=True,
+        null=True,
+    )
     name = models.CharField(max_length=255)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     count = models.IntegerField()

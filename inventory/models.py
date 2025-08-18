@@ -96,6 +96,8 @@ class Inventory(TimeStampedUUIDModel):
         verbose_name=_("Agent, Seller or Buyer"),
         related_name="inventory_user",
         on_delete=models.PROTECT,
+        null=True,
+        blank=True,
     )
     # order = OrderField(unique_for_field="product", blank=True)
     brand = models.ForeignKey(
@@ -106,7 +108,11 @@ class Inventory(TimeStampedUUIDModel):
         null=True,
     )
     type = models.ForeignKey(
-        Type, related_name="product_type", on_delete=models.PROTECT
+        Type,
+        related_name="product_type",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
     )
     quality = models.CharField(
         verbose_name=_("State Type"),
@@ -166,7 +172,11 @@ class Inventory(TimeStampedUUIDModel):
 class InventoryViews(TimeStampedUUIDModel):
     ip = models.CharField(verbose_name=_("IP Address"), max_length=250)
     inventory = models.ForeignKey(
-        Inventory, related_name="inventory_views", on_delete=models.CASCADE
+        Inventory,
+        related_name="inventory_views",
+        on_delete=models.CASCADE,
+        blank=True,
+        null=True,
     )
 
     def __str__(self):
@@ -209,6 +219,8 @@ class Media(TimeStampedUUIDModel):
         Inventory,
         on_delete=models.PROTECT,
         related_name="inventory_media",
+        blank=True,
+        null=True,
     )
     image = CloudinaryField(
         "image",
@@ -257,6 +269,8 @@ class Stock(TimeStampedUUIDModel):
         Inventory,
         related_name="inventory_stock",
         on_delete=models.PROTECT,
+        blank=True,
+        null=True,
     )
     units = models.IntegerField(
         default=0,
