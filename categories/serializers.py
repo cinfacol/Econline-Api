@@ -5,7 +5,7 @@ from .models import Category, MeasureUnit
 class MeasureUnitSerializer(serializers.ModelSerializer):
     class Meta:
         model = MeasureUnit
-        fields = ("id", "description", "is_custom")
+        fields = ("id", "description")
 
 
 class CategorySerializer(serializers.ModelSerializer):
