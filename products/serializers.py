@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from .models import Product
+from categories.models import Category
 
 # from reviews.models import Review
 
@@ -8,6 +9,10 @@ from .models import Product
 
 
 class ProductSerializer(serializers.ModelSerializer):
+
+    category = serializers.PrimaryKeyRelatedField(
+        queryset=Category.objects.all(), many=True
+    )
 
     class Meta:
         model = Product
@@ -18,7 +23,21 @@ class ProductSerializer(serializers.ModelSerializer):
             "ref_code",
             "category",
             "description",
+            "is_active",
+            "published_status",
         ]
-        read_only = True
-        editable = False
-        depth = 2
+
+    def create(self, validated_data):
+        categories = validated_data.pop("category", [])
+        product = Product.objects.create(**validated_data)
+        product.category.set(categories)
+        return product
+
+    def update(self, instance, validated_data):
+        categories = validated_data.pop("category", None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        if categories is not None:
+            instance.category.set(categories)
+        return instance
