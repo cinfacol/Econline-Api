@@ -10,8 +10,9 @@ from categories.models import Category
 
 class ProductSerializer(serializers.ModelSerializer):
 
-    category = serializers.PrimaryKeyRelatedField(
-        queryset=Category.objects.all(), many=True
+    # Permitir que acepte los UUID de las categorías
+    category = serializers.SlugRelatedField(
+        queryset=Category.objects.all(), slug_field="id", many=True
     )
 
     class Meta:
