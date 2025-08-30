@@ -862,7 +862,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
             payment = self.create_payment(
                 order,
-                total,
+                order.amount,  # Usar el monto final de la orden
                 serializer.validated_data["payment_method_id"],
                 user=request.user,
             )
