@@ -18,6 +18,7 @@ class ProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
         fields = [
+            "pkid",  # Agregado para que el frontend reciba el id entero
             "id",
             "name",
             "slug",

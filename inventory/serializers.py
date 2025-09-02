@@ -4,6 +4,7 @@ from django.db.models import Q, Avg, Count
 from rest_framework import serializers
 from reviews.models import Review
 from promotion.models import Promotion
+from products.models import Product
 from products.serializers import ProductSerializer
 from users.serializers import UserSerializer
 from .models import (
@@ -186,6 +187,17 @@ class InventoryImagesSerializer(serializers.Serializer):
 
 
 class InventoryCreateSerializer(serializers.ModelSerializer):
+    product = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all())
+    attribute_values = serializers.PrimaryKeyRelatedField(
+        queryset=AttributeValue.objects.all(), many=True
+    )
+
     class Meta:
         model = Inventory
-        exclude = ["updated_at", "pkid"]
+        exclude = ["updated_at"]
+
+    def create(self, validated_data):
+        attribute_values = validated_data.pop("attribute_values", [])
+        inventory = Inventory.objects.create(**validated_data)
+        inventory.attribute_values.set(attribute_values)
+        return inventory
