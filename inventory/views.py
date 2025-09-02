@@ -24,7 +24,14 @@ from .serializers import (
 class BrandListAPIView(generics.ListAPIView):
     queryset = Brand.objects.all().order_by("name")
     serializer_class = BrandSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAdminUser]
+
+
+# Vista para crear marcas
+class BrandCreateAPIView(generics.CreateAPIView):
+    queryset = Brand.objects.all()
+    serializer_class = BrandSerializer
+    permission_classes = [permissions.IsAdminUser]
 
 
 class InventoryFilter(django_filters.FilterSet):

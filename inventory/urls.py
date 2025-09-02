@@ -8,11 +8,11 @@ from .views import (
     InventoryByRefCode,
     InventoryImages,
     BrandListAPIView,
-    # InventorySearchAPIView,
     update_inventory_api_view,
     create_inventory_api_view,
     delete_inventory_api_view,
     search_api_view,
+    BrandCreateAPIView,
 )
 
 urlpatterns = [
@@ -39,5 +39,6 @@ urlpatterns = [
     path("delete/<int:sku>/", delete_inventory_api_view, name="delete-inventory"),
     path("search/", search_api_view, name="inventory-search"),
     # path("search/", InventorySearchAPIView.as_view(), name="inventory-search"),
+    path("brands/create/", BrandCreateAPIView.as_view(), name="brand-create"),
     path("brands/list/", BrandListAPIView.as_view(), name="brand-list"),
 ]
