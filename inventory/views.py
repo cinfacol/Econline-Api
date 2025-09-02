@@ -1,3 +1,7 @@
+from .models import Brand
+from .serializers import BrandSerializer
+
+
 import django_filters
 from rest_framework import generics, permissions, filters, status
 from rest_framework.decorators import api_view, permission_classes
@@ -14,6 +18,13 @@ from .serializers import (
     InventoryCreateSerializer,
     InventoryImagesSerializer,
 )
+
+
+# Vista para listar marcas
+class BrandListAPIView(generics.ListAPIView):
+    queryset = Brand.objects.all().order_by("name")
+    serializer_class = BrandSerializer
+    permission_classes = [permissions.AllowAny]
 
 
 class InventoryFilter(django_filters.FilterSet):
