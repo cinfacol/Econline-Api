@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Promotion, PromoType, Coupon
+from .models import Coupon, Promotion, PromoType
 from .tasks import promotion_management, promotion_prices
 
 

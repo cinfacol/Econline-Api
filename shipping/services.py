@@ -1,8 +1,8 @@
-import requests
 import logging
-from django.conf import settings
-from typing import Dict, Optional, List
 from decimal import Decimal
+
+import requests
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +20,8 @@ class ServientregaService:
         }
 
     def _make_request(
-        self, endpoint: str, method: str = "GET", data: Optional[Dict] = None
-    ) -> Dict:
+        self, endpoint: str, method: str = "GET", data: dict | None = None
+    ) -> dict:
         """
         Realiza una petición a la API de Servientrega
         """
@@ -43,7 +43,7 @@ class ServientregaService:
         peso: Decimal,
         valor_declarado: Decimal,
         tipo_servicio: str = "NACIONAL",
-    ) -> Dict:
+    ) -> dict:
         """
         Cotiza un envío usando la API de Servientrega
         """
@@ -58,11 +58,11 @@ class ServientregaService:
 
     def generar_guia(
         self,
-        remitente: Dict,
-        destinatario: Dict,
-        paquete: Dict,
+        remitente: dict,
+        destinatario: dict,
+        paquete: dict,
         servicio: str = "NACIONAL",
-    ) -> Dict:
+    ) -> dict:
         """
         Genera una guía de envío
         """
@@ -74,7 +74,7 @@ class ServientregaService:
         }
         return self._make_request("GeneracionGuia", method="POST", data=data)
 
-    def consultar_guia(self, numero_guia: str) -> Dict:
+    def consultar_guia(self, numero_guia: str) -> dict:
         """
         Consulta el estado de una guía
         """
@@ -87,5 +87,5 @@ class ServientregaService:
         try:
             self._make_request(f"ValidarCodigoPostal/{codigo}")
             return True
-        except:
+        except Exception:
             return False

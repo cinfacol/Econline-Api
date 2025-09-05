@@ -1,8 +1,9 @@
-from django.core.management.base import BaseCommand, CommandError
-from django.conf import settings
-import redis
-import time
 import logging
+import time
+
+import redis
+from django.conf import settings
+from django.core.management.base import BaseCommand, CommandError
 
 logger = logging.getLogger(__name__)
 

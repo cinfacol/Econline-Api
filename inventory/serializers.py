@@ -1,18 +1,19 @@
 from django.core.exceptions import ObjectDoesNotExist
-
-from django.db.models import Q, Avg, Count
+from django.db.models import Avg, Count, Q
 from rest_framework import serializers
-from reviews.models import Review
-from promotion.models import Promotion
+
 from products.models import Product
 from products.serializers import ProductSerializer
+from promotion.models import Promotion
+from reviews.models import Review
 from users.serializers import UserSerializer
+
 from .models import (
-    Brand,
-    Media,
     AttributeValue,
-    InventoryViews,
+    Brand,
     Inventory,
+    InventoryViews,
+    Media,
     Stock,
     Type,
 )
@@ -158,7 +159,6 @@ class InventorySerializer(serializers.ModelSerializer):
         return obj.Inventory_review.aggregate(Count("id")).get("id__count")
 
     def get_promotion_price(self, obj):
-
         try:
             x = Promotion.products_on_promotion.through.objects.get(
                 Q(promotion_id__is_active=True) & Q(product_inventory_id__id=obj.id)

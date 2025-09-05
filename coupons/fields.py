@@ -1,5 +1,6 @@
 from django.db import models
 
+
 class UpperCaseCharField(models.CharField):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -8,4 +9,4 @@ class UpperCaseCharField(models.CharField):
         value = super().to_python(value)
         if value is not None:
             return value.upper()
-        return value 
+        return value

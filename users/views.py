@@ -1,16 +1,16 @@
 from django.conf import settings
 from django.shortcuts import get_object_or_404
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status, permissions
 from djoser.social.views import ProviderAuthView
+from rest_framework import permissions, status
+from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
     TokenVerifyView,
 )
+
 from .models import Address
-from .forms import UserAddressForm
 from .serializers import AddressSerializer
 
 
@@ -105,18 +105,20 @@ class CustomTokenVerifyView(TokenVerifyView):
 
         if not access_token:
             # No hay token, usuario es guest
-            return Response({"is_guest": True, "detail": "User is guest"},
-                            status=status.HTTP_200_OK)
-        
+            return Response(
+                {"is_guest": True, "detail": "User is guest"}, status=status.HTTP_200_OK
+            )
+
         # Si hay token, lo añadimos a la solicitud
         request.data["token"] = access_token
-        
+
         try:
             return super().post(request, *args, **kwargs)
-        except Exception as e:
+        except Exception:
             # Si hay algún error con el token, también tratamos como guest
-            return Response({"is_guest": True, "detail": "Invalid token"},
-                            status=status.HTTP_200_OK)
+            return Response(
+                {"is_guest": True, "detail": "Invalid token"}, status=status.HTTP_200_OK
+            )
 
 
 class LogoutView(APIView):
@@ -138,7 +140,6 @@ class HealthView(APIView):
 
 
 class AddressDetailView(APIView):
-
     def get(self, request, id, format=None):
         address = get_object_or_404(Address, id=id, user=request.user)
         serializer = AddressSerializer(address)
@@ -146,7 +147,6 @@ class AddressDetailView(APIView):
 
 
 class AddressListView(APIView):
-
     def get(self, request):
         addresses = Address.objects.filter(user=request.user)
         serializer = AddressSerializer(addresses, many=True)
@@ -154,7 +154,6 @@ class AddressListView(APIView):
 
 
 class AddressCreateView(APIView):
-
     def post(self, request):
         serializer = AddressSerializer(data=request.data)
         if serializer.is_valid():
@@ -164,7 +163,6 @@ class AddressCreateView(APIView):
 
 
 class AddressUpdateView(APIView):
-
     def put(self, request, id, format=None):
         address = get_object_or_404(Address, id=id, user=request.user)
         serializer = AddressSerializer(address, data=request.data)
@@ -175,7 +173,6 @@ class AddressUpdateView(APIView):
 
 
 class AddressDeleteView(APIView):
-
     def delete(self, request, id, format=None):
         address = get_object_or_404(Address, id=id, user=request.user)
         address.delete()
@@ -183,7 +180,6 @@ class AddressDeleteView(APIView):
 
 
 class SetDefaultAddressView(APIView):
-
     def post(self, request, id, format=None):
         Address.objects.filter(user=request.user, is_default=True).update(
             is_default=False

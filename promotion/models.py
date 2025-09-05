@@ -2,9 +2,10 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
-from common.models import TimeStampedUUIDModel
 from django.db import models
 from django.utils.translation import gettext_lazy as _
+
+from common.models import TimeStampedUUIDModel
 from inventory.models import Inventory
 
 

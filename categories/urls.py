@@ -1,10 +1,10 @@
 from django.urls import path
 
 from .views import (
-    ListCategoriesView,
     CreateCategoryView,
-    ListMeasureUnitsView,
     CreateMeasureUnitView,
+    ListCategoriesView,
+    ListMeasureUnitsView,
 )
 
 urlpatterns = [

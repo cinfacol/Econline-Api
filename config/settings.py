@@ -1,13 +1,11 @@
 from datetime import timedelta
 from pathlib import Path
 
-from django.utils.translation import gettext_lazy as _
-from celery.schedules import crontab
-
 import environ
+from celery.schedules import crontab
+from django.utils.translation import gettext_lazy as _
 
-from config.logging import LOGGING
-from config.logging import setup_payment_logging
+from config.logging import LOGGING, setup_payment_logging
 
 setup_payment_logging()
 
@@ -19,9 +17,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 env = environ.Env(
     DEBUG=(bool, False),
-    ALLOWED_HOSTS=(
-        list, ["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "192.168.1.4"]
-        ),
+    ALLOWED_HOSTS=(list, ["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "192.168.1.4"]),
     CORS_ALLOWED_ORIGINS=(list, ["http://localhost:3000"]),
     AUTH_COOKIE_SECURE=(bool, False),
     REDIS_HOST=(str, "localhost"),
@@ -602,4 +598,3 @@ SERVIENTREGA_API_KEY = env("SERVIENTREGA_API_KEY", default="")
 SERVIENTREGA_USERNAME = env("SERVIENTREGA_USERNAME", default="")
 SERVIENTREGA_PASSWORD = env("SERVIENTREGA_PASSWORD", default="")
 SERVIENTREGA_ORIGIN_CODE = env("SERVIENTREGA_ORIGIN_CODE", default="")
-

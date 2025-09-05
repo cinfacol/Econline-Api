@@ -1,13 +1,13 @@
 from django.conf import settings
-from rest_framework import permissions, status
-from rest_framework.views import APIView
-from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema
+from rest_framework import permissions, status
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from products.models import Product
-from .serializers import UpdateProductReviewSerializer
 
 from .models import Review
+from .serializers import UpdateProductReviewSerializer
 
 User = settings.AUTH_USER_MODEL
 
@@ -19,7 +19,7 @@ class GetProductReviewsView(APIView):
     def get(self, request, productId, format=None):
         try:
             product_id = str(productId)
-        except:
+        except (TypeError, ValueError):
             return Response(
                 {"error": "Product ID must be an string"},
                 status=status.HTTP_404_NOT_FOUND,
@@ -52,7 +52,7 @@ class GetProductReviewsView(APIView):
 
             return Response({"reviews": results}, status=status.HTTP_200_OK)
 
-        except:
+        except Exception:
             return Response(
                 {"error": "Something went wrong when retrieving reviews"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -66,7 +66,7 @@ class GetProductReviewView(APIView):
 
         try:
             product_id = str(productId)
-        except:
+        except (TypeError, ValueError):
             return Response(
                 {"error": "Product ID must be an string"},
                 status=status.HTTP_404_NOT_FOUND,
@@ -92,7 +92,7 @@ class GetProductReviewView(APIView):
                 result["rater"] = review.rater.username
 
             return Response({"review": result}, status=status.HTTP_200_OK)
-        except:
+        except Exception:
             return Response(
                 {"error": "Something went wrong when retrieving review"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -106,14 +106,14 @@ class CreateProductReviewView(APIView):
 
         try:
             rating = float(data["rating"])
-        except:
+        except (TypeError, ValueError):
             return Response(
                 {"error": "Rating must be a decimal value"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         try:
             comment = str(data["comment"])
-        except:
+        except (TypeError, ValueError):
             return Response(
                 {"error": "Must pass a comment when creating review"},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -164,7 +164,7 @@ class CreateProductReviewView(APIView):
             return Response(
                 {"review": result, "reviews": results}, status=status.HTTP_201_CREATED
             )
-        except:
+        except Exception:
             return Response(
                 {"error": "Something went wrong when creating review"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -179,7 +179,7 @@ class UpdateProductReviewView(APIView):
 
         try:
             product_id = str(productId)
-        except:
+        except (TypeError, ValueError):
             return Response(
                 {"error": "Product ID must be an string"},
                 status=status.HTTP_404_NOT_FOUND,
@@ -187,14 +187,14 @@ class UpdateProductReviewView(APIView):
 
         try:
             review = float(data["review"])
-        except:
+        except Exception:
             return Response(
                 {"error": "Review must be a decimal value"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         try:
             comment = str(data["comment"])
-        except:
+        except (TypeError, ValueError):
             return Response(
                 {"error": "Must pass a comment when creating review"},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -247,7 +247,7 @@ class UpdateProductReviewView(APIView):
             return Response(
                 {"review": result, "reviews": results}, status=status.HTTP_200_OK
             )
-        except:
+        except Exception:
             return Response(
                 {"error": "Something went wrong when upating review"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -260,7 +260,7 @@ class DeleteProductReviewView(APIView):
 
         try:
             product_id = str(productId)
-        except:
+        except (TypeError, ValueError):
             return Response(
                 {"error": "Product ID must be an string"},
                 status=status.HTTP_404_NOT_FOUND,
@@ -299,7 +299,7 @@ class DeleteProductReviewView(APIView):
                     {"error": "Review for this product does not exist"},
                     status=status.HTTP_404_NOT_FOUND,
                 )
-        except:
+        except Exception:
             return Response(
                 {"error": "Something went wrong when deleting product review"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -312,7 +312,7 @@ class FilterProductReviewsView(APIView):
     def get(self, request, productId, format=None):
         try:
             product_id = str(productId)
-        except:
+        except (TypeError, ValueError):
             return Response(
                 {"error": "Product ID must be an string"},
                 status=status.HTTP_404_NOT_FOUND,
@@ -330,7 +330,7 @@ class FilterProductReviewsView(APIView):
 
         try:
             rating = float(rating)
-        except:
+        except (TypeError, ValueError):
             return Response(
                 {"error": "Rating must be a decimal value"},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -370,7 +370,7 @@ class FilterProductReviewsView(APIView):
                     results.append(item)
 
             return Response({"reviews": results}, status=status.HTTP_200_OK)
-        except:
+        except Exception:
             return Response(
                 {"error": "Something went wrong when filtering reviews for product"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,

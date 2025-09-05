@@ -1,12 +1,12 @@
 from django.urls import path
 
 from .views import (
-    GetProductReviewsView,
-    GetProductReviewView,
     CreateProductReviewView,
-    UpdateProductReviewView,
     DeleteProductReviewView,
     FilterProductReviewsView,
+    GetProductReviewsView,
+    GetProductReviewView,
+    UpdateProductReviewView,
 )
 
 urlpatterns = [

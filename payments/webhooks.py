@@ -1,21 +1,23 @@
 # payments/webhooks.py
 
+import logging
+from collections.abc import Callable
 from enum import Enum
-from typing import Dict, Callable
-from django.conf import settings
+
 import stripe
+from django.conf import settings
+
 from .tasks import (
+    handle_charge_succeeded_task,
     handle_checkout_session_completed_task,
-    handle_payment_intent_succeeded_task,
+    handle_checkout_session_expired_task,
     handle_payment_intent_payment_failed_task,
+    handle_payment_intent_succeeded_task,
     handle_refund_succeeded_task,
     handle_subscription_created_task,
-    handle_subscription_updated_task,
     handle_subscription_deleted_task,
-    handle_charge_succeeded_task,
-    handle_checkout_session_expired_task,
+    handle_subscription_updated_task,
 )
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +36,7 @@ class WebhookEventType(Enum):
 
 class WebhookHandler:
     def __init__(self):
-        self.handlers: Dict[str, Callable] = {
+        self.handlers: dict[str, Callable] = {
             WebhookEventType.CHECKOUT_SESSION_COMPLETED.value: handle_checkout_session_completed_task,
             WebhookEventType.CHECKOUT_SESSION_EXPIRED.value: handle_checkout_session_expired_task,
             WebhookEventType.PAYMENT_INTENT_SUCCEEDED.value: handle_payment_intent_succeeded_task,

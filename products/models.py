@@ -3,21 +3,16 @@ import string
 
 from autoslug import AutoSlugField
 from django.contrib.auth import get_user_model
-from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils.translation import gettext_lazy as _
-from django.urls import reverse
 
 from categories.models import Category
-from common.models import TimeStampedUUIDModel
-from common.models import IsActiveQueryset
-from common.models import PublishedManager
+from common.models import IsActiveQueryset, PublishedManager, TimeStampedUUIDModel
 
 User = get_user_model()
 
 
 class Product(TimeStampedUUIDModel):
-
     name = models.CharField(
         max_length=255,
     )
@@ -49,4 +44,4 @@ class Product(TimeStampedUUIDModel):
         self.ref_code = "".join(
             random.choices(string.ascii_uppercase + string.digits, k=10)
         )
-        super(Product, self).save(*args, **kwargs)
+        super().save(*args, **kwargs)

@@ -1,7 +1,6 @@
 from django.contrib import admin
-from django.utils.html import format_html
-from django.utils.translation import gettext_lazy as _
-from .models import Payment, PaymentMethod, Subscription, Refund
+
+from .models import Payment, PaymentMethod, Refund, Subscription
 
 
 @admin.register(Payment)

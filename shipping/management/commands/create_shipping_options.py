@@ -1,6 +1,8 @@
-from django.core.management.base import BaseCommand
-from shipping.models import Shipping
 from decimal import Decimal
+
+from django.core.management.base import BaseCommand
+
+from shipping.models import Shipping
 
 
 class Command(BaseCommand):
@@ -40,5 +42,5 @@ class Command(BaseCommand):
         for option in shipping_options:
             Shipping.objects.get_or_create(name=option["name"], defaults=option)
             self.stdout.write(
-                self.style.SUCCESS(f'Opción de envío creada: {option["name"]}')
+                self.style.SUCCESS(f"Opción de envío creada: {option['name']}")
             )

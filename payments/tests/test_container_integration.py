@@ -1,16 +1,16 @@
-from django.test import TestCase, override_settings
-from django.contrib.auth import get_user_model
-from django.utils import timezone
 from decimal import Decimal
-import stripe
-from unittest.mock import patch, MagicMock
-import redis
-from django.conf import settings
+from unittest.mock import MagicMock, patch
 
-from payments.models import Payment, PaymentMethod
-from payments.management.commands.wait_for_redis import Command
-from orders.models import Order
+import stripe
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.test import TestCase, override_settings
+from django.utils import timezone
+
 from cart.models import Cart
+from orders.models import Order
+from payments.management.commands.wait_for_redis import Command
+from payments.models import Payment, PaymentMethod
 from shipping.models import Shipping
 
 User = get_user_model()
@@ -133,13 +133,21 @@ class ContainerIntegrationTest(TestCase):
         # Importar las tareas debería funcionar sin errores
         try:
             from payments.tasks import (
-                handle_manual_payment_cancellation_task,
                 handle_checkout_session_expired_task,
+                handle_manual_payment_cancellation_task,
                 periodic_clean_expired_sessions_task,
             )
 
-            # Si llegamos aquí, no hay problemas de importación
-            self.assertTrue(True)
+            # Verificar que las funciones son callables
+            imported_tasks = [
+                handle_checkout_session_expired_task,
+                handle_manual_payment_cancellation_task,
+                periodic_clean_expired_sessions_task,
+            ]
+
+            for task in imported_tasks:
+                self.assertTrue(callable(task))
+
         except ImportError as e:
             self.fail(f"Error de importación: {e}")
 
@@ -217,7 +225,6 @@ class ContainerIntegrationTest(TestCase):
     def test_http_only_cookies_authentication(self):
         """Prueba la autenticación con cookies HTTP-only"""
         from django.test import Client
-        from django.urls import reverse
 
         client = Client()
 
@@ -233,7 +240,6 @@ class ContainerIntegrationTest(TestCase):
 
     def test_task_serialization_in_containers(self):
         """Prueba la serialización de tareas en contenedores"""
-        from payments.tasks import handle_manual_payment_cancellation_task
 
         # Crear datos de prueba
         payment_id = str(self.payment.id)
@@ -268,7 +274,7 @@ class ContainerIntegrationTest(TestCase):
             # Si existe, debería devolver 200
             if response.status_code == 200:
                 self.assertEqual(response.status_code, 200)
-        except:
+        except Exception:
             # Si no existe, no es un error
             pass
 

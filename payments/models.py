@@ -1,9 +1,9 @@
-import helpers
-from django.utils import timezone
 from django.db import models
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
-from common.models import TimeStampedUUIDModel
 from rest_framework.exceptions import ValidationError
+
+from common.models import TimeStampedUUIDModel
 from orders.models import Order
 from users.models import User
 
@@ -72,28 +72,28 @@ class Payment(TimeStampedUUIDModel):
         null=True, blank=True, help_text="Fecha y hora en que el pago fue confirmado."
     )
     # IDs de gateway
-    stripe_session_id = models.CharField(
+    stripe_session_id = models.CharField(  # noqa: DJ001
         max_length=255,
         null=True,
         blank=True,
         db_index=True,
         help_text="ID de sesión de Stripe (checkout).",
     )
-    stripe_payment_intent_id = models.CharField(
+    stripe_payment_intent_id = models.CharField(  # noqa: DJ001
         max_length=255,
         null=True,
         blank=True,
         db_index=True,
         help_text="ID de PaymentIntent de Stripe.",
     )
-    paypal_transaction_id = models.CharField(
+    paypal_transaction_id = models.CharField(  # noqa: DJ001
         max_length=255,
         null=True,
         blank=True,
         db_index=True,
         help_text="ID de transacción de PayPal.",
     )
-    external_reference = models.CharField(
+    external_reference = models.CharField(  # noqa: DJ001
         max_length=100,
         null=True,
         blank=True,
@@ -114,7 +114,7 @@ class Payment(TimeStampedUUIDModel):
         help_text="Monto de descuentos aplicados al pago.",
     )
     # Auditoría y trazabilidad
-    error_message = models.TextField(
+    error_message = models.TextField(  # noqa: DJ001
         null=True,
         blank=True,
         help_text="Mensaje de error devuelto por el gateway, si aplica.",
@@ -154,12 +154,16 @@ class Refund(TimeStampedUUIDModel):
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     currency = models.CharField(max_length=10, default="USD")
-    stripe_refund_id = models.CharField(max_length=100, null=True, blank=True)
-    paypal_refund_id = models.CharField(max_length=100, null=True, blank=True)
+    stripe_refund_id = models.CharField(
+        max_length=100, null=True, blank=True
+    )  # noqa: DJ001
+    paypal_refund_id = models.CharField(
+        max_length=100, null=True, blank=True
+    )  # noqa: DJ001
     reason = models.CharField(max_length=50)
     status = models.CharField(max_length=20)
     refunded_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
-    error_message = models.TextField(null=True, blank=True)
+    error_message = models.TextField(null=True, blank=True)  # noqa: DJ001
 
     def __str__(self):
         return f"Reembolso {self.id} - Pago {self.payment_id}"
@@ -177,11 +181,15 @@ class Subscription(TimeStampedUUIDModel):
     user = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="subscriptions"
     )
-    plan_id = models.CharField(max_length=100, null=True, blank=True)
+    plan_id = models.CharField(max_length=100, null=True, blank=True)  # noqa: DJ001
     amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     currency = models.CharField(max_length=10, default="USD")
-    stripe_subscription_id = models.CharField(max_length=100, null=True, blank=True)
-    paypal_subscription_id = models.CharField(max_length=100, null=True, blank=True)
+    stripe_subscription_id = models.CharField(
+        max_length=100, null=True, blank=True
+    )  # noqa: DJ001
+    paypal_subscription_id = models.CharField(
+        max_length=100, null=True, blank=True
+    )  # noqa: DJ001
     status = models.CharField(
         max_length=20,
         choices=SubscriptionStatus.choices,

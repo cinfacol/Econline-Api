@@ -1,14 +1,15 @@
 from django.urls import path
+
 from .views import (
-    GetItemsView,
     AddItemToCartView,
-    IncreaseQuantityView,
-    DecreaseQuantityView,
-    RemoveItemView,
-    ClearCartView,
     ApplyCouponView,  # Import the new view
-    RemoveCouponView,  # Import the new view
+    ClearCartView,
+    DecreaseQuantityView,
+    GetItemsView,
+    IncreaseQuantityView,
     RemoveAllCouponsView,  # Import the new view
+    RemoveCouponView,  # Import the new view
+    RemoveItemView,
 )
 
 urlpatterns = [

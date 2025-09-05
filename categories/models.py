@@ -1,12 +1,11 @@
+from autoslug import AutoSlugField
 from django.db import models
 from django.utils.translation import gettext_lazy as _
-from common.models import TimeStampedUUIDModel
-from common.models import IsActiveQueryset
-from autoslug import AutoSlugField
+
+from common.models import IsActiveQueryset, TimeStampedUUIDModel
 
 
 class MeasureUnit(TimeStampedUUIDModel):
-
     class MeasureType(models.TextChoices):
         UNITS = "Units", _("Units")
         GRAMS = "Grams", _("Grams")

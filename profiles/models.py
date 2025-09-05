@@ -2,7 +2,6 @@ from django.contrib.auth import get_user_model
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
-from phonenumber_field.modelfields import PhoneNumberField
 from common.models import TimeStampedUUIDModel
 
 User = get_user_model()
@@ -25,7 +24,7 @@ class Profile(TimeStampedUUIDModel):
         verbose_name=_("About me"), default="say something about yourself"
     )
     license = models.CharField(
-        verbose_name=_("Store License"), max_length=20, blank=True, null=True
+        verbose_name=_("Store License"), max_length=20, blank=True, default=""
     )
     profile_photo = models.ImageField(
         verbose_name=_("Profile Photo"),

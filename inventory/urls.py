@@ -1,18 +1,18 @@
 from django.urls import path
 
 from .views import (
+    BrandCreateAPIView,
+    BrandListAPIView,
     InventoryByCategoryAPIView,
+    InventoryByRefCode,
+    InventoryDetailView,
+    InventoryImages,
     InventoryListAPIView,
     ListUsersInventoryAPIView,
-    InventoryDetailView,
-    InventoryByRefCode,
-    InventoryImages,
-    BrandListAPIView,
-    update_inventory_api_view,
     create_inventory_api_view,
     delete_inventory_api_view,
     search_api_view,
-    BrandCreateAPIView,
+    update_inventory_api_view,
 )
 
 urlpatterns = [

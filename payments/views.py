@@ -1,72 +1,61 @@
 # Standard Library
-import uuid
+import json
 import logging
 import time
+import uuid
 from decimal import Decimal
-import json
 
 # Third-party
+import stripe
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
-from django.utils import timezone
-from django.shortcuts import get_object_or_404
-from django.db import transaction
 from django.conf import settings
-from django.core.cache import cache
-from django.utils.decorators import method_decorator
-from django.utils.translation import gettext as _
-from django.views.decorators.csrf import csrf_protect, csrf_exempt
-from rest_framework import status, viewsets, permissions, filters
-from rest_framework.decorators import action
-
-# Definir User correctamente para todo el archivo
 from django.contrib.auth import get_user_model
-
-from rest_framework.response import Response
+from django.core.cache import cache
+from django.db import transaction
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from django.utils.translation import gettext as _
+from django.views.decorators.csrf import csrf_exempt
+from rest_framework import filters, permissions, status, viewsets
+from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
+from rest_framework.response import Response
 from rest_framework.throttling import UserRateThrottle
 
-User = get_user_model()
-import stripe
-
 # Local/First-party
-from config.celery import app as celery_app
 from cart.models import Cart
+from coupons.models import Coupon, CouponUsage
 from orders.models import Order, OrderItem
 from shipping.models import Shipping
 from shipping.services import ServientregaService
-from .models import Payment, PaymentMethod, Subscription, Refund
-from .serializers import (
-    PaymentSerializer,
-    PaymentMethodSerializer,
-    SubscriptionSerializer,
-    CheckoutSerializer,
-    PaymentTotalSerializer,
-    CheckoutSessionSerializer,
-    PaymentVerificationSerializer,
-)
+
+from .models import Payment, PaymentMethod, Refund, Subscription
 from .permissions import (
     IsPaymentByUser,
-    IsPaymentPending,
-    IsPaymentForOrderNotCompleted,
-    DoesOrderHaveAddress,
+)
+from .serializers import (
+    CheckoutSessionSerializer,
+    PaymentMethodSerializer,
+    PaymentSerializer,
+    SubscriptionSerializer,
 )
 from .tasks import (
     handle_checkout_session_completed_task,
-    handle_payment_intent_succeeded_task,
     handle_payment_intent_payment_failed_task,
+    handle_payment_intent_succeeded_task,
     handle_refund_succeeded_task,
     handle_subscription_created_task,
-    handle_subscription_updated_task,
     handle_subscription_deleted_task,
+    handle_subscription_updated_task,
     send_payment_success_email_task,
-    send_subscription_welcome_email,
     send_subscription_canceled_email,
-    clean_expired_sessions_task,
+    send_subscription_welcome_email,
 )
 from .webhooks import WebhookHandler
-from coupons.models import CouponUsage, Coupon
 
+# Definir User correctamente para todo el archivo
+User = get_user_model()
 stripe.api_key = settings.STRIPE_SECRET_KEY
 logger = logging.getLogger("payments")
 
@@ -258,8 +247,8 @@ class StripeClient:
 class PaymentService:
     def process_checkout(self, user, cart, shipping):
         with transaction.atomic():
-            order = self.create_order(...)
-            payment = self.create_payment(...)
+            self.create_order(...)
+            self.create_payment(...)
             session = self.create_stripe_session(...)
             return session
 
@@ -2442,6 +2431,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
         try:
             from celery.result import AsyncResult
+
             from config.celery import app as celery_app
 
             # Obtener el resultado de la tarea
@@ -2547,9 +2537,9 @@ class PaymentViewSet(viewsets.ModelViewSet):
                     "message": f"Encontrados {len(payments)} pagos para probar",
                     "payments": payment_info,
                     "test_endpoints": {
-                        "cancel": f"POST /api/payments/{{payment_id}}/cancel/",
-                        "status": f"GET /api/payments/{{payment_id}}/status/",
-                        "sync": f"POST /api/payments/{{payment_id}}/sync_status/",
+                        "cancel": "POST /api/payments/{payment_id}/cancel/",
+                        "status": "GET /api/payments/{payment_id}/status/",
+                        "sync": "POST /api/payments/{payment_id}/sync_status/",
                     },
                 },
                 status=status.HTTP_200_OK,

@@ -21,5 +21,5 @@ class IsActiveQueryset(models.QuerySet):
 class PublishedManager(models.Manager):
     def get_queryset(self):
         return (
-            super(PublishedManager, self).get_queryset().filter(published_status=True)
+            super().get_queryset().filter(published_status=True)
         )

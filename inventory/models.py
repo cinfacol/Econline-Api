@@ -1,23 +1,20 @@
-import helpers
+import random
+import string
 from decimal import Decimal
 
+from autoslug import AutoSlugField
+from cloudinary.models import CloudinaryField
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils.text import slugify
 
 # from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
-import random
-import string
 
-from autoslug import AutoSlugField
-from django.contrib.auth import get_user_model
-
-from cloudinary.models import CloudinaryField
-from common.models import TimeStampedUUIDModel, IsActiveQueryset, PublishedManager
+import helpers
+from common.models import IsActiveQueryset, PublishedManager, TimeStampedUUIDModel
 from products.models import Product
 from users.models import User
-from .fields import OrderField
 
 helpers.cloudinary_init()
 
@@ -70,7 +67,6 @@ class Brand(TimeStampedUUIDModel):
 
 
 class Inventory(TimeStampedUUIDModel):
-
     class StateType(models.TextChoices):
         NEW = "New", _("New")
         USED = "Used", _("Used")
@@ -166,7 +162,7 @@ class Inventory(TimeStampedUUIDModel):
     def save(self, *args, **kwargs):
         self.upc = "".join(random.choices(string.digits, k=12))
         self.sku = "".join(random.choices(string.digits, k=10))
-        super(Inventory, self).save(*args, **kwargs)
+        super().save(*args, **kwargs)
 
 
 class InventoryViews(TimeStampedUUIDModel):

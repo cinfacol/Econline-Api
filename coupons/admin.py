@@ -1,5 +1,6 @@
 from django.contrib import admin
-from .models import Coupon, FixedPriceCoupon, PercentageCoupon, Campaign, CouponUsage
+
+from .models import Campaign, Coupon, CouponUsage, FixedPriceCoupon, PercentageCoupon
 
 
 @admin.register(FixedPriceCoupon)

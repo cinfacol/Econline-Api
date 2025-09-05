@@ -1,16 +1,17 @@
 from django.urls import path, re_path
+
 from .views import (
+    AddressCreateView,
+    AddressDeleteView,
+    AddressDetailView,
+    AddressListView,
+    AddressUpdateView,
     CustomProviderAuthView,
     CustomTokenObtainPairView,
     CustomTokenRefreshView,
     CustomTokenVerifyView,
-    LogoutView,
     HealthView,
-    AddressDetailView,
-    AddressListView,
-    AddressCreateView,
-    AddressUpdateView,
-    AddressDeleteView,
+    LogoutView,
     SetDefaultAddressView,
 )
 

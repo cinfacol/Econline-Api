@@ -1,11 +1,14 @@
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-from .models import Order, OrderItem
-from django.utils import timezone
 import datetime
 import logging
+
+from django.utils import timezone
+from rest_framework import status
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
 from coupons.models import CouponUsage
+
+from .models import Order, OrderItem
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +41,12 @@ class ListOrdersView(APIView):
                         shipping_cost = standard_cost
                 item["shipping_price"] = shipping_cost
                 item["created_at"] = order.created_at
-                item["address_line_1"] = order.address.address_line_1 if order.address else ""
-                item["address_line_2"] = order.address.address_line_2 if order.address else ""
+                item["address_line_1"] = (
+                    order.address.address_line_1 if order.address else ""
+                )
+                item["address_line_2"] = (
+                    order.address.address_line_2 if order.address else ""
+                )
 
                 # Buscar cupón aplicado a la orden
                 coupon_usage = CouponUsage.objects.filter(order=order).first()
@@ -60,18 +67,23 @@ class ListOrdersView(APIView):
                     # Obtener la imagen principal (destacada o la primera)
                     image_url = None
                     if inventory:
-                        featured = getattr(inventory, 'inventory_media', None)
+                        featured = getattr(inventory, "inventory_media", None)
                         if featured and featured.exists():
                             # Buscar la destacada
-                            featured_img = featured.filter(is_featured=True).first() or featured.first()
+                            featured_img = (
+                                featured.filter(is_featured=True).first()
+                                or featured.first()
+                            )
                             if featured_img:
                                 image_url = str(featured_img.image)
-                    item["order_items"].append({
-                        "name": order_item.name,
-                        "price": order_item.price,
-                        "count": order_item.count,
-                        "image": image_url,
-                    })
+                    item["order_items"].append(
+                        {
+                            "name": order_item.name,
+                            "price": order_item.price,
+                            "count": order_item.count,
+                            "image": image_url,
+                        }
+                    )
 
                 result.append(item)
 

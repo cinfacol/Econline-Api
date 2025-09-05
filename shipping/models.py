@@ -1,8 +1,11 @@
 import logging
-from django.db import models
-from common.models import TimeStampedUUIDModel
 from decimal import Decimal
+
+from django.db import models
+from django.utils.translation import gettext_lazy as _
 from rest_framework.exceptions import ValidationError
+
+from common.models import TimeStampedUUIDModel
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +38,9 @@ class Shipping(TimeStampedUUIDModel):
     is_active = models.BooleanField(default=True)
 
     # Nuevo campo para método de envío por defecto
-    is_default = models.BooleanField(default=False, help_text="Marcar como método de envío predeterminado")
+    is_default = models.BooleanField(
+        default=False, help_text="Marcar como método de envío predeterminado"
+    )
 
     # Campos para cálculo de costos
     free_shipping_threshold = models.DecimalField(

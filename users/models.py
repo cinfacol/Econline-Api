@@ -2,13 +2,13 @@ import uuid
 
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db import models
-
-from .countries import Countries
-from phonenumber_field.modelfields import PhoneNumberField
-from common.models import TimeStampedUUIDModel
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+from phonenumber_field.modelfields import PhoneNumberField
 
+from common.models import TimeStampedUUIDModel
+
+from .countries import Countries
 from .management.managers import CustomUserManager
 
 
@@ -26,7 +26,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         verbose_name=_("Stripe Customer ID"),
         max_length=100,
         blank=True,
-        null=True,
+        default="",
         help_text=_("Customer ID from Stripe payment system"),
     )
 
@@ -80,10 +80,9 @@ class User(AbstractBaseUser, PermissionsMixin):
 
 
 class Address(TimeStampedUUIDModel):
-
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     address_line_1 = models.CharField(max_length=255)
-    address_line_2 = models.CharField(max_length=255, blank=True, null=True)
+    address_line_2 = models.CharField(max_length=255, blank=True, default="")
     city = models.CharField(max_length=100, verbose_name=_("City"))
     state_province_region = models.CharField(max_length=100, verbose_name=_("State"))
     postal_zip_code = models.CharField(max_length=20, verbose_name=_("Zip Code"))

@@ -1,17 +1,17 @@
-import helpers
-from cloudinary import CloudinaryImage
-from django.utils.html import format_html
 from django.contrib import admin
+from django.utils.html import format_html
+
+import helpers
 
 from .models import (
-    Media,
-    Inventory,
-    Brand,
     Attribute,
     AttributeValue,
+    Brand,
+    Inventory,
+    InventoryViews,
+    Media,
     Stock,
     Type,
-    InventoryViews,
 )
 
 

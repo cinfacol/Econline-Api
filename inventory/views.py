@@ -1,22 +1,20 @@
-from .models import Brand
-from .serializers import BrandSerializer
-
-
 import django_filters
-from rest_framework import generics, permissions, filters, status
-from rest_framework.decorators import api_view, permission_classes
-from django_filters.rest_framework import DjangoFilterBackend
 from django.utils.translation import gettext_lazy as _
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters, generics, permissions, status
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .models import Inventory, InventoryViews, Media
+
 from .exceptions import InventoryNotFound
+from .models import Brand, Inventory, InventoryViews
 from .pagination import InventoryPagination
 from .serializers import (
-    InventorySerializer,
-    InventoryViewSerializer,
+    BrandSerializer,
     InventoryCreateSerializer,
     InventoryImagesSerializer,
+    InventorySerializer,
+    InventoryViewSerializer,
 )
 
 
@@ -35,7 +33,6 @@ class BrandCreateAPIView(generics.CreateAPIView):
 
 
 class InventoryFilter(django_filters.FilterSet):
-
     type__slug = django_filters.CharFilter(lookup_expr="icontains")
     quality = django_filters.CharFilter(field_name="quality", lookup_expr="iexact")
     retail_price = django_filters.NumberFilter()
@@ -67,7 +64,6 @@ class InventoryListAPIView(generics.ListAPIView):
 
 
 class ListUsersInventoryAPIView(generics.ListAPIView):
-
     serializer_class = InventorySerializer
     pagination_class = InventoryPagination
     filter_backends = [

@@ -1,10 +1,10 @@
-from django.db import models
 from django.conf import settings
+from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from common.models import TimeStampedUUIDModel
-from products.models import Product
 from inventory.models import Inventory
+from products.models import Product
 
 User = settings.AUTH_USER_MODEL
 
@@ -45,7 +45,7 @@ class Review(TimeStampedUUIDModel):
         help_text="1=Poor, 2=Fair, 3=Good, 4=Very Good, 5=Excellent",
         default=0,
     )
-    comment = models.TextField(verbose_name=_("Comment"), blank=True, null=True)
+    comment = models.TextField(verbose_name=_("Comment"), blank=True, default="")
 
     class Meta:
         unique_together = ["rater", "inventory"]

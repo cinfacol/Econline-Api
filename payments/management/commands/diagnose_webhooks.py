@@ -3,13 +3,13 @@
 Script de diagnóstico para verificar la conectividad de webhooks de Stripe
 """
 
-from django.core.management.base import BaseCommand
-from django.conf import settings
-import stripe
-import requests
-import json
 import logging
 from datetime import datetime, timedelta
+
+import requests
+import stripe
+from django.conf import settings
+from django.core.management.base import BaseCommand
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +69,7 @@ class Command(BaseCommand):
                 response = requests.get(url, timeout=10)
                 if response.status_code == 405:
                     self.stdout.write(
-                        self.style.SUCCESS(f"    ✅ Endpoint accesible (405 esperado)")
+                        self.style.SUCCESS("    ✅ Endpoint accesible (405 esperado)")
                     )
                 else:
                     self.stdout.write(
@@ -101,7 +101,7 @@ class Command(BaseCommand):
                 # Verificar si es nuestro endpoint
                 if "virtualeline.com" in endpoint.url or "econline" in endpoint.url:
                     self.stdout.write(
-                        self.style.SUCCESS(f"    ✅ Este parece ser nuestro endpoint")
+                        self.style.SUCCESS("    ✅ Este parece ser nuestro endpoint")
                     )
 
                     # Verificar eventos críticos
@@ -158,7 +158,7 @@ class Command(BaseCommand):
                     payment_id = event.data.object.get("metadata", {}).get("payment_id")
                     if payment_id:
                         self.stdout.write(f"    💳 Payment ID: {payment_id}")
-                except:
+                except (AttributeError, KeyError):
                     pass
 
         except Exception as e:

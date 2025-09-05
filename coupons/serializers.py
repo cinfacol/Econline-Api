@@ -1,7 +1,9 @@
 from rest_framework import serializers
-from .models import FixedPriceCoupon, PercentageCoupon, Coupon, Campaign, CouponUsage
+
 from categories.models import Category
 from inventory.models import Inventory
+
+from .models import Campaign, Coupon, CouponUsage, FixedPriceCoupon, PercentageCoupon
 
 
 class FixedPriceCouponSerializer(serializers.ModelSerializer):

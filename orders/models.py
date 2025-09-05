@@ -1,18 +1,14 @@
 from django.db import models
-from django.conf import settings
-from django.utils.translation import gettext_lazy as _
 from django.utils.functional import cached_property
-from django.utils import timezone
-from .contries import Countries
+from django.utils.translation import gettext_lazy as _
 
-from inventory.models import Inventory
 from common.models import TimeStampedUUIDModel
-from users.models import User, Address
+from inventory.models import Inventory
 from shipping.models import Shipping
+from users.models import Address, User
 
 
 class Order(TimeStampedUUIDModel):
-
     class OrderStatus(models.TextChoices):
         PENDING = "PENDING", _("Pending")
         COMPLETED = "COMPLETED", _("Completed")

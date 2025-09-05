@@ -1,10 +1,11 @@
 from django.urls import path
+
 from .views import (
-    CouponListView,
+    CampaignView,
     CheckCouponView,
     CouponDetailView,
+    CouponListView,
     CouponUsageView,
-    CampaignView,
 )
 
 urlpatterns = [

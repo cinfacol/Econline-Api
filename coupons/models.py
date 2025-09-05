@@ -1,12 +1,14 @@
 import uuid
+
+from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
-from inventory.models import Inventory
 from categories.models import Category
-from orders.models import Order
-from django.conf import settings
 from common.models import TimeStampedUUIDModel
+from inventory.models import Inventory
+from orders.models import Order
+
 from .fields import UpperCaseCharField
 
 User = settings.AUTH_USER_MODEL
@@ -119,12 +121,4 @@ class Campaign(TimeStampedUUIDModel):
     )
 
     def __str__(self):
-        return "{} - {} - {} - {} - {} - {} - {}".format(
-            self.discount_type,
-            self.discount_rate,
-            self.discount_amount,
-            self.min_purchased_items,
-            self.apply_to,
-            self.target_product,
-            self.target_category,
-        )
+        return f"{self.discount_type} - {self.discount_rate} - {self.discount_amount} - {self.min_purchased_items} - {self.apply_to} - {self.target_product} - {self.target_category}"

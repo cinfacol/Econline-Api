@@ -1,18 +1,16 @@
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status, permissions
-from rest_framework.decorators import action
-from rest_framework.viewsets import ModelViewSet
-from django.utils.translation import gettext_lazy as _
-from django.core.cache import cache
-from django.conf import settings
-from .models import Shipping
-from .serializers import ShippingSerializer, ShippingCalculationSerializer
-from .services import ServientregaService
-from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample
 import logging
 from decimal import Decimal
-from django.db.models import Q
+
+from django.utils.translation import gettext_lazy as _
+from drf_spectacular.utils import OpenApiExample, OpenApiParameter, extend_schema
+from rest_framework import permissions, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.viewsets import ModelViewSet
+
+from .models import Shipping
+from .serializers import ShippingCalculationSerializer, ShippingSerializer
+from .services import ServientregaService
 
 logger = logging.getLogger(__name__)
 

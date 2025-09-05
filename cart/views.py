@@ -1,27 +1,24 @@
 from decimal import Decimal
 
 from django.db import transaction
-from django.db.models import F
-from django.shortcuts import get_object_or_404
 from rest_framework import status
-from rest_framework.parsers import JSONParser
 from rest_framework.permissions import (
-    IsAuthenticated,
     IsAdminUser,
+    IsAuthenticated,
 )
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from coupons.models import Coupon
 from coupons.serializers import CouponSerializer
-from inventory.models import Inventory
-
-from .models import Cart, CartItem, DeliveryCost
-from .serializers import CartSerializer, CartItemSerializer, DeliveryCostSerializer
 from coupons.views import (
     CheckCouponView,
     calculate_total_coupon_discount,
 )  # Import CheckCouponView and the new utility function
+from inventory.models import Inventory
+
+from .models import Cart, CartItem, DeliveryCost
+from .serializers import CartItemSerializer, CartSerializer, DeliveryCostSerializer
 
 
 class GetItemsView(APIView):
@@ -150,7 +147,7 @@ class AddItemToCartView(APIView):
             )
 
         with transaction.atomic():
-            cart_item = CartItem.objects.create(
+            CartItem.objects.create(
                 inventory=inventory, cart=cart, quantity=quantity
             )
             # Update total_items in the cart
@@ -577,23 +574,23 @@ class RemoveCouponView(APIView):
             )
 
         cart, _ = Cart.objects.get_or_create(user=user)
-        
+
         try:
             coupon = Coupon.objects.get(code=coupon_code)
-            
+
             # Check if the coupon is actually applied to the cart
             if cart.coupons.filter(id=coupon.id).exists():
                 cart.coupons.remove(coupon)
                 cart.save()
-                
+
                 # Recalculate total after removing the coupon
                 total_discount = calculate_total_coupon_discount(cart, user)
                 subtotal = cart.get_total()
                 final_total = subtotal - total_discount
                 final_total = max(Decimal("0"), final_total)
-                
+
                 serialized_cart = CartSerializer(cart).data
-                
+
                 return Response(
                     {
                         "message": f"Cupón {coupon_code} removido exitosamente",
@@ -609,7 +606,7 @@ class RemoveCouponView(APIView):
                     {"error": f"El cupón {coupon_code} no está aplicado al carrito"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-                
+
         except Coupon.DoesNotExist:
             return Response(
                 {"error": f"Cupón {coupon_code} no encontrado"},
@@ -623,28 +620,28 @@ class RemoveAllCouponsView(APIView):
     def post(self, request, format=None):
         user = request.user
         cart, _ = Cart.objects.get_or_create(user=user)
-        
+
         # Get the number of coupons before clearing
         coupons_count = cart.coupons.count()
-        
+
         if coupons_count == 0:
             return Response(
                 {"message": "No hay cupones aplicados al carrito"},
                 status=status.HTTP_200_OK,
             )
-        
+
         # Clear all coupons
         cart.coupons.clear()
         cart.save()
-        
+
         # Recalculate total after removing all coupons
         total_discount = calculate_total_coupon_discount(cart, user)
         subtotal = cart.get_total()
         final_total = subtotal - total_discount
         final_total = max(Decimal("0"), final_total)
-        
+
         serialized_cart = CartSerializer(cart).data
-        
+
         return Response(
             {
                 "message": f"Se removieron {coupons_count} cupón(es) del carrito",

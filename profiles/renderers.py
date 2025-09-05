@@ -10,6 +10,6 @@ class ProfileJSONRenderer(JSONRenderer):
         errors = data.get("errors", None)
 
         if errors is not None:
-            return super(ProfileJSONRenderer, self).render(data)
+            return super().render(data)
 
         return json.dumps({"profile": data})

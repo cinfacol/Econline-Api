@@ -3,8 +3,9 @@ Comando de administración para procesar webhooks pendientes de Stripe
 """
 
 import stripe
-from django.core.management.base import BaseCommand
 from django.conf import settings
+from django.core.management.base import BaseCommand
+
 from payments.models import Payment
 from payments.webhooks import WebhookHandler
 
@@ -46,10 +47,9 @@ class Command(BaseCommand):
             )
 
         stripe.api_key = settings.STRIPE_SECRET_KEY
-        webhook_handler = WebhookHandler()
+        WebhookHandler()
 
         # Calcular timestamp para buscar eventos
-        import time
         from datetime import datetime, timedelta
 
         since_time = datetime.now() - timedelta(hours=hours)
@@ -130,7 +130,7 @@ class Command(BaseCommand):
 
             # Resumen
             self.stdout.write("\n" + "=" * 50)
-            self.stdout.write(f"📊 Resumen:")
+            self.stdout.write("📊 Resumen:")
             self.stdout.write(f"   • Eventos procesados: {processed_count}")
             if not dry_run:
                 self.stdout.write(f"   • Pagos actualizados: {updated_count}")

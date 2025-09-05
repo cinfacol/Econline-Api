@@ -1,7 +1,8 @@
 from rest_framework import serializers
 
-from .models import Product
 from categories.models import Category
+
+from .models import Product
 
 # from reviews.models import Review
 
@@ -9,7 +10,6 @@ from categories.models import Category
 
 
 class ProductSerializer(serializers.ModelSerializer):
-
     # Permitir que acepte los UUID de las categorías
     category = serializers.SlugRelatedField(
         queryset=Category.objects.all(), slug_field="id", many=True

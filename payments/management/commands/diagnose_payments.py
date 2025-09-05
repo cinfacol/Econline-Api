@@ -3,13 +3,15 @@
 Script de diagnóstico para verificar el estado de pagos y sincronización con Stripe
 """
 
-from django.core.management.base import BaseCommand
-from django.utils import timezone
-from payments.models import Payment
-from orders.models import Order
+import logging
+
 import stripe
 from django.conf import settings
-import logging
+from django.core.management.base import BaseCommand
+from django.utils import timezone
+
+from orders.models import Order
+from payments.models import Payment
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +42,7 @@ class Command(BaseCommand):
         fix_issues = options.get("fix")
         days_back = options.get("days")
 
-        self.stdout.write(self.style.SUCCESS(f"🔍 Iniciando diagnóstico de pagos..."))
+        self.stdout.write(self.style.SUCCESS("🔍 Iniciando diagnóstico de pagos..."))
 
         if payment_id:
             self.diagnose_single_payment(payment_id, fix_issues)
@@ -93,7 +95,7 @@ class Command(BaseCommand):
         )
 
         if not payment.stripe_session_id:
-            self.stdout.write(f"    ⚠️  Sin session_id de Stripe")
+            self.stdout.write("    ⚠️  Sin session_id de Stripe")
             return "no_stripe"
 
         try:
@@ -117,7 +119,7 @@ class Command(BaseCommand):
                     self.fix_payment_discrepancy(payment, session)
                     return "fixed"
                 else:
-                    self.stdout.write(f"    💡 Usa --fix para corregir automáticamente")
+                    self.stdout.write("    💡 Usa --fix para corregir automáticamente")
                     return "discrepancy"
 
             elif (
@@ -126,13 +128,13 @@ class Command(BaseCommand):
             ):
                 self.stdout.write(
                     self.style.ERROR(
-                        f"    ❌ PROBLEMA: Local dice 'completed' pero Stripe dice 'unpaid'"
+                        "    ❌ PROBLEMA: Local dice 'completed' pero Stripe dice 'unpaid'"
                     )
                 )
                 return "discrepancy"
 
             else:
-                self.stdout.write(f"    ✅ Estados sincronizados")
+                self.stdout.write("    ✅ Estados sincronizados")
                 return (
                     "completed"
                     if payment.status == Payment.PaymentStatus.COMPLETED
@@ -147,7 +149,7 @@ class Command(BaseCommand):
 
     def fix_payment_discrepancy(self, payment, session):
         try:
-            self.stdout.write(f"    🔧 Corrigiendo discrepancia...")
+            self.stdout.write("    🔧 Corrigiendo discrepancia...")
 
             payment.status = Payment.PaymentStatus.COMPLETED
             payment.paid_at = timezone.now()
@@ -158,7 +160,7 @@ class Command(BaseCommand):
             payment.order.save()
 
             self.stdout.write(
-                self.style.SUCCESS(f"    ✅ Pago y orden marcados como completados")
+                self.style.SUCCESS("    ✅ Pago y orden marcados como completados")
             )
 
         except Exception as e:

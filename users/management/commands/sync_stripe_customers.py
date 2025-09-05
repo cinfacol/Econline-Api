@@ -1,8 +1,9 @@
-from django.core.management.base import BaseCommand
-from django.db import transaction
-from users.models import User
 import stripe
 from django.conf import settings
+from django.core.management.base import BaseCommand
+from django.db import transaction
+
+from users.models import User
 
 
 class Command(BaseCommand):

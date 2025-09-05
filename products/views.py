@@ -1,7 +1,8 @@
 from rest_framework import generics, permissions
+
 from .models import Product
-from .serializers import ProductSerializer
 from .pagination import ProductPagination
+from .serializers import ProductSerializer
 
 
 # Listar productos (paginado)

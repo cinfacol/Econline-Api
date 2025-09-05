@@ -1,9 +1,10 @@
 from rest_framework import serializers
 
 from orders.models import Order
-from .models import Payment, PaymentMethod, Subscription
 from users.models import Address
 from users.serializers import AddressSerializer
+
+from .models import Payment, PaymentMethod, Subscription
 
 
 class PaymentMethodSerializer(serializers.ModelSerializer):
@@ -89,45 +90,48 @@ class CheckoutSessionSerializer(serializers.Serializer):
     )
     coupon_id = serializers.UUIDField(required=False, allow_null=True)
     total_amount = serializers.DecimalField(
-        max_digits=10, 
-        decimal_places=2, 
+        max_digits=10,
+        decimal_places=2,
         required=False,
-        help_text="Monto total calculado en el frontend"
+        help_text="Monto total calculado en el frontend",
     )
     subtotal = serializers.DecimalField(
-        max_digits=10, 
-        decimal_places=2, 
+        max_digits=10,
+        decimal_places=2,
         required=False,
-        help_text="Subtotal calculado en el frontend"
+        help_text="Subtotal calculado en el frontend",
     )
     shipping_cost = serializers.DecimalField(
-        max_digits=10, 
-        decimal_places=2, 
+        max_digits=10,
+        decimal_places=2,
         required=False,
-        help_text="Costo de envío calculado en el frontend"
+        help_text="Costo de envío calculado en el frontend",
     )
     discount = serializers.DecimalField(
-        max_digits=10, 
-        decimal_places=2, 
+        max_digits=10,
+        decimal_places=2,
         required=False,
-        help_text="Descuento aplicado calculado en el frontend"
+        help_text="Descuento aplicado calculado en el frontend",
     )
 
     def validate(self, data):
         """
         Validación personalizada para asegurar que los valores decimales sean válidos
         """
-        decimal_fields = ['total_amount', 'subtotal', 'shipping_cost', 'discount']
-        
+        decimal_fields = ["total_amount", "subtotal", "shipping_cost", "discount"]
+
         for field in decimal_fields:
             if field in data and data[field] is not None:
                 try:
                     # Convertir a Decimal para validar
                     from decimal import Decimal
+
                     Decimal(str(data[field]))
                 except (ValueError, TypeError):
-                    raise serializers.ValidationError(f"El campo {field} debe ser un número válido")
-        
+                    raise serializers.ValidationError(
+                        f"El campo {field} debe ser un número válido"
+                    )
+
         return data
 
 

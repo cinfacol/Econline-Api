@@ -1,14 +1,13 @@
 import logging
-from django.db import models
+from decimal import Decimal
+
 from django.contrib.auth import get_user_model
+from django.db import models
 from django.db.models.manager import Manager
 
 from common.models import TimeStampedUUIDModel
-from inventory.models import Inventory
 from coupons.models import Coupon
-from coupons.views import CheckCouponView  # Assuming this is the correct import path
-
-from decimal import Decimal
+from inventory.models import Inventory
 
 logger = logging.getLogger(__name__)
 

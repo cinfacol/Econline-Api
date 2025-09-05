@@ -1,15 +1,17 @@
-from celery import shared_task
+import logging
 from decimal import Decimal
-from .models import Payment, Refund, Subscription, SubscriptionHistory
-from django.utils import timezone
-from orders.models import Order
-from cart.models import Cart
-from django.db import transaction
+
+from celery import shared_task
 from django.conf import settings
 from django.core.mail import send_mail
+from django.db import transaction
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-import logging
+from cart.models import Cart
+from orders.models import Order
+
+from .models import Payment, Refund, Subscription, SubscriptionHistory
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +95,7 @@ def handle_checkout_session_completed_task(session_data):
     # Guardar dirección de envío de Stripe en la orden (después de obtener payment, order y session_id)
     try:
         import stripe
+
         from orders.models import Address
 
         stripe.api_key = settings.STRIPE_SECRET_KEY
@@ -132,11 +135,11 @@ def handle_checkout_session_completed_task(session_data):
                 )
             else:
                 logger.warning(
-                    f"No se encontraron shipping_details o el usuario de la orden no está definido"
+                    "No se encontraron shipping_details o el usuario de la orden no está definido"
                 )
         else:
             logger.warning(
-                f"No se recibió session_id para recuperar la sesión de Stripe"
+                "No se recibió session_id para recuperar la sesión de Stripe"
             )
     except Exception as e:
         logger.error(
@@ -248,10 +251,10 @@ def handle_payment_intent_succeeded_task(payment_intent_data):
                     f"[POST] Estado final order.address: {order.address.id if order.address else None} | Datos: {order.address.address_line_1 if order.address else None}, {order.address.address_line_2 if order.address else None}"
                 )
             else:
-                logger.warning(f"No se encontró address dentro de shipping_details")
+                logger.warning("No se encontró address dentro de shipping_details")
         else:
             logger.warning(
-                f"No se encontraron shipping_details o el usuario de la orden no está definido"
+                "No se encontraron shipping_details o el usuario de la orden no está definido"
             )
     except Exception as e:
         logger.error(
@@ -623,9 +626,10 @@ def handle_manual_payment_cancellation_task(
     try:
         # Importar aquí para evitar problemas de importación circular en contenedores
         from django.db import transaction
-        from payments.models import Payment
-        from orders.models import Order
+
         from cart.models import Cart
+        from orders.models import Order
+        from payments.models import Payment
 
         payment = Payment.objects.select_related("order", "user").get(id=payment_id)
     except Payment.DoesNotExist:
@@ -885,11 +889,11 @@ def handle_charge_succeeded_task(charge_data):
                         )
                     else:
                         logger.warning(
-                            f"No se encontró address dentro de shipping_details"
+                            "No se encontró address dentro de shipping_details"
                         )
                 else:
                     logger.warning(
-                        f"No se encontraron shipping_details o el usuario de la orden no está definido"
+                        "No se encontraron shipping_details o el usuario de la orden no está definido"
                     )
             except Exception as e:
                 logger.error(
@@ -956,7 +960,7 @@ def periodic_clean_expired_sessions_task(self):
     try:
         import stripe
         from django.conf import settings
-        from django.db import transaction
+
         from payments.models import Payment
 
         stripe.api_key = settings.STRIPE_SECRET_KEY
@@ -1042,7 +1046,7 @@ def clean_expired_sessions_task(self):
     try:
         import stripe
         from django.conf import settings
-        from django.db import transaction
+
         from payments.models import Payment
 
         stripe.api_key = settings.STRIPE_SECRET_KEY
