@@ -154,12 +154,12 @@ class Refund(TimeStampedUUIDModel):
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     currency = models.CharField(max_length=10, default="USD")
-    stripe_refund_id = models.CharField(
+    stripe_refund_id = models.CharField(  # noqa: DJ001
         max_length=100, null=True, blank=True
-    )  # noqa: DJ001
-    paypal_refund_id = models.CharField(
+    )
+    paypal_refund_id = models.CharField(  # noqa: DJ001
         max_length=100, null=True, blank=True
-    )  # noqa: DJ001
+    )
     reason = models.CharField(max_length=50)
     status = models.CharField(max_length=20)
     refunded_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
@@ -184,12 +184,12 @@ class Subscription(TimeStampedUUIDModel):
     plan_id = models.CharField(max_length=100, null=True, blank=True)  # noqa: DJ001
     amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     currency = models.CharField(max_length=10, default="USD")
-    stripe_subscription_id = models.CharField(
+    stripe_subscription_id = models.CharField(  # noqa: DJ001
         max_length=100, null=True, blank=True
-    )  # noqa: DJ001
-    paypal_subscription_id = models.CharField(
+    )
+    paypal_subscription_id = models.CharField(  # noqa: DJ001
         max_length=100, null=True, blank=True
-    )  # noqa: DJ001
+    )
     status = models.CharField(
         max_length=20,
         choices=SubscriptionStatus.choices,
