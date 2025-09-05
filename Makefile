@@ -47,13 +47,23 @@ eline-db:
 	docker compose exec postgres-db psql --username=postgres --dbname=shop-eline
 
 pip-freeze:
-	docker compose exec api pip freeze
+	docker compose exec api uv pip list
 
 pip-review:
-	docker compose exec api pip-review --local --interactive
+	docker compose exec api uv pip list --outdated
 
 pip-outdated:
-	docker compose exec api pip list --outdated --format=columns
+	docker compose exec api uv pip list --outdated
+
+# Comandos adicionales para uv
+uv-add:
+	docker compose exec api uv add $(PACKAGE)
+
+uv-remove:
+	docker compose exec api uv remove $(PACKAGE)
+
+uv-sync:
+	docker compose exec api uv sync
 
 test:
 	docker compose exec api pytest -p no:warnings --cov=.

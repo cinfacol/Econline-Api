@@ -40,35 +40,42 @@ RUN mkdir -p /root/.cache/uv && chmod -R 755 /root/.cache
 # Copiar archivos de dependencias PRIMERO (aprovecha el caché de Docker)
 COPY ./requirements.txt /app/
 
-# Opción 1: Usar uv pip directamente (más simple para Docker)
-RUN cd /app && uv pip install -r requirements.txt
+# Convertir requirements.txt a formato moderno de uv
+RUN cd /app && \
+    echo '[project]' > pyproject.toml && \
+    echo 'name = "econline-api"' >> pyproject.toml && \
+    echo 'version = "0.1.0"' >> pyproject.toml && \
+    echo 'description = "Econline API Django Application"' >> pyproject.toml && \
+    echo 'requires-python = ">=3.10"' >> pyproject.toml && \
+    echo 'dependencies = [' >> pyproject.toml && \
+    awk '{print "    \"" $0 "\","}' requirements.txt >> pyproject.toml && \
+    echo ']' >> pyproject.toml && \
+    echo '' >> pyproject.toml && \
+    echo '[build-system]' >> pyproject.toml && \
+    echo 'requires = ["hatchling"]' >> pyproject.toml && \
+    echo 'build-backend = "hatchling.build"' >> pyproject.toml
 
-# Nota: uv pip instala en el Python del sistema, no necesitamos configurar PATH para .venv
+# Instalar dependencias usando uv sync (más eficiente y con lock file)
+RUN cd /app && uv sync --frozen --no-dev
 
 # Configurar el entorno virtual creado por uv en el PATH
 ENV PATH="/app/.venv/bin:$PATH"
 
+# Copiar scripts de Docker
 COPY ./docker/local/django/entrypoint.sh /entrypoint.sh
-RUN sed -i 's/\r$//g' /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+RUN sed -i 's/\r$//g' /entrypoint.sh && chmod +x /entrypoint.sh
 
 COPY ./docker/local/django/start /start
-RUN sed -i 's/\r$//g' /start
-RUN chmod +x /start
+RUN sed -i 's/\r$//g' /start && chmod +x /start
 
 COPY ./docker/local/django/celery/worker/start /start-celery_worker
-RUN sed -i 's/\r$//g' /start-celery_worker
-RUN chmod +x /start-celery_worker
+RUN sed -i 's/\r$//g' /start-celery_worker && chmod +x /start-celery_worker
 
 COPY ./docker/local/django/celery/flower/start /start-flower
-RUN sed -i 's/\r$//g' /start-flower
-RUN chmod +x /start-flower
+RUN sed -i 's/\r$//g' /start-flower && chmod +x /start-flower
 
-# Crear un usuario no privilegiado
+# Crear un usuario no privilegiado (comentado por ahora)
 # RUN addgroup --system celeryuser && adduser --system --ingroup celeryuser celeryuser
-
-# Cambiar al usuario no privilegiado
 # USER celeryuser
 
-ENTRYPOINT [ "/entrypoint.sh"]
-
+ENTRYPOINT ["/entrypoint.sh"]

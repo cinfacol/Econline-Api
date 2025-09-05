@@ -1,0 +1,17 @@
+# Configuración UV para el proyecto Econline
+# Este archivo define configuraciones específicas para uv
+
+# Configuración de caché
+cache-dir = ".uv-cache"
+compile-bytecode = true
+
+# Configuración de instalación
+link-mode = "copy"
+no-cache = false
+
+# Configuración de índices
+index-url = "https://pypi.org/simple"
+
+# Configuración de resolución de dependencias
+resolution = "highest"
+prerelease = "disallow"
