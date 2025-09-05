@@ -55,14 +55,67 @@ pip-review:
 pip-outdated:
 	docker compose exec api uv pip list --outdated
 
-# Comandos adicionales para uv
+# Comandos modernos con uv y pyproject.toml
 uv-add:
-	docker compose exec api uv add $(PACKAGE)
+	uv add $(PACKAGE)
+
+uv-add-dev:
+	uv add --dev $(PACKAGE)
+
+uv-add-test:
+	uv add --optional test $(PACKAGE)
+
+uv-add-prod:
+	uv add --optional prod $(PACKAGE)
 
 uv-remove:
-	docker compose exec api uv remove $(PACKAGE)
+	uv remove $(PACKAGE)
 
 uv-sync:
+	uv sync
+
+uv-sync-dev:
+	uv sync --dev
+
+uv-lock:
+	uv lock
+
+uv-lock-upgrade:
+	uv lock --upgrade
+
+uv-run:
+	uv run $(COMMAND)
+
+# Comandos para desarrollo con uv
+uv-shell:
+	uv run python manage.py shell
+
+uv-migrate:
+	uv run python manage.py migrate
+
+uv-makemigrations:
+	uv run python manage.py makemigrations
+
+uv-test:
+	uv run pytest -p no:warnings --cov=.
+
+uv-black:
+	uv run black --exclude=migrations .
+
+uv-flake8:
+	uv run flake8 .
+
+uv-isort:
+	uv run isort . --skip env --skip migrations
+
+# Comandos Docker con uv (para uso con contenedores)
+docker-uv-add:
+	docker compose exec api uv add $(PACKAGE)
+
+docker-uv-remove:
+	docker compose exec api uv remove $(PACKAGE)
+
+docker-uv-sync:
 	docker compose exec api uv sync
 
 test:

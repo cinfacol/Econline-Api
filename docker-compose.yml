@@ -11,6 +11,7 @@ services:
             - TZ=America/Bogota
         volumes:
             - .:/app
+            - venv_volume:/app/.venv
             - static_volume:/app/staticfiles
             - media_volume:/app/mediafiles
             - redis_volume:/data
@@ -98,6 +99,7 @@ services:
             - TZ=America/Bogota
         volumes:
             - .:/app
+            - venv_volume:/app/.venv
             - /etc/timezone:/etc/timezone:ro
             - /etc/localtime:/etc/localtime:ro
         env_file:
@@ -129,6 +131,7 @@ services:
             - TZ=America/Bogota
         volumes:
             - .:/app
+            - venv_volume:/app/.venv
             - /etc/timezone:/etc/timezone:ro
             - /etc/localtime:/etc/localtime:ro
         healthcheck:
@@ -229,3 +232,7 @@ volumes:
         name: redis_data
         labels:
             - "com.example.description=Redis Data"
+    venv_volume:
+        name: venv_data
+        labels:
+            - "com.example.description=Python Virtual Environment"

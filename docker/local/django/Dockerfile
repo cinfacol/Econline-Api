@@ -33,20 +33,29 @@ ENV UV_SYSTEM_PYTHON=1
 ENV UV_CACHE_DIR=/root/.cache/uv
 ENV UV_LINK_MODE=copy
 ENV UV_COMPILE_BYTECODE=1
+ENV UV_PYTHON=/usr/local/bin/python3
 
 # Crear directorio de caché y configurar permisos
 RUN mkdir -p /root/.cache/uv && chmod -R 755 /root/.cache
 
-# Copiar archivos de dependencias PRIMERO (aprovecha el caché de Docker)
-COPY ./requirements.txt /app/
+# Copiar archivos de proyecto PRIMERO (para aprovechar el caché de Docker)
+COPY ./pyproject.toml ./uv.lock /app/
 
-# Opción 1: Usar uv pip directamente (más simple para Docker)
-RUN cd /app && uv pip install -r requirements.txt
+# Sincronizar dependencias usando el lock file (enfoque moderno)
+# Usamos --no-dev para solo instalar dependencias de producción
+RUN cd /app && uv sync --no-dev --python /usr/local/bin/python3
 
-# Nota: uv pip instala en el Python del sistema, no necesitamos configurar PATH para .venv
+# Corregir el enlace simbólico de Python en el virtual environment
+RUN rm -f /app/.venv/bin/python /app/.venv/bin/python3 /app/.venv/bin/python3.12
+RUN ln -s /usr/local/bin/python3 /app/.venv/bin/python
+RUN ln -s /usr/local/bin/python3 /app/.venv/bin/python3
+RUN ln -s /usr/local/bin/python3 /app/.venv/bin/python3.12
 
 # Configurar el entorno virtual creado por uv en el PATH
 ENV PATH="/app/.venv/bin:$PATH"
+
+# Verificar que las dependencias se instalaron correctamente
+RUN cd /app && python -c "import django; import psycopg2; print('Dependencies OK')"
 
 COPY ./docker/local/django/entrypoint.sh /entrypoint.sh
 RUN sed -i 's/\r$//g' /entrypoint.sh
