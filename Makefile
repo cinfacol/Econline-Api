@@ -147,3 +147,24 @@ isort-diff:
 
 isort:
 	docker compose exec api isort . --skip env --skip migrations
+
+# ===== RUFF COMMANDS (Modern replacement for black, flake8, isort) =====
+lint:
+	docker compose exec api ruff check .
+
+lint-fix:
+	docker compose exec api ruff check . --fix
+
+format:
+	docker compose exec api ruff format .
+
+format-check:
+	docker compose exec api ruff format . --check
+
+format-diff:
+	docker compose exec api ruff format . --diff
+
+# Combined command: fix linting and format code
+fix:
+	docker compose exec api ruff check . --fix
+	docker compose exec api ruff format .
