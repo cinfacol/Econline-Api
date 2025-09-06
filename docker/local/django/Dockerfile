@@ -33,7 +33,6 @@ ENV UV_SYSTEM_PYTHON=1
 ENV UV_CACHE_DIR=/root/.cache/uv
 ENV UV_LINK_MODE=copy
 ENV UV_COMPILE_BYTECODE=1
-ENV UV_PYTHON=/usr/local/bin/python3
 
 # Crear directorio de caché y configurar permisos
 RUN mkdir -p /root/.cache/uv && chmod -R 755 /root/.cache
@@ -42,42 +41,23 @@ RUN mkdir -p /root/.cache/uv && chmod -R 755 /root/.cache
 COPY ./pyproject.toml ./uv.lock /app/
 
 # Sincronizar dependencias usando el lock file (enfoque moderno)
-# Usamos --no-dev para solo instalar dependencias de producción
-RUN cd /app && uv sync --no-dev --python /usr/local/bin/python3
-
-# Corregir el enlace simbólico de Python en el virtual environment
-RUN rm -f /app/.venv/bin/python /app/.venv/bin/python3 /app/.venv/bin/python3.12
-RUN ln -s /usr/local/bin/python3 /app/.venv/bin/python
-RUN ln -s /usr/local/bin/python3 /app/.venv/bin/python3
-RUN ln -s /usr/local/bin/python3 /app/.venv/bin/python3.12
+RUN cd /app && uv sync --no-dev
 
 # Configurar el entorno virtual creado por uv en el PATH
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Verificar que las dependencias se instalaron correctamente
-RUN cd /app && python -c "import django; import psycopg2; print('Dependencies OK')"
-
+# Copiar y configurar scripts de Docker
 COPY ./docker/local/django/entrypoint.sh /entrypoint.sh
-RUN sed -i 's/\r$//g' /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+RUN sed -i 's/\r$//g' /entrypoint.sh && chmod +x /entrypoint.sh
 
 COPY ./docker/local/django/start /start
-RUN sed -i 's/\r$//g' /start
-RUN chmod +x /start
+RUN sed -i 's/\r$//g' /start && chmod +x /start
 
 COPY ./docker/local/django/celery/worker/start /start-celery_worker
-RUN sed -i 's/\r$//g' /start-celery_worker
-RUN chmod +x /start-celery_worker
+RUN sed -i 's/\r$//g' /start-celery_worker && chmod +x /start-celery_worker
 
 COPY ./docker/local/django/celery/flower/start /start-flower
-RUN sed -i 's/\r$//g' /start-flower
-RUN chmod +x /start-flower
+RUN sed -i 's/\r$//g' /start-flower && chmod +x /start-flower
 
-# Crear un usuario no privilegiado
-# RUN addgroup --system celeryuser && adduser --system --ingroup celeryuser celeryuser
-
-# Cambiar al usuario no privilegiado
-# USER celeryuser
-
-ENTRYPOINT [ "/entrypoint.sh"]
+ENTRYPOINT ["/entrypoint.sh"]
 
