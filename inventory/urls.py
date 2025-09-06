@@ -1,6 +1,8 @@
 from django.urls import path
 
 from .views import (
+    AttributeValueCreateAPIView,
+    AttributeValueListAPIView,
     BrandCreateAPIView,
     BrandListAPIView,
     InventoryByCategoryAPIView,
@@ -9,6 +11,8 @@ from .views import (
     InventoryImages,
     InventoryListAPIView,
     ListUsersInventoryAPIView,
+    TypeCreateAPIView,
+    TypeListAPIView,
     create_inventory_api_view,
     delete_inventory_api_view,
     search_api_view,
@@ -41,4 +45,16 @@ urlpatterns = [
     # path("search/", InventorySearchAPIView.as_view(), name="inventory-search"),
     path("brands/create/", BrandCreateAPIView.as_view(), name="brand-create"),
     path("brands/list/", BrandListAPIView.as_view(), name="brand-list"),
+    path(
+        "attribute-values/list/",
+        AttributeValueListAPIView.as_view(),
+        name="attribute-value-list",
+    ),
+    path(
+        "attribute-values/create/",
+        AttributeValueCreateAPIView.as_view(),
+        name="attribute-value-create",
+    ),
+    path("types/list/", TypeListAPIView.as_view(), name="type-list"),
+    path("types/create/", TypeCreateAPIView.as_view(), name="type-create"),
 ]

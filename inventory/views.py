@@ -7,14 +7,17 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .exceptions import InventoryNotFound
-from .models import Brand, Inventory, InventoryViews
+from .models import AttributeValue, Brand, Inventory, InventoryViews, Type
 from .pagination import InventoryPagination
 from .serializers import (
+    AttributeValueCreateSerializer,
     BrandSerializer,
     InventoryCreateSerializer,
     InventoryImagesSerializer,
     InventorySerializer,
     InventoryViewSerializer,
+    TypeCreateSerializer,
+    TypeSerializer,
 )
 
 
@@ -22,13 +25,41 @@ from .serializers import (
 class BrandListAPIView(generics.ListAPIView):
     queryset = Brand.objects.all().order_by("name")
     serializer_class = BrandSerializer
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.AllowAny]
 
 
 # Vista para crear marcas
 class BrandCreateAPIView(generics.CreateAPIView):
     queryset = Brand.objects.all()
     serializer_class = BrandSerializer
+    permission_classes = [permissions.IsAdminUser]
+
+
+# Vista para listar valores de atributo
+class AttributeValueListAPIView(generics.ListAPIView):
+    queryset = AttributeValue.objects.all().order_by("value")
+    serializer_class = AttributeValueCreateSerializer
+    permission_classes = [permissions.AllowAny]
+
+
+# Vista para crear valores de atributo
+class AttributeValueCreateAPIView(generics.CreateAPIView):
+    queryset = AttributeValue.objects.all()
+    serializer_class = AttributeValueCreateSerializer
+    permission_classes = [permissions.IsAdminUser]
+
+
+# Vista para listar tipos
+class TypeListAPIView(generics.ListAPIView):
+    queryset = Type.objects.all().order_by("name")
+    serializer_class = TypeSerializer
+    permission_classes = [permissions.AllowAny]
+
+
+# Vista para crear tipos
+class TypeCreateAPIView(generics.CreateAPIView):
+    queryset = Type.objects.all()
+    serializer_class = TypeCreateSerializer
     permission_classes = [permissions.IsAdminUser]
 
 

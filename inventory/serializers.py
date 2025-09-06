@@ -30,16 +30,38 @@ class AttributeValueSerializer(serializers.ModelSerializer):
         read_only = True
 
 
+class AttributeValueCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AttributeValue
+        fields = [
+            "pkid",
+            "id",
+            "attribute",
+            "value",
+        ]
+
+
 class BrandSerializer(serializers.ModelSerializer):
     class Meta:
         model = Brand
-        fields = ["name"]
+        fields = ["pkid", "name"]
 
 
 class TypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Type
-        fields = ["name"]
+        fields = ["pkid", "name"]
+
+
+class TypeCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Type
+        fields = [
+            "pkid",
+            "id",
+            "name",
+            "description",
+        ]
 
 
 class ReviewSerializer(serializers.ModelSerializer):
