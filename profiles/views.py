@@ -39,7 +39,12 @@ class GetProfileAPIView(APIView):
 
     def get(self, request):
         user = self.request.user
-        user_profile = Profile.objects.get(user=user)
+        try:
+            user_profile = Profile.objects.get(user=user)
+        except Profile.DoesNotExist:
+            # Crear el perfil si no existe
+            user_profile = Profile.objects.create(user=user)
+
         serializer = ProfileSerializer(user_profile, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 

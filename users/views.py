@@ -113,7 +113,36 @@ class CustomTokenVerifyView(TokenVerifyView):
         request.data["token"] = access_token
 
         try:
-            return super().post(request, *args, **kwargs)
+            response = super().post(request, *args, **kwargs)
+
+            # Si el token es válido, obtener información del usuario
+            if response.status_code == 200:
+                from rest_framework_simplejwt.tokens import AccessToken
+
+                token = AccessToken(access_token)
+                user_id = token.payload.get("user_id")
+
+                if user_id:
+                    try:
+                        from django.contrib.auth import get_user_model
+
+                        User = get_user_model()
+                        user = User.objects.get(id=user_id)
+
+                        return Response(
+                            {
+                                "valid": True,
+                                "is_admin": user.is_staff or user.is_superuser,
+                                "is_staff": user.is_staff,
+                                "is_superuser": user.is_superuser,
+                            },
+                            status=status.HTTP_200_OK,
+                        )
+                    except User.DoesNotExist:
+                        pass
+
+            return response
+
         except Exception:
             # Si hay algún error con el token, también tratamos como guest
             return Response(

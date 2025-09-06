@@ -30,6 +30,7 @@ class UserSerializer(serializers.ModelSerializer):
             "profile_photo",
             "top_agent",
             "date_joined",
+            "is_staff",
         ]
 
     def get_first_name(self, obj):
@@ -45,6 +46,8 @@ class UserSerializer(serializers.ModelSerializer):
         representation = super().to_representation(instance)
         if instance.is_superuser:
             representation["admin"] = True
+        # También incluir información de staff/admin
+        representation["is_admin"] = instance.is_staff or instance.is_superuser
         return representation
 
 
@@ -64,6 +67,8 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         token["username"] = user.username
         token["first_name"] = user.first_name
         token["last_name"] = user.last_name
+        token["is_staff"] = user.is_staff
+        token["is_admin"] = user.is_staff or user.is_superuser
 
         return token
 

@@ -15,4 +15,6 @@ def create_user_profile(sender, instance, created, **kwargs):
 
 @receiver(post_save, sender=AUTH_USER_MODEL)
 def save_user_profile(sender, instance, **kwargs):
-    instance.profile.save()
+    # Solo guardar si el perfil ya existe
+    if hasattr(instance, "profile"):
+        instance.profile.save()
