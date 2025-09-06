@@ -3,6 +3,7 @@ FROM python:alpine3.22
 ENV APP_HOME=/app
 RUN mkdir $APP_HOME
 RUN mkdir $APP_HOME/staticfiles
+RUN mkdir $APP_HOME/mediafiles
 WORKDIR $APP_HOME
 
 LABEL maintainer='cinfacol@gmail.com'
