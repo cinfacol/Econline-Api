@@ -205,13 +205,58 @@ def update_inventory_api_view(request, sku):
 @api_view(["POST"])
 @permission_classes([permissions.IsAdminUser])
 def create_inventory_api_view(request):
-    data = request.data
+    data = request.data.copy()
     data["user"] = request.user.pkid
+
+    # Extraer datos de stock e imágenes
+    units = data.pop("units", [0])[0] if "units" in data else 0
+    units_sold = data.pop("units_sold", [0])[0] if "units_sold" in data else 0
+    images = request.FILES.getlist("images", [])
+    alt_texts = data.getlist("alt_texts", [])
+    is_featured_flags = data.getlist("is_featured_flags", [])
+    default_flags = data.getlist("default_flags", [])
+
     serializer = InventoryCreateSerializer(data=data)
 
     if serializer.is_valid():
-        serializer.save()
-        return Response(serializer.data)
+        inventory = serializer.save()
+
+        # Crear registro de stock
+        from .models import Stock
+
+        Stock.objects.create(
+            inventory=inventory,
+            units=int(units) if units else 0,
+            units_sold=int(units_sold) if units_sold else 0,
+        )
+
+        # Crear registros de imágenes
+        from .models import Media
+
+        for i, image in enumerate(images):
+            alt_text = (
+                alt_texts[i]
+                if i < len(alt_texts)
+                else f"Imagen {i+1} de {inventory.product.name}"
+            )
+            is_featured = (
+                is_featured_flags[i].lower() == "true"
+                if i < len(is_featured_flags)
+                else False
+            )
+            default = (
+                default_flags[i].lower() == "true" if i < len(default_flags) else False
+            )
+
+            Media.objects.create(
+                inventory=inventory,
+                image=image,
+                alt_text=alt_text,
+                is_featured=is_featured,
+                default=default,
+            )
+
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
