@@ -1,3 +1,3 @@
-FROM nginx:mainline-alpine3.22
+FROM nginx:alpine
 RUN rm /etc/nginx/conf.d/default.conf
 COPY ./default.conf /etc/nginx/conf.d/default.conf

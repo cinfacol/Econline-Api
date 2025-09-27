@@ -43,6 +43,7 @@ ALLOWED_HOSTS = env.list(
         "[::1]",
         "192.168.1.4",
         "localhost:9090",
+        "localhost:3000",
         "api.virtualeline.com",
     ],
 )
@@ -241,6 +242,13 @@ CORS_ORIGIN_WHITELIST = [
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 ADMIN_URL = "supersecret/"
+
+CSRF_COOKIE_NAME = "csrftoken"
+CSRF_COOKIE_AGE = 31449600  # 1 año
+CSRF_COOKIE_DOMAIN = None
+CSRF_COOKIE_PATH = "/"
+CSRF_COOKIE_SAMESITE = "Lax"
+CSRF_FAILURE_VIEW = "django.views.csrf.csrf_failure"
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
