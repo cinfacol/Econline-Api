@@ -236,3 +236,11 @@ volumes:
         name: venv_data
         labels:
             - "com.example.description=Python Virtual Environment"
+
+# Configuraciones adicionales para nginx
+x-nginx-settings: &nginx-settings
+  environment:
+    - NGINX_WORKER_PROCESSES=auto
+    - NGINX_WORKER_CONNECTIONS=1024
+    - NGINX_KEEPALIVE_TIMEOUT=65
+    - NGINX_KEEPALIVE_REQUESTS=100

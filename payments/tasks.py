@@ -147,14 +147,21 @@ def handle_checkout_session_completed_task(session_data):
         )
 
     try:
-        logger.info(f"Actualizando estado del pago {payment_id} a COMPLETED")
-        payment.status = Payment.PaymentStatus.COMPLETED
-        payment.paid_at = timezone.now()  # Agregar paid_at
-        payment.save()
+        # Actualizar solo si no está ya completado (evitar condición de carrera)
+        if payment.status != Payment.PaymentStatus.COMPLETED:
+            logger.info(f"Actualizando estado del pago {payment_id} a COMPLETED")
+            payment.status = Payment.PaymentStatus.COMPLETED
+            payment.paid_at = timezone.now()
+            payment.save()
+        else:
+            logger.info(f"Pago {payment_id} ya estaba COMPLETED")
 
-        logger.info(f"Actualizando estado de la orden {order_id} a COMPLETED")
-        order.status = Order.OrderStatus.COMPLETED
-        order.save()
+        if order.status != Order.OrderStatus.COMPLETED:
+            logger.info(f"Actualizando estado de la orden {order_id} a COMPLETED")
+            order.status = Order.OrderStatus.COMPLETED
+            order.save()
+        else:
+            logger.info(f"Orden {order_id} ya estaba COMPLETED")
 
         logger.info(
             f"Checkout session completed for payment {payment_id}",
@@ -165,12 +172,16 @@ def handle_checkout_session_completed_task(session_data):
             },
         )
 
-        # Limpiar el carrito después del pago exitoso
-        cart = Cart.objects.filter(user=payment.order.user).first()
-        if cart:
-            cart.items.all().delete()
-            # Limpiar cupones del carrito
-            clear_cart_coupons(payment.order.user)
+        # Limpiar el carrito después del pago exitoso (corregir variable incorrecta)
+        if order and order.user:
+            cart = Cart.objects.filter(user=order.user).first()
+            if cart and cart.items.exists():
+                cart.items.all().delete()
+                # Limpiar cupones del carrito
+                clear_cart_coupons(order.user)
+                logger.info(f"Carrito limpiado para usuario {order.user.id}")
+            else:
+                logger.info("Carrito ya estaba limpio o no existe")
 
         # El envío de email de éxito de pago se realiza solo en el handler de charge.succeeded
 
@@ -901,23 +912,36 @@ def handle_charge_succeeded_task(charge_data):
                     exc_info=True,
                 )
 
-            logger.info(f"Actualizando estado del pago {payment_id} a COMPLETED")
-            payment.status = Payment.PaymentStatus.COMPLETED
-            payment.paid_at = timezone.now()
-            payment.save()
+            # Actualizar solo si no está ya completado (evitar condición de carrera)
+            if payment.status != Payment.PaymentStatus.COMPLETED:
+                logger.info(f"Actualizando estado del pago {payment_id} a COMPLETED")
+                payment.status = Payment.PaymentStatus.COMPLETED
+                payment.paid_at = timezone.now()
+                payment.save()
+            else:
+                logger.info(f"Pago {payment_id} ya estaba COMPLETED")
 
-            logger.info(
-                f"Actualizando estado de la orden {payment.order.id} a COMPLETED"
-            )
-            payment.order.status = Order.OrderStatus.COMPLETED
-            payment.order.save()
+            if payment.order.status != Order.OrderStatus.COMPLETED:
+                logger.info(
+                    f"Actualizando estado de la orden {payment.order.id} a COMPLETED"
+                )
+                payment.order.status = Order.OrderStatus.COMPLETED
+                payment.order.save()
+            else:
+                logger.info(f"Orden {payment.order.id} ya estaba COMPLETED")
 
-            # Limpiar el carrito después del pago exitoso
-            cart = Cart.objects.filter(user=payment.order.user).first()
-            if cart:
-                cart.items.all().delete()
-                # Limpiar cupones del carrito
-                clear_cart_coupons(payment.order.user)
+            # Limpiar el carrito después del pago exitoso (solo si no se ha limpiado ya)
+            if payment.order and payment.order.user:
+                cart = Cart.objects.filter(user=payment.order.user).first()
+                if cart and cart.items.exists():
+                    cart.items.all().delete()
+                    # Limpiar cupones del carrito
+                    clear_cart_coupons(payment.order.user)
+                    logger.info(
+                        f"Carrito limpiado para usuario {payment.order.user.id}"
+                    )
+                else:
+                    logger.info("Carrito ya estaba limpio")
 
             # Enviar email de éxito de pago de forma atómica
             if payment.order.user and payment.order.user.email:

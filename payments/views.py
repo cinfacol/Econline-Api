@@ -349,14 +349,21 @@ class PaymentViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
-    @action(detail=False, methods=["POST", "GET"])
+    @action(
+        detail=False, methods=["POST", "GET"], permission_classes=[permissions.AllowAny]
+    )
     @csrf_exempt
     def stripe_webhook(self, request):
+        logger.info(
+            f"🎯 Webhook recibido - Method: {request.method}, Content-Length: {len(request.body)}"
+        )
+        logger.info(f"🎯 Headers: {dict(request.headers)}")
+
         webhook_handler = WebhookHandler()
         try:
             sig_header = request.META.get("HTTP_STRIPE_SIGNATURE")
             if not sig_header:
-                logger.error("No se encontró la firma de Stripe en los headers")
+                logger.error("❌ No se encontró la firma de Stripe en los headers")
                 return Response(
                     {"error": _("No Stripe signature found in headers")},
                     status=status.HTTP_400_BAD_REQUEST,
@@ -388,7 +395,9 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    @action(detail=False, methods=["POST", "GET"])
+    @action(
+        detail=False, methods=["POST", "GET"], permission_classes=[permissions.AllowAny]
+    )
     @csrf_exempt
     def webhook_test(self, request):
         """Endpoint temporal para probar conectividad del webhook"""
