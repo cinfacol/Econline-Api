@@ -75,7 +75,7 @@ uv-sync:
 	uv sync
 
 uv-sync-dev:
-	uv sync --dev
+	uv sync --groupdev
 
 uv-lock:
 	uv lock
