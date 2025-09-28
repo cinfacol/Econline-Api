@@ -237,7 +237,7 @@ def create_inventory_api_view(request):
             alt_text = (
                 alt_texts[i]
                 if i < len(alt_texts)
-                else f"Imagen {i+1} de {inventory.product.name}"
+                else f"Imagen {i + 1} de {inventory.product.name}"
             )
             is_featured = (
                 is_featured_flags[i].lower() == "true"

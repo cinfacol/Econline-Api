@@ -147,9 +147,7 @@ class AddItemToCartView(APIView):
             )
 
         with transaction.atomic():
-            CartItem.objects.create(
-                inventory=inventory, cart=cart, quantity=quantity
-            )
+            CartItem.objects.create(inventory=inventory, cart=cart, quantity=quantity)
             # Update total_items in the cart
             # Note: total_items should probably be the count of unique items, not total quantity
             # Cart.objects.filter(user=user).update(total_items=F("total_items") + 1)

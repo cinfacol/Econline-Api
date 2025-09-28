@@ -20,6 +20,4 @@ class IsActiveQueryset(models.QuerySet):
 
 class PublishedManager(models.Manager):
     def get_queryset(self):
-        return (
-            super().get_queryset().filter(published_status=True)
-        )
+        return super().get_queryset().filter(published_status=True)

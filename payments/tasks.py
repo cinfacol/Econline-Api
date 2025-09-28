@@ -147,6 +147,24 @@ def handle_checkout_session_completed_task(session_data):
         )
 
     try:
+        # Guardar el Payment Intent ID si está disponible en la sesión
+        if session_id:
+            try:
+                import stripe
+
+                stripe.api_key = settings.STRIPE_SECRET_KEY
+                stripe_session = stripe.checkout.Session.retrieve(session_id)
+                if (
+                    hasattr(stripe_session, "payment_intent")
+                    and stripe_session.payment_intent
+                ):
+                    payment.stripe_payment_intent_id = stripe_session.payment_intent
+                    logger.info(
+                        f"Payment Intent ID guardado: {stripe_session.payment_intent}"
+                    )
+            except Exception as e:
+                logger.warning(f"No se pudo obtener Payment Intent ID: {str(e)}")
+
         # Actualizar solo si no está ya completado (evitar condición de carrera)
         if payment.status != Payment.PaymentStatus.COMPLETED:
             logger.info(f"Actualizando estado del pago {payment_id} a COMPLETED")
@@ -366,23 +384,69 @@ def handle_payment_intent_payment_failed_task(payment_intent_data):
 
 @shared_task
 def handle_refund_succeeded_task(charge_data):
+    logger.info("Procesando evento charge.refunded")
+    logger.info(f"Datos del cargo de reembolso: {charge_data}")
+
     try:
         with transaction.atomic():
-            # Obtener el ID del pago del metadata del cargo
-            payment_id = (
-                charge_data.get("payment_intent", {})
-                .get("metadata", {})
-                .get("payment_id")
-            )
+            payment = None
 
-            if not payment_id:
-                logger.error("No payment_id found in refund metadata")
-                return
+            # Método 1: Buscar por payment_id en metadata del charge
+            payment_id = charge_data.get("metadata", {}).get("payment_id")
+            if payment_id:
+                try:
+                    payment = Payment.objects.select_related("order").get(id=payment_id)
+                    logger.info(
+                        f"Payment encontrado por metadata payment_id: {payment_id}"
+                    )
+                except Payment.DoesNotExist:
+                    logger.warning(
+                        f"Payment no encontrado con metadata payment_id: {payment_id}"
+                    )
 
-            try:
-                payment = Payment.objects.select_related("order").get(id=payment_id)
-            except Payment.DoesNotExist:
-                logger.error(f"Payment not found for refund: {payment_id}")
+            # Método 2: Buscar por payment_intent del charge si no se encontró por metadata
+            if not payment and charge_data.get("payment_intent"):
+                try:
+                    payment_intent_id = charge_data.get("payment_intent")
+                    payment = Payment.objects.select_related("order").get(
+                        stripe_payment_intent_id=payment_intent_id
+                    )
+                    logger.info(
+                        f"Payment encontrado por payment_intent_id: {payment_intent_id}"
+                    )
+                except Payment.DoesNotExist:
+                    logger.warning(
+                        f"Payment no encontrado con payment_intent_id: {payment_intent_id}"
+                    )
+
+            # Método 3: Buscar en metadata del payment_intent si está disponible
+            if not payment:
+                try:
+                    import stripe
+
+                    stripe.api_key = settings.STRIPE_SECRET_KEY
+                    payment_intent_id = charge_data.get("payment_intent")
+                    if payment_intent_id:
+                        payment_intent = stripe.PaymentIntent.retrieve(
+                            payment_intent_id
+                        )
+                        payment_id = payment_intent.metadata.get("payment_id")
+                        if payment_id:
+                            payment = Payment.objects.select_related("order").get(
+                                id=payment_id
+                            )
+                            logger.info(
+                                f"Payment encontrado via PaymentIntent metadata: {payment_id}"
+                            )
+                except Exception as e:
+                    logger.warning(
+                        f"Error buscando payment via PaymentIntent: {str(e)}"
+                    )
+
+            if not payment:
+                logger.error(
+                    f"No se pudo encontrar el pago para el reembolso. Charge ID: {charge_data.get('id')}"
+                )
                 return
 
             # Crear registro de reembolso
@@ -390,24 +454,75 @@ def handle_refund_succeeded_task(charge_data):
                 Decimal(charge_data.get("amount_refunded", 0)) / 100
             )  # Convertir de centavos a unidad
 
-            Refund.objects.create(
+            refund = Refund.objects.create(
                 payment=payment,
+                user=payment.user,  # Asociar al usuario del pago
                 amount=refund_amount,
+                currency=payment.currency,  # Usar la moneda del pago original
                 stripe_refund_id=charge_data.get("id"),
                 reason=charge_data.get("reason", "customer_requested"),
                 status="completed",
             )
+            logger.info(
+                f"Registro de reembolso creado: {refund.id} por ${refund_amount}"
+            )
 
             # Actualizar estado del pago
+            old_payment_status = payment.status
             payment.status = Payment.PaymentStatus.REFUNDED
             payment.save()
+            logger.info(
+                f"Payment status actualizado de {old_payment_status} a REFUNDED"
+            )
 
             # Actualizar estado de la orden
             if payment.order:
+                old_order_status = payment.order.status
                 payment.order.status = Order.OrderStatus.CANCELLED
                 payment.order.save()
+                logger.info(
+                    f"Order status actualizado de {old_order_status} a CANCELLED"
+                )
 
-            logger.info(f"Refund processed successfully for payment {payment_id}")
+                # Liberar inventario cuando se hace reembolso
+                try:
+                    from payments.views import PaymentViewSet
+
+                    viewset = PaymentViewSet()
+                    order_items = payment.order.orderitem_set.all()
+                    if order_items.exists():
+                        viewset.release_inventory(order_items)
+                        logger.info(
+                            f"Inventario liberado para {order_items.count()} items de la orden {payment.order.id}"
+                        )
+                except Exception as e:
+                    logger.error(f"Error liberando inventario en reembolso: {str(e)}")
+
+                # Limpiar cupones del carrito
+                try:
+                    clear_cart_coupons(payment.user)
+                except Exception as e:
+                    logger.error(f"Error limpiando cupones en reembolso: {str(e)}")
+
+            # Enviar email de notificación de reembolso
+            if payment.user and payment.user.email:
+                send_refund_notification_email.delay(
+                    payment.user.email,
+                    refund_amount,
+                    payment.order.id if payment.order else payment.id,
+                    payment.currency,
+                )
+
+            logger.info(
+                f"Refund processed successfully for payment {payment.id}",
+                extra={
+                    "payment_id": str(payment.id),
+                    "order_id": str(payment.order.id) if payment.order else None,
+                    "refund_amount": float(refund_amount),
+                    "stripe_refund_id": charge_data.get("id"),
+                    "user_id": str(payment.user.id),
+                },
+            )
 
     except Exception as e:
         logger.error(
@@ -416,6 +531,58 @@ def handle_refund_succeeded_task(charge_data):
             extra={"charge_data": charge_data, "error": str(e)},
         )
         raise
+
+
+@shared_task
+def send_refund_notification_email(email, refund_amount, order_ref, currency="USD"):
+    """Enviar email de notificación de reembolso al usuario"""
+    if not email:
+        logger.error("No email address provided for refund notification email.")
+        return False
+
+    subject = _("Confirmación de reembolso - Pedido #{order_ref}").format(
+        order_ref=order_ref
+    )
+    message = _(
+        "Hola,\n\n"
+        "Te confirmamos que tu reembolso ha sido procesado exitosamente.\n\n"
+        "Detalles del reembolso:\n"
+        "- Pedido: #{order_ref}\n"
+        "- Monto reembolsado: {refund_amount} {currency}\n\n"
+        "El reembolso aparecerá en tu método de pago original en los próximos 5-10 días hábiles.\n\n"
+        "Si tienes alguna pregunta, no dudes en contactarnos.\n\n"
+        "Gracias por tu comprensión.\n\n"
+        "Equipo de VirtuelLine"
+    ).format(order_ref=order_ref, refund_amount=refund_amount, currency=currency)
+
+    try:
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[email],
+        )
+        logger.info(
+            f"Refund notification email sent to {email}",
+            extra={
+                "email": email,
+                "refund_amount": refund_amount,
+                "order_ref": order_ref,
+                "currency": currency,
+            },
+        )
+        return True
+    except Exception as e:
+        logger.error(
+            f"Error sending refund notification email to {email}: {str(e)}",
+            extra={
+                "email": email,
+                "refund_amount": refund_amount,
+                "order_ref": order_ref,
+                "error": str(e),
+            },
+        )
+        return False
 
 
 @shared_task
