@@ -1,0 +1,14 @@
+¡Hola{% if user.first_name %} {{ user.first_name }}{% endif %}!
+
+Gracias por registrarte en {{ site_name }}.
+
+Para activar tu cuenta, haz clic en el siguiente enlace:
+{{ protocol }}://{{ domain }}/activation/{{ uid }}/{{ token }}/
+
+Si el enlace no funciona, copia y pega la URL completa en tu navegador.
+
+Este enlace de activación expirará en 24 horas.
+
+¡Esperamos verte pronto!
+
+Equipo de {{ site_name }}

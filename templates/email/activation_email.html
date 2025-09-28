@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Activación de cuenta - {{ site_name }}</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .email-container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            color: #007bff;
+            margin-bottom: 10px;
+        }
+        .activation-button {
+            display: inline-block;
+            background-color: #007bff;
+            color: white;
+            padding: 15px 30px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .activation-button:hover {
+            background-color: #0056b3;
+        }
+        .footer {
+            border-top: 1px solid #ddd;
+            padding-top: 20px;
+            margin-top: 30px;
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+        }
+        .warning {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header">
+            <div class="logo">{{ site_name }}</div>
+            <h1>¡Bienvenido{% if user.first_name %}, {{ user.first_name }}{% endif %}!</h1>
+        </div>
+        
+        <div class="content">
+            <p>Gracias por registrarte en <strong>{{ site_name }}</strong>.</p>
+            
+            <p>Para completar tu registro y activar tu cuenta, necesitamos verificar tu dirección de correo electrónico.</p>
+            
+            <div style="text-align: center;">
+                <a href="{{ protocol }}://{{ domain }}/activation/{{ uid }}/{{ token }}/" class="activation-button">
+                    🔓 Activar mi cuenta
+                </a>
+            </div>
+            
+            <div class="warning">
+                <strong>⚠️ Importante:</strong> Este enlace de activación expirará en <strong>24 horas</strong>.
+            </div>
+            
+            <p>Si no puedes hacer clic en el botón, copia y pega el siguiente enlace en tu navegador:</p>
+            <p style="word-break: break-all; background-color: #f8f9fa; padding: 10px; border-radius: 3px; font-family: monospace;">
+                {{ protocol }}://{{ domain }}/activation/{{ uid }}/{{ token }}/
+            </p>
+            
+            <p>Si no creaste esta cuenta, puedes ignorar este correo de forma segura.</p>
+        </div>
+        
+        <div class="footer">
+            <p>Este correo fue enviado automáticamente por {{ site_name }}.</p>
+            <p>No respondas a este correo electrónico.</p>
+        </div>
+    </div>
+</body>
+</html>

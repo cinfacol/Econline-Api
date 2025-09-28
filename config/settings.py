@@ -137,7 +137,7 @@ ROOT_URLCONF = "config.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -173,15 +173,17 @@ DATABASES = {
     }
 }
 
-""" EMAIL_BACKEND = env(
+EMAIL_BACKEND = env(
     "EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend"
-) """
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
-CELERY_EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+)
+# EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"  # Para desarrollo
+CELERY_EMAIL_BACKEND = env(
+    "CELERY_EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend"
+)
 
-EMAIL_HOST = env("EMAIL_HOST", default="smtp.gmail.com")
+EMAIL_HOST = env("EMAIL_HOST", default="sandbox.smtp.mailtrap.io")
 EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
-EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+EMAIL_PORT = env.int("EMAIL_PORT", default=2525)
 EMAIL_HOST_USER = env("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD")
 
@@ -353,6 +355,9 @@ DJOSER = {
     # "ACTIVATION_URL": "activate/{uid}/{token}",
     "ACTIVATION_URL": "activation/{uid}/{token}",
     "SEND_ACTIVATION_EMAIL": True,
+    "EMAIL_FRONTEND_PROTOCOL": "http",
+    "EMAIL_FRONTEND_DOMAIN": "localhost:3000",
+    "EMAIL_FRONTEND_SITE_NAME": "VirtuelLine",
     "SOCIAL_AUTH_TOKEN_STRATEGY": "djoser.social.token.jwt.TokenStrategy",
     "SOCIAL_AUTH_ALLOWED_REDIRECT_URIS": env.list(
         "REDIRECT_URLS",
@@ -450,6 +455,11 @@ SIMPLE_JWT = {
 STRIPE_API_KEY = env("STRIPE_API_KEY")
 FRONTEND_URL = env("FRONTEND_URL")
 FRONTEND_STORE_URL = env("FRONTEND_STORE_URL")
+
+# Configuraciones específicas de Djoser para emails
+EMAIL_FRONTEND_PROTOCOL = "http"
+EMAIL_FRONTEND_DOMAIN = "localhost:3000"
+EMAIL_FRONTEND_SITE_NAME = "VirtuelLine"
 
 BT_ENVIRONMENT = env("BT_ENVIRONMENT")
 BT_MERCHANT_ID = env("BT_MERCHANT_ID")
